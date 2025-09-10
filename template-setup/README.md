@@ -264,10 +264,6 @@ npx playwright test
 4. Test on multiple platforms
 5. Submit a pull request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🆘 Support
 
 If you encounter issues or have questions:
