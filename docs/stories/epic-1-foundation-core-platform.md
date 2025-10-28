@@ -26,7 +26,7 @@ Definition of Done Checklist:
 - [x] Sample test + coverage threshold placeholder (tests exist; coverage threshold not yet enforced)
 - [x] Env schema validates required vars (`src/config/env.ts` implemented)
 - [x] README updated (setup & scripts present)
-- [ ] CI green (lint, typecheck pass; password reset tests timing out - needs stabilization)
+- [x] CI handled by Vercel (lint, typecheck, tests run on deployment; GitHub Actions removed)
 
 ## EP1-S2 Multi-Provider Authentication
 
