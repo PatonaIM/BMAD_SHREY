@@ -1,92 +1,163 @@
 'use client';
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Paper,
+  Typography,
+  Stack,
+  TextField,
+  Button,
+  Alert,
+  LinearProgress,
+  Box,
+  Tooltip,
+} from '@mui/material';
+import { trpc } from '../../services/trpc/client';
 
-export default function RegisterPage(): JSX.Element {
+function scorePassword(pw: string): { score: number; label: string } {
+  let score = 0;
+  if (pw.length >= 8) score += 1;
+  if (/[A-Z]/.test(pw)) score += 1;
+  if (/[0-9]/.test(pw)) score += 1;
+  if (/[^A-Za-z0-9]/.test(pw)) score += 1;
+  const labels: string[] = [
+    'Too weak',
+    'Weak',
+    'Fair',
+    'Strong',
+    'Very strong',
+  ];
+  const label = labels[score] ?? 'Too weak';
+  return { score, label };
+}
+
+export default function RegisterPage(): React.ReactElement {
   const router = useRouter();
+  const registerMutation = trpc.auth.register.useMutation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const strength = useMemo(() => scorePassword(password), [password]);
+
+  const canSubmit =
+    email.length > 3 && password.length >= 8 && !registerMutation.isLoading;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    registerMutation.reset();
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error?.message || 'Registration failed');
-      } else {
+      const res = await registerMutation.mutateAsync({ email, password });
+      if (res.ok) {
         router.push('/login?registered=1');
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      setError(message);
-    } finally {
-      setLoading(false);
+    } catch {
+      /* error handled via mutation state */
     }
   }
 
   return (
-    <div
-      style={{ maxWidth: 360, margin: '40px auto', fontFamily: 'system-ui' }}
-    >
-      <h2>Create Account</h2>
-      <form
-        onSubmit={onSubmit}
-        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-      >
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8 }}
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            minLength={8}
-            style={{ width: '100%', padding: 8 }}
-          />
-        </label>
-        {error && (
-          <div
-            style={{ color: 'crimson', fontSize: 14 }}
-            data-testid="reg-error"
-          >
-            {error}
-          </div>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            padding: '10px 14px',
-            background: '#222',
-            color: '#fff',
-            borderRadius: 4,
-          }}
-        >
-          {loading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-      <p style={{ marginTop: 16, fontSize: 14 }}>
-        Already have an account? <a href="/login">Sign in</a>
-      </p>
-    </div>
+    <Container maxWidth="sm" sx={{ py: 6 }}>
+      <Paper elevation={6} sx={{ p: 4, borderRadius: 3 }}>
+        <Stack spacing={3}>
+          <Typography variant="h4" fontWeight={600} textAlign="center">
+            Create Account
+          </Typography>
+          <Typography variant="body2" color="text.secondary" textAlign="center">
+            Use a valid email and a strong password (min 8 chars).
+          </Typography>
+          <Box component="form" onSubmit={onSubmit} noValidate>
+            <Stack spacing={2}>
+              <TextField
+                label="Email"
+                type="email"
+                required
+                fullWidth
+                value={email}
+                autoComplete="email"
+                onChange={e => setEmail(e.target.value)}
+              />
+              <Tooltip
+                title={`Password strength: ${strength.label}`}
+                placement="top"
+                enterDelay={300}
+              >
+                <TextField
+                  label="Password"
+                  type={showPw ? 'text' : 'password'}
+                  required
+                  fullWidth
+                  value={password}
+                  autoComplete="new-password"
+                  onChange={e => setPassword(e.target.value)}
+                  inputProps={{ minLength: 8 }}
+                />
+              </Tooltip>
+              <Stack spacing={1}>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min((strength.score / 4) * 100, 100)}
+                  color={
+                    strength.score < 2
+                      ? 'error'
+                      : strength.score < 3
+                        ? 'warning'
+                        : 'success'
+                  }
+                  aria-label="Password strength"
+                />
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {strength.label}
+                  </Typography>
+                  <Button
+                    type="button"
+                    size="small"
+                    onClick={() => setShowPw(s => !s)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {showPw ? 'Hide' : 'Show'}
+                  </Button>
+                </Stack>
+              </Stack>
+              {registerMutation.isError && (
+                <Alert severity="error" variant="outlined">
+                  {registerMutation.error?.message || 'Registration failed'}
+                </Alert>
+              )}
+              {registerMutation.isSuccess && registerMutation.data.ok && (
+                <Alert severity="success" variant="outlined">
+                  Account created. Redirecting...
+                </Alert>
+              )}
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={!canSubmit}
+                sx={{ py: 1.2 }}
+              >
+                {registerMutation.isLoading ? 'Registering...' : 'Register'}
+              </Button>
+            </Stack>
+          </Box>
+          <Typography variant="body2" textAlign="center">
+            Already have an account?{' '}
+            <Button
+              href="/login"
+              variant="text"
+              size="small"
+              sx={{ textTransform: 'none' }}
+            >
+              Sign in
+            </Button>
+          </Typography>
+        </Stack>
+      </Paper>
+    </Container>
   );
 }
