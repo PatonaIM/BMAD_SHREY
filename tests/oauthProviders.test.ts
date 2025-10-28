@@ -148,7 +148,7 @@ describe('OAuth linking & role mapping', () => {
       GITHUB_CLIENT_ID: 'ghid',
       GITHUB_CLIENT_SECRET: 'ghsec',
     });
-  const { authOptions } = await import('../src/auth/options.js');
+    const { authOptions } = await import('../src/auth/options.js');
     expect(authOptions.providers.length).toBeGreaterThanOrEqual(3);
   });
 });

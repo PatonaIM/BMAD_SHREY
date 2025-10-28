@@ -18,7 +18,7 @@ export async function ensureUserEmailUniqueIndex(): Promise<void> {
       { email: 1 },
       { unique: true, name: 'uniq_user_email' }
     );
-  } catch (e) {
+  } catch {
     // ignore errors (already exists or race)
   }
 }

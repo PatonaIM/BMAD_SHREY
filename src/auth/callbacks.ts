@@ -65,6 +65,8 @@ export const callbacks = {
               'X-GitHub-Api-Version': '2022-11-28',
             },
           });
+          // eslint-disable-next-line no-console
+          console.log(resp);
           if (resp.ok) {
             interface GitHubEmailRecord {
               email: string;
@@ -80,7 +82,7 @@ export const callbacks = {
             if (primary?.email) email = primary.email;
           }
         }
-      } catch (_e) {
+      } catch {
         // Silent failure; error path below handles missing email
       }
     }

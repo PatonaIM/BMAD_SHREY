@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
     const res = await performPasswordReset(parsed.data);
     return NextResponse.json(res);
-  } catch (e) {
+  } catch {
     return NextResponse.json(
       { ok: false, error: { message: 'Server error' } },
       { status: 500 }

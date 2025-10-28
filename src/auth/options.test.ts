@@ -32,7 +32,7 @@ describe('authOptions callbacks', () => {
     const account: TestAccount = { provider: 'google' };
     // Cast callback to a simplified signature for test isolation
     const out = await (
-      jwtCb as unknown as (args: {
+      jwtCb as unknown as (_args: {
         token: TestToken;
         user: AdapterUser;
         account: TestAccount;
@@ -56,7 +56,7 @@ describe('authOptions callbacks', () => {
       provider: 'github',
     };
     const out = await (
-      sessionCb as unknown as (args: {
+      sessionCb as unknown as (_args: {
         session: { user: TestSessionUser };
         token: TestToken;
         user: AdapterUser;

@@ -57,7 +57,6 @@ const providerConfig: Record<
 
 export function SocialProviderButton({
   providerId,
-  providerName,
   loading,
   onClick,
 }: SocialProviderButtonProps): React.ReactElement {
