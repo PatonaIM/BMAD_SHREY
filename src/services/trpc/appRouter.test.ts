@@ -1,4 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@bmad/config/env', () => ({
+  getEnv: () => ({
+    NODE_ENV: 'test',
+    MONGODB_URI: 'mongodb://localhost:27017/test-db',
+    OPENAI_API_KEY: 'sk-test',
+  }),
+}));
+
+vi.mock('../../data-access/mongoClient', () => ({
+  getMongoClient: async () => ({
+    db: () => ({
+      collection: () => ({
+        findOne: async () => null,
+        insertOne: async () => {},
+      }),
+    }),
+  }),
+}));
+
 import { appRouter } from './appRouter';
 
 describe('healthRouter', () => {

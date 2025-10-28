@@ -7,7 +7,22 @@ interface CreateCtxOpts {
   req: Request;
 }
 
-export async function createContext(_opts?: CreateCtxOpts) {
+function extractIp(req?: Request): string | undefined {
+  try {
+    if (!req) return undefined;
+    const xf = req.headers.get('x-forwarded-for');
+    if (xf && xf.length > 0) {
+      const first = xf.split(',')[0];
+      if (first) return first.trim();
+    }
+    const ip = req.headers.get('x-real-ip');
+    return ip || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function createContext(opts?: CreateCtxOpts) {
   // NextAuth getServerSession for App Router expects headers object
   let session: any = null;
   try {
@@ -17,6 +32,7 @@ export async function createContext(_opts?: CreateCtxOpts) {
   } catch {
     session = null;
   }
-  return { session };
+  const ip = extractIp(opts?.req);
+  return { session, ip };
 }
 export type Context = inferAsyncReturnType<typeof createContext>;

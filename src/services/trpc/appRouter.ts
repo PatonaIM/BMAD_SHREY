@@ -1,6 +1,14 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import type { Context } from './context';
 import { requireRole } from '../../auth/roleGuard';
+import { scoringRouter } from './scoringRouter';
+import { performRegistration, RegistrationSchema } from '../auth/register';
+import {
+  PasswordResetRequestSchema,
+  PasswordPerformSchema,
+  requestPasswordReset,
+  performPasswordReset,
+} from '../auth/passwordReset';
 
 const t = initTRPC.context<Context>().create({
   errorFormatter({ shape }) {
@@ -35,11 +43,28 @@ export const authRouter = t.router({
   adminCheck: t.procedure
     .use(roleProtected(['ADMIN']))
     .query(() => ({ ok: true })),
+  register: t.procedure
+    .input(RegistrationSchema)
+    .mutation(async ({ input }) => {
+      const res = await performRegistration(input);
+      return res;
+    }),
+  passwordResetRequest: t.procedure
+    .input(PasswordResetRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      return requestPasswordReset(input, { ip: ctx.ip });
+    }),
+  passwordResetPerform: t.procedure
+    .input(PasswordPerformSchema)
+    .mutation(async ({ input }) => {
+      return performPasswordReset(input);
+    }),
 });
 
 export const appRouter = t.router({
   health: healthRouter,
   auth: authRouter,
+  scoring: scoringRouter,
 });
 
 export type AppRouter = typeof appRouter;

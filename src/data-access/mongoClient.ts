@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb';
-import { getEnv } from '@bmad/config/env';
-import { logger } from '@bmad/monitoring/logger';
+import { getEnv } from '../config/env';
+import { logger } from '../monitoring/logger';
 
 let client: MongoClient | null = null;
 export async function getMongoClient(): Promise<MongoClient> {

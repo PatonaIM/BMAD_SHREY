@@ -50,3 +50,12 @@ export async function ensureSeedAdmin(): Promise<void> {
     passwordHash: hash,
   });
 }
+
+export async function anyAdminExists(): Promise<boolean> {
+  const col = await usersCol();
+  const admin = await col.findOne(
+    { roles: { $in: ['ADMIN'] } },
+    { projection: { _id: 1 } }
+  );
+  return !!admin;
+}

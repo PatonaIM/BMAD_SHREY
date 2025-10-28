@@ -76,3 +76,5 @@ out/
 .dockerignore
 Dockerfile
 docker-compose.yml
+
+.next

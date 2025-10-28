@@ -1,13 +1,23 @@
 {
-  "files": [],
-  "references": [
-    { "path": "tsconfig.base.json" },
-    { "path": "packages/shared" },
-    { "path": "packages/config" },
-    { "path": "packages/monitoring" },
-    { "path": "packages/data-access" },
-    { "path": "packages/services" },
-    { "path": "packages/ai-services" },
-    { "path": "apps/web" }
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "jsx": "preserve",
+    "isolatedModules": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }
