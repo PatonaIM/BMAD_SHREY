@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "tsconfig.base.json" },
+    { "path": "packages/shared" },
+    { "path": "packages/config" },
+    { "path": "packages/monitoring" },
+    { "path": "packages/data-access" },
+    { "path": "packages/services" },
+    { "path": "packages/ai-services" },
+    { "path": "apps/web" }
+  ]
+}

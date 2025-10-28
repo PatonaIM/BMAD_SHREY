@@ -1,0 +1,45 @@
+import { initTRPC, TRPCError } from '@trpc/server';
+import type { Context } from './context';
+import { requireRole } from '../../auth/roleGuard';
+
+const t = initTRPC.context<Context>().create({
+  errorFormatter({ shape }) {
+    return shape; // customize later
+  },
+});
+
+const isAuthed = t.middleware(({ ctx, next }) => {
+  if (!ctx.session?.user?.email) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({ ctx });
+});
+
+const roleProtected = (roles: string[]) =>
+  t.middleware(({ ctx, next }) => {
+    const rolesInSession = (ctx.session as unknown as { roles?: string[] })
+      ?.roles;
+    requireRole(roles, rolesInSession);
+    return next({ ctx });
+  });
+
+export const healthRouter = t.router({
+  ping: t.procedure.query(() => ({ ok: true, ts: Date.now() })),
+});
+
+export const authRouter = t.router({
+  me: t.procedure.use(isAuthed).query(({ ctx }) => {
+    const roles = (ctx.session as unknown as { roles?: string[] })?.roles || [];
+    return { email: ctx.session?.user?.email, roles };
+  }),
+  adminCheck: t.procedure
+    .use(roleProtected(['ADMIN']))
+    .query(() => ({ ok: true })),
+});
+
+export const appRouter = t.router({
+  health: healthRouter,
+  auth: authRouter,
+});
+
+export type AppRouter = typeof appRouter;

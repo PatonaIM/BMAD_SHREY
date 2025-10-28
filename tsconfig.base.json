@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "incremental": true,
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@bmad/shared/*": ["src/shared/*"],
+      "@bmad/config/*": ["src/config/*"],
+      "@bmad/services/*": ["src/services/*"],
+      "@bmad/data-access/*": ["src/data-access/*"],
+      "@bmad/ai-services/*": ["src/ai/*"],
+      "@bmad/monitoring/*": ["src/monitoring/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build"],
+  "ignoreDeprecations": "6.0",
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}
