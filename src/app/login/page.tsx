@@ -20,6 +20,10 @@ import { SocialProviderButton } from '../../components/SocialProviderButton';
 const errorMap: Record<string, string> = {
   CredentialsSignin: 'Invalid email or password',
   AccessDenied: 'Access denied',
+  MissingOAuthEmail:
+    'Your provider did not supply an email. Please register with email/password.',
+  OAuthProviderInternal:
+    'OAuth login failed. Please try again or use credentials signup.',
 };
 
 export default function LoginPage(): React.ReactElement {

@@ -53,6 +53,8 @@ if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET) {
     GitHubProvider({
       clientId: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,
+      // Request user email scope so we can retrieve primary verified email if not in profile
+      authorization: { params: { scope: 'read:user user:email' } },
       allowDangerousEmailAccountLinking: false,
     })
   );

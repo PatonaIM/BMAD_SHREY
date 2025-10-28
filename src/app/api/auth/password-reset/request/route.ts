@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   PasswordResetRequestSchema,
   requestPasswordReset,
-} from '@/src/services/auth/passwordReset';
+} from '../../../../../services/auth/passwordReset';
 
 export async function POST(req: Request) {
   try {

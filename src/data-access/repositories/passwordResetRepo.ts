@@ -26,9 +26,9 @@ function genId(): string {
   if (typeof nodeCrypto.randomUUID === 'function') {
     return nodeCrypto.randomUUID();
   }
-  const bytes: Buffer = nodeCrypto.randomBytes(16);
-  // RFC4122 adjustments
-  if (bytes.length > 8) {
+  const bytes = nodeCrypto.randomBytes(16);
+  // Defensive: ensure buffer length before bitwise ops (TS narrow)
+  if (bytes && bytes.length >= 16) {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
   }

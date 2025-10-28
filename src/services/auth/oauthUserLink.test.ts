@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { linkOrCreateOAuthUser } from './oauthUserLink';
+import { linkOrCreateOAuthUser } from './oauthUserLink.js';
 
 vi.mock('../../config/env', () => ({
   getEnv: (): { AUTO_ELEVATE_FIRST_OAUTH_ADMIN: boolean } => ({
@@ -35,6 +35,9 @@ vi.mock('../../data-access/repositories/userRepo', () => ({
     return created;
   },
   anyAdminExists: async (): Promise<boolean> => adminExists,
+  ensureUserEmailUniqueIndex: async (): Promise<void> => {
+    /* no-op for tests */
+  },
 }));
 
 beforeEach(() => {

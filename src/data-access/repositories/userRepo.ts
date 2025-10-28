@@ -11,6 +11,18 @@ async function usersCol(): Promise<Collection<DbUser>> {
   return client.db().collection<DbUser>('users');
 }
 
+export async function ensureUserEmailUniqueIndex(): Promise<void> {
+  const col = await usersCol();
+  try {
+    await col.createIndex(
+      { email: 1 },
+      { unique: true, name: 'uniq_user_email' }
+    );
+  } catch (e) {
+    // ignore errors (already exists or race)
+  }
+}
+
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
   const col = await usersCol();
   return col.findOne({ email });

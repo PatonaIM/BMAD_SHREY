@@ -2,6 +2,7 @@ import {
   findUserByEmail,
   createUser,
   anyAdminExists,
+  ensureUserEmailUniqueIndex,
 } from '../../data-access/repositories/userRepo';
 import { getEnv } from '../../config/env';
 import { logger } from '../../monitoring/logger';
@@ -28,6 +29,7 @@ export async function linkOrCreateOAuthUser(
   if (!profile.email) {
     return { error: 'missing_email' };
   }
+  await ensureUserEmailUniqueIndex();
   const emailLower = profile.email.toLowerCase();
   const existing = await findUserByEmail(emailLower);
   if (existing) {

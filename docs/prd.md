@@ -176,7 +176,7 @@ Comprehensive testing approach balancing coverage with development velocity:
 
 **Frontend Technology Stack:**
 
-- **Framework:** Next.js 14+ with App Router for modern React patterns and optimal performance
+- **Framework:** Next.js 16+ with App Router for modern React patterns, enhanced Turbopack performance, and readiness for upcoming React 19 features
 - **UI Library:** Material-UI 5+ with custom theme extending existing design tokens (#A16AE8, #8096FD)
 - **State Management:** React Query (TanStack Query) for server state management and caching
 - **Form Handling:** React Hook Form with Zod validation for type-safe form processing
@@ -258,7 +258,7 @@ So that **I can begin feature development with consistent code quality, testing 
 
 #### Acceptance Criteria
 
-1. Next.js 14+ application created with TypeScript and App Router configuration
+1. Next.js 16+ application created with TypeScript and App Router configuration
 2. Material-UI 5+ integrated with custom theme extending brand colors (#A16AE8, #8096FD)
 3. ESLint, Prettier, and Husky pre-commit hooks configured for automated code quality
 4. Jest and React Testing Library setup for unit testing with sample test cases
@@ -938,5 +938,32 @@ Define specific KPIs and measurement frameworks:
 - **User Engagement:** Registration conversion, profile completion rates, application submission rates, AI interview participation
 - **Business Outcomes:** Customer acquisition cost, monthly recurring revenue, user retention, enterprise client satisfaction
 - **Product Quality:** Net Promoter Score, feature adoption rates, support ticket volume, user feedback sentiment
+
+## Appendix: Next.js 16 Upgrade Plan
+
+**Objective:** Migrate framework baseline from Next.js 14.x to 16.x to leverage improved Turbopack performance, enhanced App Router stability, and prepare for upcoming React 19 features without refactors under time pressure later.
+
+**Action Checklist:**
+
+1. Branch: create `upgrade/next16` branch
+2. Dependency bump: update `next` in `package.json` to `^16.x` (run install)
+3. Environment audit: run `npx next info` pre & post upgrade; capture in `docs/architecture/upgrade-next16.md`
+4. Build verification: execute `npm run build` (capture warnings); ensure no edge/crypto regressions
+5. Runtime validation: confirm tRPC routes still forced to `nodejs` runtime where crypto needed
+6. Auth flow QA: credentials, Google, GitHub logins; session persistence; password reset
+7. Email test: trigger password reset email (Resend + fallback path) – confirm no SDK incompatibility
+8. UI smoke: registration page (password strength meter), job listing mock, layout responsiveness
+9. Performance: Lighthouse snapshot (home, jobs) compare TTI & CLS vs 14.x baseline
+10. Tests: run `npm test` (vitest) + add targeted Next 16 regression tests if new warnings appear
+11. Documentation: update README & this PRD (done), add CHANGELOG entry
+12. Monitoring: enable optional Next.js instrumentation (future) for server actions if adopted
+
+**Risks & Mitigations:**
+
+- Potential breaking changes in experimental App Router APIs → keep usage minimal; avoid experimental flags until stable
+- Crypto in edge runtime still unsupported → maintain node runtime selection for password reset & auth handlers
+- Material UI compatibility → verify no React version shift; stay on React 18 until MUI guides React 19 readiness
+
+**Deferred Items:** Partial Prerendering, Server Actions adoption, React 19 upgrade, image pipeline refinements (avatar optimization), Redis caching integration.
 
 This PRD provides the comprehensive foundation for transforming the TeamMatch concept into a market-ready AI-powered hiring platform. The systematic progression from technical architecture through detailed requirements ensures development teams have clear guidance while maintaining flexibility for iterative improvement based on user feedback and market response.
