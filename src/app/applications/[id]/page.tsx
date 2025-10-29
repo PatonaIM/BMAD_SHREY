@@ -4,10 +4,24 @@ import { authOptions } from '../../../auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { applicationRepo } from '../../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
+import { getResume } from '../../../data-access/repositories/resumeRepo';
+import Link from 'next/link';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
+
+const statusColors: Record<string, string> = {
+  submitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  ai_interview:
+    'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  under_review:
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  interview_scheduled:
+    'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+  offer: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+};
 
 export default async function ApplicationDetailPage({ params }: PageProps) {
   const { id } = await params;
@@ -16,51 +30,261 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
     ? (session.user as typeof session.user & { id?: string })
     : undefined;
   if (!userSession?.id) redirect(`/login?redirect=/applications/${id}`);
+
   const app = await applicationRepo.findById(id);
   if (!app) return notFound();
   if (app.userId !== userSession.id) return notFound();
   const job = await jobRepo.findById(app.jobId);
+
+  // Fetch resume details if resumeVersionId exists
+  let resumeInfo = null;
+  if (app.resumeVersionId) {
+    const resumeDoc = await getResume(app.userId);
+    if (resumeDoc) {
+      resumeInfo = resumeDoc.versions.find(
+        v => v.versionId === app.resumeVersionId
+      );
+    }
+  }
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <h1 className="text-2xl font-semibold mb-6">Application Details</h1>
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
-        <h2 className="text-lg font-medium mb-1">
-          {job?.title || 'Unknown Role'}
-        </h2>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
-          {job?.company || 'Unknown Company'} • Applied{' '}
-          {app.appliedAt.toLocaleDateString()}
-        </p>
-        <div className="flex flex-wrap gap-2 mb-4">
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-brand-primary/10 text-brand-primary ring-1 ring-brand-primary/30">
-            {app.status}
-          </span>
-          {typeof app.matchScore === 'number' && (
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-300 dark:ring-neutral-700">
-              Match {app.matchScore}
-            </span>
-          )}
-        </div>
-        <h3 className="text-sm font-semibold mb-2">Timeline</h3>
-        <ul className="space-y-1 text-xs">
-          {app.timeline.map((e, i) => (
-            <li key={i} className="text-neutral-700 dark:text-neutral-300">
-              <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                {e.timestamp.toLocaleString()}
-              </span>{' '}
-              – <span className="font-medium">{e.status}</span> ({e.actorType}
-              {e.actorId ? `:${e.actorId}` : ''}) {e.note ? `– ${e.note}` : ''}
-            </li>
-          ))}
-        </ul>
+    <div className="max-w-4xl mx-auto py-8 px-4">
+      <div className="mb-6">
+        <Link
+          href="/dashboard"
+          className="text-sm text-muted-foreground hover:text-foreground mb-2 inline-block"
+        >
+          ← Back to Dashboard
+        </Link>
+        <h1 className="text-3xl font-bold">Application Details</h1>
       </div>
+
+      {/* Job & Status Card */}
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold mb-2">
+              {job?.title || 'Unknown Role'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              {job?.company || 'Unknown Company'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Applied on{' '}
+              {app.appliedAt.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+          <div className="text-right">
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                statusColors[app.status] || statusColors.submitted
+              }`}
+            >
+              {app.status.replace('_', ' ').toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        {/* Match Score Section */}
+        {typeof app.matchScore === 'number' && (
+          <div className="border-t pt-4 mt-4">
+            <h3 className="text-sm font-semibold mb-3">Match Score</h3>
+            <div className="flex items-center gap-4 mb-3">
+              <div className="text-3xl font-bold text-brand-primary">
+                {app.matchScore}%
+              </div>
+              <div className="flex-1">
+                <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-3 bg-gradient-to-r from-brand-primary to-brand-secondary transition-all"
+                    style={{ width: `${app.matchScore}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            {app.scoreBreakdown && (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {app.scoreBreakdown.semanticSimilarity !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">
+                      Semantic Match:
+                    </span>{' '}
+                    <span className="font-medium">
+                      {app.scoreBreakdown.semanticSimilarity}%
+                    </span>
+                  </div>
+                )}
+                {app.scoreBreakdown.skillsAlignment !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">Skills:</span>{' '}
+                    <span className="font-medium">
+                      {app.scoreBreakdown.skillsAlignment}%
+                    </span>
+                  </div>
+                )}
+                {app.scoreBreakdown.experienceLevel !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">Experience:</span>{' '}
+                    <span className="font-medium">
+                      {app.scoreBreakdown.experienceLevel}%
+                    </span>
+                  </div>
+                )}
+                {app.scoreBreakdown.otherFactors !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground">
+                      Other Factors:
+                    </span>{' '}
+                    <span className="font-medium">
+                      {app.scoreBreakdown.otherFactors}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Resume Card */}
+        {resumeInfo && (
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Resume
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">File:</span>{' '}
+                <span className="font-medium">{resumeInfo.fileName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Size:</span>{' '}
+                <span className="font-medium">
+                  {(resumeInfo.fileSize / 1024).toFixed(1)} KB
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Uploaded:</span>{' '}
+                <span className="font-medium">
+                  {new Date(resumeInfo.storedAt).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Type:</span>{' '}
+                <span className="font-medium">
+                  {resumeInfo.mimeType.split('/')[1]?.toUpperCase() ||
+                    'UNKNOWN'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cover Letter Card */}
+        {app.coverLetter && (
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+              Cover Letter
+            </h3>
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-48 overflow-y-auto">
+              {app.coverLetter}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Timeline Card */}
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
+        <h3 className="text-sm font-semibold mb-4">Application Timeline</h3>
+        <div className="relative">
+          <div className="absolute left-2 top-0 bottom-0 w-px bg-neutral-200 dark:bg-neutral-700" />
+          <ul className="space-y-4">
+            {app.timeline.map((event, i) => (
+              <li key={i} className="relative pl-8">
+                <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 border-2 border-brand-primary" />
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded ${
+                        statusColors[event.status] || statusColors.submitted
+                      }`}
+                    >
+                      {event.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {event.actorType}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {event.timestamp.toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                  {event.note && (
+                    <p className="text-sm mt-1 text-foreground">{event.note}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Job Description Card */}
       {job?.description && (
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
-          <h3 className="text-sm font-semibold mb-2">Job Snapshot</h3>
-          <p className="text-xs whitespace-pre-line text-neutral-700 dark:text-neutral-300">
-            {job.description.slice(0, 600)}
-            {job.description.length > 600 ? '…' : ''}
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold">Job Description</h3>
+            <Link
+              href={`/jobs/${job.workableId || job._id}`}
+              className="text-xs text-brand-primary hover:underline"
+            >
+              View Full Job →
+            </Link>
+          </div>
+          <div
+            className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{
+              __html: job.description.slice(0, 800),
+            }}
+          />
+          {job.description.length > 800 && (
+            <p className="text-xs text-muted-foreground mt-2">...</p>
+          )}
         </div>
       )}
     </div>

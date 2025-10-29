@@ -14,44 +14,32 @@ export class ApplicationRepository {
   }
 
   async create(
-    data: Omit<
-      Application,
-      '_id' | 'createdAt' | 'updatedAt' | 'timeline' | 'status' | 'appliedAt'
-    > & { initialStatus?: ApplicationStatus; coverLetter?: string }
+    userId: string,
+    jobId: string,
+    resumeVersionId?: string
   ): Promise<Application> {
     const collection = await this.getCollection();
     const now = new Date();
-    const status: ApplicationStatus = data.initialStatus || 'submitted';
-    const timeline: ApplicationTimelineEvent[] = [
-      { timestamp: now, status, actorType: 'candidate' },
-    ];
-    const app: Omit<Application, '_id'> = {
-      userId: data.userId,
-      jobId: data.jobId,
-      status,
-      timeline,
-      // scoring
-      matchScore: data.matchScore,
-      scoreBreakdown: data.scoreBreakdown,
-      // interview
-      aiInterviewId: data.aiInterviewId,
-      aiInterviewScore: data.aiInterviewScore,
-      aiInterviewCompletedAt: data.aiInterviewCompletedAt,
-      // application data
-      coverLetter: data.coverLetter,
-      resumeUrl: data.resumeUrl,
+    const doc: Application = {
+      _id: crypto.randomUUID(),
+      userId,
+      jobId,
+      status: 'submitted',
+      timeline: [
+        {
+          timestamp: now,
+          status: 'submitted',
+          actorType: 'candidate',
+          actorId: userId,
+        },
+      ],
+      resumeVersionId,
       appliedAt: now,
-      // metadata
-      lastViewedByRecruiterAt: undefined,
       createdAt: now,
       updatedAt: now,
     };
-    const result = await collection.insertOne(app as Application);
-    const created = {
-      ...app,
-      _id: result.insertedId.toString(),
-    } as Application;
-    return created;
+    await collection.insertOne(doc);
+    return doc;
   }
 
   async findById(id: string): Promise<Application | null> {

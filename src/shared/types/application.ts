@@ -40,6 +40,7 @@ export interface Application {
   // Application Data
   coverLetter?: string;
   resumeUrl?: string; // Link to uploaded resume
+  resumeVersionId?: string; // Link to specific resume version from resumes collection
 
   // Metadata
   appliedAt: Date;

@@ -8,56 +8,68 @@ interface UploadState {
   versionId?: string;
 }
 
-export const ResumeUpload: React.FC = () => {
+interface ResumeUploadProps {
+  onUploadSuccess?: (_versionId: string) => void;
+}
+
+export const ResumeUpload: React.FC<ResumeUploadProps> = ({
+  onUploadSuccess,
+}) => {
   const [state, setState] = useState<UploadState>({
     progress: 0,
     status: 'idle',
   });
   const abortRef = useRef<AbortController | null>(null);
 
-  const onFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    if (!file) return;
-    const form = new FormData();
-    form.append('file', file, file.name);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setState({ progress: 5, status: 'uploading' });
-    try {
-      // Using fetch without real progress events; simulate simple progress steps
-      const res = await fetch('/api/profile/resume/upload', {
-        method: 'POST',
-        body: form,
-        signal: controller.signal,
-      });
-      setState(s => ({ ...s, progress: 70 }));
-      const json = await res.json();
-      if (!json.ok) {
+  const onFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append('file', file, file.name);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setState({ progress: 5, status: 'uploading' });
+      try {
+        // Using fetch without real progress events; simulate simple progress steps
+        const res = await fetch('/api/profile/resume/upload', {
+          method: 'POST',
+          body: form,
+          signal: controller.signal,
+        });
+        setState(s => ({ ...s, progress: 70 }));
+        const json = await res.json();
+        if (!json.ok) {
+          setState({
+            progress: 100,
+            status: 'error',
+            error: json.error?.message || 'Upload failed',
+          });
+          return;
+        }
         setState({
           progress: 100,
-          status: 'error',
-          error: json.error?.message || 'Upload failed',
+          status: 'success',
+          versionId: json.value.currentVersionId,
         });
-        return;
+        if (onUploadSuccess) {
+          onUploadSuccess(json.value.currentVersionId);
+        }
+      } catch (e) {
+        if ((e as { name?: string }).name === 'AbortError') {
+          setState({ progress: 0, status: 'idle', error: 'Cancelled' });
+        } else {
+          setState({
+            progress: 100,
+            status: 'error',
+            error: (e as Error).message,
+          });
+        }
       }
-      setState({
-        progress: 100,
-        status: 'success',
-        versionId: json.value.currentVersionId,
-      });
-    } catch (e) {
-      if (controller.signal.aborted) {
-        setState({ progress: 0, status: 'idle', error: 'Cancelled' });
-      } else {
-        setState({
-          progress: 100,
-          status: 'error',
-          error: (e as Error).message,
-        });
-      }
-    }
-  }, []);
+    },
+    [onUploadSuccess]
+  );
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFiles(e.target.files);

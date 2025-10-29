@@ -5,6 +5,8 @@ import { notFound, redirect } from 'next/navigation';
 import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import Link from 'next/link';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
+import { getResume } from '../../../../data-access/repositories/resumeRepo';
+import { ApplyForm } from '../../../../components/ApplyForm';
 
 export default async function ApplyPage({
   params,
@@ -25,7 +27,22 @@ export default async function ApplyPage({
   }
   const existing = await applicationRepo.findByUserAndJob(userId, job._id);
 
-  // Placeholder until application repository & workflow is implemented
+  // Get user's existing resume if any
+  const resumeDoc = await getResume(userId);
+
+  // Serialize resume data for client component (convert to plain objects)
+  const serializedResume = resumeDoc
+    ? {
+        currentVersionId: resumeDoc.currentVersionId,
+        versions: resumeDoc.versions.map(v => ({
+          versionId: v.versionId,
+          fileName: v.fileName,
+          storedAt: v.storedAt,
+          fileSize: v.fileSize,
+        })),
+      }
+    : undefined;
+
   return (
     <main className="px-4 py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Apply to {job.title}</h1>
@@ -34,49 +51,11 @@ export default async function ApplyPage({
           You already applied to this job. Application ID: {existing._id}
         </div>
       ) : (
-        <>
-          <p className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-            Submit a simple application. Resume URL and cover letter are
-            optional for MVP. Duplicate applications are prevented.
-          </p>
-          <form
-            action={`/jobs/${id}/apply`}
-            method="post"
-            encType="multipart/form-data"
-            className="flex flex-col gap-3 mb-4"
-          >
-            <div className="flex flex-col gap-1">
-              <label htmlFor="resumeUrl" className="text-xs font-medium">
-                Resume URL
-              </label>
-              <input
-                id="resumeUrl"
-                name="resumeUrl"
-                placeholder="https://..."
-                className="input"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="coverLetter" className="text-xs font-medium">
-                Cover Letter
-              </label>
-              <textarea
-                id="coverLetter"
-                name="coverLetter"
-                placeholder="Optional cover letter"
-                rows={5}
-                className="input"
-              />
-            </div>
-            <button type="submit" className="btn-primary px-5 py-2 text-sm">
-              Submit Application
-            </button>
-          </form>
-        </>
+        <ApplyForm jobId={job._id} existingResume={serializedResume} />
       )}
       <Link
         href={`/jobs/${job.workableId || job._id}`}
-        className="btn-outline px-4 py-2 text-sm inline-block"
+        className="btn-outline px-4 py-2 text-sm inline-block mt-4"
       >
         Back to Job
       </Link>
