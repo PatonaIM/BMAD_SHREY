@@ -1,96 +1,136 @@
-# Repo Template
+# Teamified Platform
 
-A clean repository template for new projects with comprehensive development environment setup.
+Teamified is a full-stack recruiting & candidate experience platform integrating job data from Workable, enriching listings with structured skills, and providing streamlined application & tracking features.
 
-## 🚀 Quick Start
+## 🚀 Highlights
 
-This template includes everything you need to get started with a new project:
+- **Workable ATS Integration**: Scheduled sync + on-demand hydration to pull missing descriptions, requirements, benefits & inferred skills.
+- **SEO-Optimized Job Pages**: Server-rendered listings with JSON-LD, clean semantic markup, pagination rel links, and canonical URLs.
+- **Candidate Dashboard**: Track applications, statuses, and timelines with minimal latency via tRPC procedures.
+- **Secure Authentication**: NextAuth (OAuth providers + credentials) with role-based guards and audit logging hooks.
+- **Structured Logging**: Pino-based event logging for fetch, hydrate, render and auth flows.
+- **Skill Extraction**: Heuristic parsing of hydrated description/requirements body to build searchable skill sets.
+- **Tailwind UI**: Migrated from Material UI to Tailwind for lighter bundle, theming via utility classes, dark mode toggle, and marketing sections.
 
-- **Cross-platform development environment setup**
-- **Pre-configured development tools**
-- **CI/CD workflows**
-- **Code quality tools**
-- **Comprehensive documentation**
+## 🧱 Architecture Overview
 
-## 📁 Template Structure
+| Layer       | Path                                | Purpose                                                                      |
+| ----------- | ----------------------------------- | ---------------------------------------------------------------------------- |
+| Config      | `src/config/env.ts`                 | Zod validation of required environment variables                             |
+| Data Access | `src/data-access/repositories/*`    | MongoDB repositories, search & upsert logic                                  |
+| Services    | `src/services/*`                    | Domain services (auth, scoring, workable sync/hydrate, email, rate limiting) |
+| API         | `src/app/api/*`                     | Next.js route handlers (auth, workable, tRPC)                                |
+| UI          | `src/app/**/*` + `src/components/*` | App Router pages + presentational & interactive components                   |
+| Monitoring  | `src/monitoring/logger.ts`          | Structured application logging                                               |
+| Shared      | `src/shared/*`                      | Cross-cutting utilities, result wrapper, error types, vector math            |
+
+## 🌐 Workable Integration
+
+- `sync` route: Bulk fetch active roles, upsert into MongoDB.
+- `hydrate` route: Enrich incomplete jobs with missing description/requirements.
+- Runtime detail fetch on individual job page retains original HTML for richer rendering while sanitizing output.
+
+## 🎨 Styling (Tailwind Migration)
+
+The platform migrated from MUI to Tailwind for performance and design flexibility.
+
+| Before                               | After                                               |
+| ------------------------------------ | --------------------------------------------------- |
+| MUI ThemeProvider, component imports | Utility-first classes + custom `globals.css` tokens |
+| Emotion runtime styling              | Purged; no CSS-in-JS at runtime                     |
+| Heavy component abstraction          | Lean semantic markup with composable primitives     |
+
+Core utilities live in `src/styles/globals.css` (buttons, cards, badges, inputs). Dark mode uses `class` strategy toggled by a custom component.
+
+## 🔐 Authentication & Security
+
+- NextAuth providers (GitHub, Google, credentials).
+- Password reset flow with token repository and tests.
+- Rate limiter middleware in `src/services/security/rateLimiter.ts` (extensible for per-IP/route windows).
+
+## 🧪 Testing
+
+Vitest test suites cover:
+
+- Application & auth flows (`src/services/auth/*.test.ts`)
+- tRPC router behavior (`src/services/trpc/appRouter.test.ts`)
+- Scoring logic (`src/services/scoring/matchScorer.test.ts`)
+- Vector utilities (`src/shared/vector.test.ts`)
+- JSON-LD structure (`src/seo/jobJsonLd.test.ts`)
+
+Python tests (if any future additions) run via `pytest` script.
+
+## 📦 Tech Stack
+
+- Next.js 15 (App Router)
+- TypeScript strict
+- MongoDB driver 6.x
+- tRPC v10 + React Query
+- NextAuth
+- Tailwind CSS 3.x
+- Pino logging
+- Zod validation
+
+## 🧪 Local Development
+
+```bash
+# Install deps
+npm install
+
+# Run dev server
+npm run dev
+
+# Typecheck
+npm run typecheck
+
+# Lint
+npm run lint
+
+# Tests
+npm test
+```
+
+Environment variables required (see `src/config/env.ts`):
 
 ```
-├── template-setup/          # Development environment setup
-│   ├── README.md           # Detailed setup instructions
-│   ├── setup.py            # Cross-platform setup script
-│   ├── setup-windows.ps1   # Windows PowerShell script
-│   ├── setup-macos.sh      # macOS Bash script
-│   ├── setup-linux.sh      # Linux Bash script
-│   └── config/             # Configuration files
-├── docs/                   # Project documentation
-├── .github/workflows/      # CI/CD workflows
-└── ...                     # Your project files
+WORKABLE_API_TOKEN=
+WORKABLE_SUBDOMAIN=
+CRON_SECRET=
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=http://localhost:3000
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 ```
 
-## 🛠️ Setting Up Your Development Environment
+## 🔄 Migration Notes (MUI → Tailwind)
 
-1. **Run the setup script** for your platform:
-   ```bash
-   # Cross-platform (recommended)
-   python3 template-setup/setup.py
-   
-   # Platform-specific
-   ./template-setup/setup-macos.sh
-   ./template-setup/setup-linux.sh
-   # Windows: .\template-setup\setup-windows.ps1
-   ```
+1. Removed MUI & Emotion dependencies from `package.json`.
+2. Deleted legacy theme file `src/theme/index.ts`.
+3. Rewrote all pages & components to Tailwind (see commit history for diff granularity).
+4. Added marketing sections (stats, testimonials, CTA) and scroll reveal animation via lightweight IntersectionObserver.
+5. Introduced skeleton primitives (`Skeletons.tsx`) for prospective streaming/Suspense usage.
 
-2. **Follow the detailed instructions** in `template-setup/README.md`
+## 🧯 Outstanding / Future Enhancements
 
-## 📚 What's Included
-
-### Development Tools
-- Git with team-standard configuration
-- Visual Studio Code with essential extensions
-- Docker Desktop for containerization
-- Node.js/npm with Yarn and pnpm
-- Python 3.11 with pip, virtualenv, pipenv
-- Playwright for end-to-end testing
-- Postman for API development
-
-### Code Quality
-- ESLint and Prettier for JavaScript/TypeScript
-- Pylint and Black for Python
-- Pre-configured settings and rules
-
-### CI/CD
-- GitHub Actions workflows
-- Multi-platform testing
-- Docker build and deployment
-
-### Documentation
-- Comprehensive setup guides
-- Coding standards
-- Style guides
-- Project templates
-
-## 🎯 Next Steps
-
-1. **Customize the template** for your project needs
-2. **Update the documentation** in the `docs/` folder
-3. **Configure your CI/CD** workflows
-4. **Start developing!**
-
-## 📖 Detailed Documentation
-
-For complete setup instructions and configuration details, see:
-- [Setup Instructions](template-setup/README.md)
-- [Coding Standards](docs/architecture/coding-standards.md)
-- [Style Guide](docs/style-guide/)
+- Job search skeleton integration using React Suspense streaming.
+- More robust skill taxonomy & ML-based extraction.
+- Candidate notification emails (currently placeholder console in `emailService.ts`).
+- Rate-limiter integration with API routes & persistent store.
+- E2E tests (Playwright) for application submit & password reset flows.
 
 ## 🤝 Contributing
 
-This template is designed to be customized for your team's needs. Feel free to:
-- Add your own development tools
-- Customize the setup scripts
-- Update the documentation
-- Share improvements with the team
+1. Create a feature branch.
+2. Add/update tests for behavior changes.
+3. Ensure `npm run build` and `npm test` pass.
+4. Open PR with architecture/impact summary.
+
+## ⚖️ License
+
+MIT
 
 ---
 
-**Happy coding! 🎉**
+Happy building! 🚀

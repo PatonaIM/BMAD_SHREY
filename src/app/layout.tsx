@@ -1,4 +1,5 @@
 import React from 'react';
+import '../styles/globals.css'; // Tailwind + global design tokens
 import type { ReactNode } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/options';
