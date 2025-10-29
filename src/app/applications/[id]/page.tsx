@@ -4,7 +4,6 @@ import { authOptions } from '../../../auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { applicationRepo } from '../../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
-import { Box, Typography, Paper, Stack, Chip } from '@mui/material';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -22,47 +21,48 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   if (app.userId !== userSession.id) return notFound();
   const job = await jobRepo.findById(app.jobId);
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
-      <Typography variant="h1" sx={{ fontSize: '1.75rem', mb: 2 }}>
-        Application Details
-      </Typography>
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h2" sx={{ fontSize: '1.25rem', mb: 1 }}>
+    <div className="max-w-4xl mx-auto py-8">
+      <h1 className="text-2xl font-semibold mb-6">Application Details</h1>
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
+        <h2 className="text-lg font-medium mb-1">
           {job?.title || 'Unknown Role'}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        </h2>
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
           {job?.company || 'Unknown Company'} • Applied{' '}
           {app.appliedAt.toLocaleDateString()}
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-          <Chip label={app.status} size="small" />
+        </p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-brand-primary/10 text-brand-primary ring-1 ring-brand-primary/30">
+            {app.status}
+          </span>
           {typeof app.matchScore === 'number' && (
-            <Chip label={`Match ${app.matchScore}`} size="small" />
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-300 dark:ring-neutral-700">
+              Match {app.matchScore}
+            </span>
           )}
-        </Stack>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Timeline
-        </Typography>
-        <Stack spacing={1}>
+        </div>
+        <h3 className="text-sm font-semibold mb-2">Timeline</h3>
+        <ul className="space-y-1 text-xs">
           {app.timeline.map((e, i) => (
-            <Typography key={i} variant="body2">
-              {e.timestamp.toLocaleString()} – {e.status} ({e.actorType}
+            <li key={i} className="text-neutral-700 dark:text-neutral-300">
+              <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                {e.timestamp.toLocaleString()}
+              </span>{' '}
+              – <span className="font-medium">{e.status}</span> ({e.actorType}
               {e.actorId ? `:${e.actorId}` : ''}) {e.note ? `– ${e.note}` : ''}
-            </Typography>
+            </li>
           ))}
-        </Stack>
-      </Paper>
+        </ul>
+      </div>
       {job?.description && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h3" sx={{ fontSize: '1.2rem', mb: 1 }}>
-            Job Snapshot
-          </Typography>
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
+          <h3 className="text-sm font-semibold mb-2">Job Snapshot</h3>
+          <p className="text-xs whitespace-pre-line text-neutral-700 dark:text-neutral-300">
             {job.description.slice(0, 600)}
             {job.description.length > 600 ? '…' : ''}
-          </Typography>
-        </Paper>
+          </p>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

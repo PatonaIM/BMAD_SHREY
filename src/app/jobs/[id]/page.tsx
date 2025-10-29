@@ -9,18 +9,7 @@ import { authOptions } from '../../../auth/options';
 import NextLink from 'next/link';
 import { workableClient } from '../../../services/workable/workableClient';
 import { logger } from '../../../monitoring/logger';
-import {
-  Container,
-  Box,
-  Typography,
-  Breadcrumbs,
-  Link as MuiLink,
-  Chip,
-  Stack,
-  Button,
-  Divider,
-  Paper,
-} from '@mui/material';
+import { ApplyButton } from '../../../components/ApplyButton';
 
 // Next.js v15 supplies params as Promise
 type ParamsPromise = Promise<{ id: string }>;
@@ -210,9 +199,7 @@ export default async function JobDetailsPage({
   job = await hydrateJob(job);
   const session = await getServerSession(authOptions);
   const jsonLd = buildJobsJsonLd([job]);
-  const applyHref = session
-    ? `/jobs/${job.workableId || job._id}/apply`
-    : `/login?redirect=/jobs/${job.workableId || job._id}/apply`;
+  // Removed unused applyHref variable (navigation handled by ApplyButton component)
 
   // Runtime fetch full detail (keeps HTML) for richer rendering (description/requirements/benefits)
   let fullDetail: Awaited<
@@ -248,134 +235,119 @@ export default async function JobDetailsPage({
     <>
       <script
         type="application/ld+json"
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Container maxWidth="md" sx={{ py: 4 }} component="main">
-        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
-          <MuiLink
-            component={NextLink}
-            href="/"
-            underline="hover"
-            color="inherit"
-          >
-            Jobs
-          </MuiLink>
-          <Typography color="text.primary">{job.title}</Typography>
-        </Breadcrumbs>
-        <Box component="header" sx={{ mb: 3 }}>
-          <Typography
-            variant="h3"
-            component="h1"
-            sx={{ fontWeight: 600, mb: 1 }}
-          >
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <nav aria-label="Breadcrumb" className="text-sm mb-4">
+          <ol className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
+            <li>
+              <NextLink href="/" className="hover:underline">
+                Jobs
+              </NextLink>
+            </li>
+            <li className="select-none">/</li>
+            <li
+              aria-current="page"
+              className="font-medium text-neutral-900 dark:text-neutral-200 truncate max-w-[200px]"
+            >
+              {job.title}
+            </li>
+          </ol>
+        </nav>
+        <header className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight mb-2">
             {job.title}
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
+          </h1>
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">
             {job.company}
             {job.location && <> • {job.location}</>}
             {job.employmentType && <> • {job.employmentType}</>}
             {job.experienceLevel && <> • {job.experienceLevel} level</>}
-          </Typography>
-        </Box>
+          </p>
+        </header>
         {job.salary?.min && (
-          <Typography variant="body2" sx={{ mb: 3 }}>
+          <p className="text-xs mb-4 text-neutral-600 dark:text-neutral-300">
             Compensation: {job.salary.min}
             {job.salary.max && ` - ${job.salary.max}`}{' '}
             {job.salary.currency || 'USD'}
-          </Typography>
+          </p>
         )}
-        <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h5" component="h2" gutterBottom>
+        <section
+          aria-labelledby="description-heading"
+          className="card p-5 mb-6"
+        >
+          <h2 id="description-heading" className="text-xl font-semibold mb-3">
             Description
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{ lineHeight: 1.6 }}
+          </h2>
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none"
             dangerouslySetInnerHTML={{ __html: safeDescription }}
           />
-        </Paper>
+        </section>
         {safeRequirements && (
-          <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
+          <section
+            aria-labelledby="requirements-heading"
+            className="card p-5 mb-6"
+          >
+            <h2
+              id="requirements-heading"
+              className="text-xl font-semibold mb-3"
+            >
               Requirements
-            </Typography>
-            <Typography
-              variant="body1"
-              sx={{ lineHeight: 1.6 }}
+            </h2>
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none"
               dangerouslySetInnerHTML={{ __html: safeRequirements }}
             />
-          </Paper>
+          </section>
         )}
         {benefits.length > 0 && (
-          <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Benefits & Perks
-            </Typography>
-            <Stack
-              component="ul"
-              spacing={1}
-              sx={{ m: 0, p: 0, listStyle: 'none' }}
-            >
+          <section aria-labelledby="benefits-heading" className="card p-5 mb-6">
+            <h2 id="benefits-heading" className="text-xl font-semibold mb-3">
+              Benefits &amp; Perks
+            </h2>
+            <ul className="list-disc pl-5 space-y-1">
               {benefits.map(b => (
-                <Box component="li" key={b}>
-                  <Typography variant="body2">• {b}</Typography>
-                </Box>
+                <li key={b} className="text-sm">
+                  {b}
+                </li>
               ))}
-            </Stack>
-          </Paper>
+            </ul>
+          </section>
         )}
-        <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h5" component="h2" gutterBottom>
+        <section aria-labelledby="skills-heading" className="card p-5 mb-8">
+          <h2 id="skills-heading" className="text-xl font-semibold mb-3">
             Skills
-          </Typography>
+          </h2>
           {job.skills.length ? (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <div className="flex flex-wrap gap-2">
               {job.skills.map(s => (
-                <Chip
-                  key={s}
-                  label={s}
-                  size="small"
-                  color="default"
-                  variant="outlined"
-                />
+                <span key={s} className="badge">
+                  {s}
+                </span>
               ))}
-            </Stack>
+            </div>
           ) : (
-            <Typography variant="body2" color="text.secondary">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
               No specific skills listed.
-            </Typography>
+            </p>
           )}
-        </Paper>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Button
-            component={NextLink}
-            href={applyHref}
-            variant="contained"
-            color="primary"
-            size="large"
-            aria-label={`Apply to ${job.title}`}
-          >
-            {session ? 'Apply Now' : 'Login to Apply'}
-          </Button>
-          <Button
-            component={NextLink}
-            href="/"
-            variant="outlined"
-            color="primary"
-            size="large"
-          >
+        </section>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <ApplyButton
+            jobId={job.workableId || job._id}
+            label={session ? 'Apply Now' : 'Login to Apply'}
+          />
+          <NextLink href="/" className="btn-outline px-5 py-2 text-sm">
             Back to Jobs
-          </Button>
-        </Stack>
-        <Divider sx={{ mt: 6 }} />
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            Last hydrated:{' '}
-            {job.hydratedAt ? new Date(job.hydratedAt).toLocaleString() : 'n/a'}
-          </Typography>
-        </Box>
-      </Container>
+          </NextLink>
+        </div>
+        <hr className="my-8 border-neutral-200 dark:border-neutral-700" />
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Last hydrated:{' '}
+          {job.hydratedAt ? new Date(job.hydratedAt).toLocaleString() : 'n/a'}
+        </p>
+      </main>
     </>
   );
 }

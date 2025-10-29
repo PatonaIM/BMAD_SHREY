@@ -4,7 +4,6 @@ import { authOptions } from '../../../../auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import Link from 'next/link';
-import { Box, Typography, Button, TextField, Alert } from '@mui/material';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 
 export default async function ApplyPage({
@@ -28,55 +27,59 @@ export default async function ApplyPage({
 
   // Placeholder until application repository & workflow is implemented
   return (
-    <Box component="main" sx={{ px: 4, py: 6, maxWidth: 800, mx: 'auto' }}>
-      <Typography variant="h1" sx={{ fontSize: '2rem', mb: 2 }}>
-        Apply to {job.title}
-      </Typography>
+    <main className="px-4 py-8 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Apply to {job.title}</h1>
       {existing ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
+        <div className="card p-4 mb-4 border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 text-sm">
           You already applied to this job. Application ID: {existing._id}
-        </Alert>
+        </div>
       ) : (
         <>
-          <Typography variant="body1" sx={{ mb: 3 }}>
+          <p className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
             Submit a simple application. Resume URL and cover letter are
             optional for MVP. Duplicate applications are prevented.
-          </Typography>
-          <Box
-            component="form"
+          </p>
+          <form
             action={`/jobs/${id}/apply`}
             method="post"
             encType="multipart/form-data"
-            sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}
+            className="flex flex-col gap-3 mb-4"
           >
-            <TextField
-              name="resumeUrl"
-              label="Resume URL"
-              placeholder="https://..."
-              size="small"
-              fullWidth
-            />
-            <TextField
-              name="coverLetter"
-              label="Cover Letter"
-              placeholder="Optional cover letter"
-              multiline
-              minRows={4}
-              fullWidth
-            />
-            <Button type="submit" variant="contained" color="primary">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="resumeUrl" className="text-xs font-medium">
+                Resume URL
+              </label>
+              <input
+                id="resumeUrl"
+                name="resumeUrl"
+                placeholder="https://..."
+                className="input"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="coverLetter" className="text-xs font-medium">
+                Cover Letter
+              </label>
+              <textarea
+                id="coverLetter"
+                name="coverLetter"
+                placeholder="Optional cover letter"
+                rows={5}
+                className="input"
+              />
+            </div>
+            <button type="submit" className="btn-primary px-5 py-2 text-sm">
               Submit Application
-            </Button>
-          </Box>
+            </button>
+          </form>
         </>
       )}
-      <Button
-        component={Link}
+      <Link
         href={`/jobs/${job.workableId || job._id}`}
-        variant="outlined"
+        className="btn-outline px-4 py-2 text-sm inline-block"
       >
         Back to Job
-      </Button>
-    </Box>
+      </Link>
+    </main>
   );
 }

@@ -4,7 +4,6 @@ import { authOptions } from '../../auth/options';
 import { redirect } from 'next/navigation';
 import { applicationRepo } from '../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../data-access/repositories/jobRepo';
-import { Box, Typography, Paper, Chip, Stack, Button } from '@mui/material';
 import Link from 'next/link';
 
 export default async function DashboardPage() {
@@ -21,131 +20,138 @@ export default async function DashboardPage() {
   const latestJobs = (await jobRepo.search({ page: 1, limit: 5 })).jobs;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <Box component="header" aria-labelledby="dashboard-heading">
-        <Typography
+    <div className="flex flex-col gap-12">
+      <header
+        aria-labelledby="dashboard-heading"
+        className="flex flex-col gap-2"
+      >
+        <h1
           id="dashboard-heading"
-          variant="h1"
-          sx={{ fontSize: '2rem', mb: 1 }}
+          className="text-3xl font-semibold tracking-tight"
         >
           Your Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
+        </h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Track your applications and explore new opportunities.
-        </Typography>
-      </Box>
+        </p>
+      </header>
 
-      <Box component="section" aria-labelledby="applications-heading">
-        <Typography
-          id="applications-heading"
-          variant="h2"
-          sx={{ fontSize: '1.5rem', mb: 2 }}
-        >
+      <section
+        aria-labelledby="applications-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="applications-heading" className="text-xl font-semibold">
           Applications
-        </Typography>
+        </h2>
         {enriched.length === 0 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="body2" color="text.secondary">
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
               You haven't applied to any jobs yet. Browse roles and apply to get
               started.
-            </Typography>
-            <Button
-              component={Link}
+            </p>
+            <Link
               href="/"
-              sx={{ mt: 2 }}
-              variant="contained"
+              className="inline-flex mt-3 btn-primary px-4 py-2 text-sm"
             >
               Browse Roles
-            </Button>
-          </Paper>
+            </Link>
+          </div>
         )}
-        <Stack spacing={2}>
+        <div className="space-y-4">
           {enriched.map(app => (
-            <Paper key={app._id} sx={{ p: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            <div
+              key={app._id}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 bg-white dark:bg-neutral-900 shadow-sm"
+            >
+              <h3 className="font-medium text-neutral-900 dark:text-neutral-100 text-sm">
                 {app.jobTitle}{' '}
-                <Typography component="span" variant="caption">
+                <span className="text-xs text-neutral-500">
                   @ {app.company}
-                </Typography>
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                </span>
+              </h3>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                 Applied {app.appliedAt.toLocaleDateString()} • Status:{' '}
                 {app.status}
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                <Chip
-                  label={app.status}
-                  size="small"
-                  color={app.status === 'submitted' ? 'primary' : 'default'}
-                />
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${app.status === 'submitted' ? 'bg-brand-primary/10 text-brand-primary ring-brand-primary/30' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-neutral-300 dark:ring-neutral-700'}`}
+                >
+                  {app.status}
+                </span>
                 {typeof app.matchScore === 'number' && (
-                  <Chip label={`Match ${app.matchScore}`} size="small" />
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-300 dark:ring-neutral-700">
+                    Match {app.matchScore}
+                  </span>
                 )}
-              </Stack>
+              </div>
               {app.lastEventStatus && (
-                <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                <p className="mt-2 text-[10px] text-neutral-500">
                   Last update: {app.lastEventStatus} on{' '}
                   {app.lastEventAt?.toLocaleDateString()}
-                </Typography>
+                </p>
               )}
-              <Button
-                component={Link}
-                href={`/applications/${app._id}`}
-                size="small"
-                variant="outlined"
-              >
-                View Details
-              </Button>
-            </Paper>
+              <div className="mt-3 flex gap-3">
+                <Link
+                  href={`/applications/${app._id}`}
+                  className="btn-outline px-3 py-1.5 text-xs"
+                >
+                  View Details
+                </Link>
+              </div>
+            </div>
           ))}
-        </Stack>
-      </Box>
+        </div>
+      </section>
 
-      <Box component="section" aria-labelledby="latest-jobs-heading">
-        <Typography
-          id="latest-jobs-heading"
-          variant="h2"
-          sx={{ fontSize: '1.5rem', mb: 2 }}
-        >
+      <section
+        aria-labelledby="latest-jobs-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="latest-jobs-heading" className="text-xl font-semibold">
           Latest Jobs
-        </Typography>
-        <Stack spacing={2}>
+        </h2>
+        <div className="space-y-4">
           {latestJobs.map(job => (
-            <Paper key={job._id} sx={{ p: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            <div
+              key={job._id}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 bg-white dark:bg-neutral-900 shadow-sm"
+            >
+              <h3 className="font-medium text-neutral-900 dark:text-neutral-100 text-sm">
                 {job.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              </h3>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                 {job.company}
                 {job.location ? ` • ${job.location}` : ''}
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
                 {job.skills.slice(0, 3).map(s => (
-                  <Chip key={s} label={s} size="small" />
+                  <span
+                    key={s}
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-300 dark:ring-neutral-700"
+                  >
+                    {s}
+                  </span>
                 ))}
-              </Stack>
-              <Stack direction="row" spacing={1}>
-                <Button
-                  component={Link}
+              </div>
+              <div className="mt-3 flex gap-3">
+                <Link
                   href={`/jobs/${job.workableId || job._id}`}
-                  size="small"
-                  variant="outlined"
+                  className="btn-outline px-3 py-1.5 text-xs"
                 >
                   Details
-                </Button>
-                <Button
-                  component={Link}
+                </Link>
+                <Link
                   href={`/jobs/${job.workableId || job._id}/apply`}
-                  size="small"
-                  variant="contained"
+                  className="btn-primary px-3 py-1.5 text-xs"
                 >
                   Apply
-                </Button>
-              </Stack>
-            </Paper>
+                </Link>
+              </div>
+            </div>
           ))}
-        </Stack>
-      </Box>
-    </Box>
+        </div>
+      </section>
+    </div>
   );
 }

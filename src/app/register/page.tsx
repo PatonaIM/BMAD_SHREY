@@ -1,18 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Container,
-  Paper,
-  Typography,
-  Stack,
-  TextField,
-  Button,
-  Alert,
-  LinearProgress,
-  Box,
-  Tooltip,
-} from '@mui/material';
 import { trpc } from '../../services/trpc/client';
 
 function scorePassword(pw: string): { score: number; label: string } {
@@ -65,141 +53,115 @@ export default function RegisterPage(): React.ReactElement {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 6 }}>
-      <Paper elevation={6} sx={{ p: 4, borderRadius: 3 }}>
-        <Stack spacing={3}>
-          <Typography variant="h4" fontWeight={600} textAlign="center">
-            Create Account
-          </Typography>
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            Use a valid email and a strong password (min 8 chars).
-          </Typography>
-          <Box component="form" onSubmit={onSubmit} noValidate>
-            <Stack spacing={2}>
-              <TextField
-                label="Email"
-                type="email"
-                required
-                fullWidth
-                value={email}
-                autoComplete="email"
-                onChange={e => setEmail(e.target.value)}
-              />
-              <Tooltip
-                title={`Password strength: ${strength.label}`}
-                placement="top"
-                enterDelay={300}
+    <main className="max-w-md mx-auto py-12 px-4">
+      <div className="card p-6">
+        <h1 className="text-2xl font-semibold text-center mb-2">
+          Create Account
+        </h1>
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 text-center mb-4">
+          Use a valid email and a strong password (min 8 chars).
+        </p>
+        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="email" className="text-xs font-medium">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="password" className="text-xs font-medium">
+              Password
+            </label>
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              required
+              autoComplete="new-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              minLength={8}
+              className="input"
+            />
+            <div className="flex items-center justify-between mt-1">
+              <div className="flex items-center gap-2 w-full">
+                <div className="h-2 flex-1 rounded bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${strength.score < 2 ? 'bg-red-500' : strength.score < 3 ? 'bg-yellow-500' : strength.score < 4 ? 'bg-green-500' : 'bg-emerald-600'}`}
+                    style={{
+                      width: `${Math.min((strength.score / 4) * 100, 100)}%`,
+                    }}
+                    aria-label="Password strength"
+                  />
+                </div>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  {strength.label}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPw(s => !s)}
+                className="text-[10px] font-medium text-brand-primary hover:underline ml-2"
               >
-                <TextField
-                  label="Password"
-                  type={showPw ? 'text' : 'password'}
-                  required
-                  fullWidth
-                  value={password}
-                  autoComplete="new-password"
-                  onChange={e => setPassword(e.target.value)}
-                  inputProps={{ minLength: 8 }}
-                />
-              </Tooltip>
-              <Stack spacing={1}>
-                <LinearProgress
-                  variant="determinate"
-                  value={Math.min((strength.score / 4) * 100, 100)}
-                  color={
-                    strength.score < 2
-                      ? 'error'
-                      : strength.score < 3
-                        ? 'warning'
-                        : 'success'
-                  }
-                  aria-label="Password strength"
-                />
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                >
-                  <Typography variant="caption" color="text.secondary">
-                    {strength.label}
-                  </Typography>
-                  <Button
-                    type="button"
-                    size="small"
-                    onClick={() => setShowPw(s => !s)}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    {showPw ? 'Hide' : 'Show'}
-                  </Button>
-                </Stack>
-              </Stack>
-              {registerMutation.isError && (
-                <Alert severity="error" variant="outlined">
-                  {registerMutation.error?.message || 'Registration failed'}
-                </Alert>
-              )}
-              {businessError && (
-                <Alert severity="error" variant="outlined">
-                  {businessError.message}
-                  {businessError.code === 'REGISTER_EMAIL_EXISTS' && (
-                    <>
-                      {' '}
-                      {businessError.message.includes('Google') ? (
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          display="block"
-                          mt={1}
-                        >
-                          Sign in using the original social provider, then
-                          (optionally) add a password from Profile &gt;
-                          Security.
-                        </Typography>
-                      ) : (
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          display="block"
-                          mt={1}
-                        >
-                          You can sign in instead:{' '}
-                          <Button href="/login" size="small">
-                            Go to Login
-                          </Button>
-                        </Typography>
-                      )}
-                    </>
+                {showPw ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+          {registerMutation.isError && (
+            <div className="text-xs rounded-md border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-red-700 dark:text-red-300">
+              {registerMutation.error?.message || 'Registration failed'}
+            </div>
+          )}
+          {businessError && (
+            <div className="text-xs rounded-md border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-red-700 dark:text-red-300">
+              {businessError.message}
+              {businessError.code === 'REGISTER_EMAIL_EXISTS' && (
+                <div className="mt-2">
+                  {businessError.message.includes('Google') ? (
+                    <span className="block text-[10px]">
+                      Sign in using the original social provider, then
+                      (optionally) add a password from Profile &gt; Security.
+                    </span>
+                  ) : (
+                    <span className="block text-[10px]">
+                      You can sign in instead:{' '}
+                      <a href="/login" className="underline">
+                        Go to Login
+                      </a>
+                    </span>
                   )}
-                </Alert>
+                </div>
               )}
-              {registerMutation.isSuccess && registerMutation.data.ok && (
-                <Alert severity="success" variant="outlined">
-                  Account created. Redirecting...
-                </Alert>
-              )}
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                disabled={!canSubmit}
-                sx={{ py: 1.2 }}
-              >
-                {registerMutation.isLoading ? 'Registering...' : 'Register'}
-              </Button>
-            </Stack>
-          </Box>
-          <Typography variant="body2" textAlign="center">
-            Already have an account?{' '}
-            <Button
-              href="/login"
-              variant="text"
-              size="small"
-              sx={{ textTransform: 'none' }}
-            >
-              Sign in
-            </Button>
-          </Typography>
-        </Stack>
-      </Paper>
-    </Container>
+            </div>
+          )}
+          {registerMutation.isSuccess && registerMutation.data.ok && (
+            <div className="text-xs rounded-md border border-green-300 bg-green-50 dark:bg-green-900/20 p-3 text-green-700 dark:text-green-300">
+              Account created. Redirecting...
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className={`btn-primary w-full px-4 py-2 text-sm font-medium ${!canSubmit ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {' '}
+            {registerMutation.isLoading ? 'Registering…' : 'Register'}{' '}
+          </button>
+        </form>
+        <p className="text-xs text-center mt-4">
+          Already have an account?{' '}
+          <a href="/login" className="text-brand-primary hover:underline">
+            Sign in
+          </a>
+        </p>
+      </div>
+    </main>
   );
 }

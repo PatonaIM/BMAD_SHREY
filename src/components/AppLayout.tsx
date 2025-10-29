@@ -2,24 +2,9 @@
 import React from 'react';
 import type { ReactNode } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { usePathname } from 'next/navigation';
-import {
-  AppBar,
-  Box,
-  Toolbar,
-  Typography,
-  Button,
-  Container,
-  IconButton,
-  Menu,
-  MenuItem,
-  useMediaQuery,
-  useTheme,
-  Avatar,
-  Skeleton,
-} from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { DarkModeToggle } from './DarkModeToggle';
 import { Footer } from './Footer';
 
 interface AppLayoutProps {
@@ -29,210 +14,136 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>): void => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = (): void => {
-    setAnchorEl(null);
-  };
-
-  const handleSignOut = async (): Promise<void> => {
-    handleMenuClose();
-    await signOut({ callbackUrl: '/login' });
-  };
-
-  const isActive = (path: string): boolean => pathname === path;
-
-  const publicLinks = [
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const linksPublic = [
     { label: 'Home', path: '/' },
-    { label: 'Jobs', path: '/jobs' },
+    { label: 'Jobs', path: '/' },
   ];
-
-  const authenticatedLinks = [
-    { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Profile', path: '/profile' },
-  ];
-
-  const loading = status === 'loading';
+  const linksAuthed = [{ label: 'Dashboard', path: '/dashboard' }];
+  const isActive = (p: string) => pathname === p;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <AppBar position="sticky" elevation={1}>
-        <Toolbar>
-          {/* Logo/Brand */}
-          <Typography
-            variant="h6"
-            component={Link}
-            href="/"
-            sx={{
-              flexGrow: 0,
-              mr: 4,
-              fontWeight: 700,
-              textDecoration: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
-            Teamified
-          </Typography>
-
-          {/* Desktop Navigation */}
-          {!isMobile && (
-            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
-              {publicLinks.map(link => (
-                <Button
-                  key={link.path}
-                  component={Link}
-                  href={link.path}
-                  color="inherit"
-                  sx={{
-                    fontWeight: isActive(link.path) ? 600 : 400,
-                    borderBottom: isActive(link.path)
-                      ? '2px solid currentColor'
-                      : 'none',
-                    borderRadius: 0,
-                    px: 2,
-                  }}
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-40 w-full backdrop-blur bg-white/80 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-700">
+        <div className="container-responsive flex h-16 items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link
+              href="/"
+              className="text-xl font-bold tracking-tight text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary rounded"
+            >
+              Teamified
+            </Link>
+            <nav
+              className="hidden md:flex items-center gap-2"
+              aria-label="Main navigation"
+            >
+              {linksPublic.map(l => (
+                <Link
+                  key={l.path}
+                  href={l.path}
+                  className={
+                    'px-3 py-2 text-sm font-medium rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition ' +
+                    (isActive(l.path)
+                      ? 'bg-neutral-100 dark:bg-neutral-800'
+                      : '')
+                  }
                 >
-                  {link.label}
-                </Button>
+                  {l.label}
+                </Link>
               ))}
               {session &&
-                authenticatedLinks.map(link => (
-                  <Button
-                    key={link.path}
-                    component={Link}
-                    href={link.path}
-                    color="inherit"
-                    sx={{
-                      fontWeight: isActive(link.path) ? 600 : 400,
-                      borderBottom: isActive(link.path)
-                        ? '2px solid currentColor'
-                        : 'none',
-                      borderRadius: 0,
-                      px: 2,
-                    }}
+                linksAuthed.map(l => (
+                  <Link
+                    key={l.path}
+                    href={l.path}
+                    className={
+                      'px-3 py-2 text-sm font-medium rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition ' +
+                      (isActive(l.path)
+                        ? 'bg-neutral-100 dark:bg-neutral-800'
+                        : '')
+                    }
                   >
-                    {link.label}
-                  </Button>
+                    {l.label}
+                  </Link>
                 ))}
-            </Box>
-          )}
-
-          {/* Mobile Menu Icon */}
-          {isMobile && (
-            <Box sx={{ flexGrow: 1 }}>
-              <IconButton
-                color="inherit"
-                aria-label="menu"
-                onClick={handleMenuOpen}
-              >
-                <MenuIcon />
-              </IconButton>
-            </Box>
-          )}
-
-          {/* Auth Section */}
-          {loading ? (
-            <Skeleton variant="circular" width={40} height={40} />
-          ) : session ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {!isMobile && (
-                <Typography variant="body2" sx={{ color: 'inherit' }}>
+            </nav>
+          </div>
+          <div className="flex items-center gap-3">
+            <DarkModeToggle />
+            {status === 'loading' && (
+              <div
+                className="h-8 w-8 animate-pulse rounded-full bg-neutral-200 dark:bg-neutral-700"
+                aria-label="Loading session"
+              />
+            )}
+            {session ? (
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline text-xs font-medium text-neutral-600 dark:text-neutral-300">
                   {session.user?.email}
-                </Typography>
-              )}
-              <IconButton
-                onClick={handleMenuOpen}
-                size="small"
-                aria-label="account menu"
-              >
-                <Avatar
-                  sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}
+                </span>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="btn-outline px-3 py-1.5 text-sm"
                 >
-                  {session.user?.email?.[0]?.toUpperCase() || 'U'}
-                </Avatar>
-              </IconButton>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                component={Link}
-                href="/login"
-                color="inherit"
-                variant="outlined"
-                size="small"
-              >
-                Login
-              </Button>
-              <Button
-                component={Link}
-                href="/register"
-                color="secondary"
-                variant="contained"
-                size="small"
-              >
-                Sign Up
-              </Button>
-            </Box>
-          )}
-        </Toolbar>
-      </AppBar>
-
-      {/* Mobile Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        {isMobile &&
-          publicLinks.map(link => (
-            <MenuItem
-              key={link.path}
-              component={Link}
-              href={link.path}
-              onClick={handleMenuClose}
-              selected={isActive(link.path)}
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/login" className="btn-outline px-3 py-1.5 text-sm">
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  className="btn-primary px-3 py-1.5 text-sm shadow-glow"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
+            <button
+              className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
+              aria-label="Toggle navigation menu"
+              onClick={() => setMobileOpen(o => !o)}
             >
-              {link.label}
-            </MenuItem>
-          ))}
-        {isMobile &&
-          session &&
-          authenticatedLinks.map(link => (
-            <MenuItem
-              key={link.path}
-              component={Link}
-              href={link.path}
-              onClick={handleMenuClose}
-              selected={isActive(link.path)}
+              <span className="sr-only">Menu</span>
+              <div className="space-y-1.5">
+                <span className="block h-0.5 w-5 bg-neutral-900 dark:bg-neutral-200" />
+                <span className="block h-0.5 w-5 bg-neutral-900 dark:bg-neutral-200" />
+                <span className="block h-0.5 w-5 bg-neutral-900 dark:bg-neutral-200" />
+              </div>
+            </button>
+          </div>
+        </div>
+        {mobileOpen && (
+          <div className="md:hidden border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 animate-slideUp">
+            <div
+              className="container-responsive py-4 flex flex-col gap-2"
+              role="menu"
             >
-              {link.label}
-            </MenuItem>
-          ))}
-        {session && (
-          <MenuItem onClick={handleSignOut} sx={{ color: 'error.main' }}>
-            Sign Out
-          </MenuItem>
+              {[...linksPublic, ...(session ? linksAuthed : [])].map(l => (
+                <Link
+                  key={l.path}
+                  href={l.path}
+                  onClick={() => setMobileOpen(false)}
+                  className={
+                    'px-3 py-2 rounded-md text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 ' +
+                    (isActive(l.path)
+                      ? 'bg-neutral-100 dark:bg-neutral-800'
+                      : '')
+                  }
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </div>
         )}
-      </Menu>
-
-      {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
-        <Container maxWidth="lg" sx={{ py: 3 }}>
-          {children}
-        </Container>
-      </Box>
-
-      {/* Footer */}
+      </header>
+      <main className="flex-1">
+        <div className="container-responsive py-6">{children}</div>
+      </main>
       <Footer />
-    </Box>
+    </div>
   );
 }

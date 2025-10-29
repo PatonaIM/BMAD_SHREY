@@ -2,19 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, getProviders } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import {
-  Box,
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Stack,
-  Divider,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-// GitHub icon handled inside SocialProviderButton component
 import { SocialProviderButton } from '../../components/SocialProviderButton';
 
 const errorMap: Record<string, string> = {
@@ -52,81 +39,81 @@ export default function LoginPage(): React.ReactElement {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 6 }}>
-      <Paper elevation={6} sx={{ p: 4, borderRadius: 3 }}>
-        <Stack spacing={3}>
-          <Typography variant="h4" fontWeight={600} textAlign="center">
-            Welcome Back
-          </Typography>
-          {authError && !formError && (
-            <Alert severity="error" variant="outlined">
-              {errorMap[authError] || authError}
-            </Alert>
-          )}
-          {formError && (
-            <Alert severity="error" variant="outlined">
-              {formError}
-            </Alert>
-          )}
-          <OAuthButtons />
-          <Divider>or use email</Divider>
-          <Box component="form" onSubmit={handleSubmit} noValidate>
-            <Stack spacing={2}>
-              <TextField
-                label="Email"
-                type="email"
-                required
-                fullWidth
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-              <TextField
-                label="Password"
-                type="password"
-                required
-                fullWidth
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                disabled={loading}
-                sx={{ py: 1.2 }}
-                startIcon={loading ? <CircularProgress size={20} /> : undefined}
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                sx={{ mt: 0.5 }}
-              >
-                <Button
-                  variant="text"
-                  size="small"
-                  href="/register"
-                  sx={{ textTransform: 'none' }}
-                >
-                  Need an account? Register
-                </Button>
-                <Button
-                  variant="text"
-                  size="small"
-                  href="/password-reset"
-                  sx={{ textTransform: 'none' }}
-                >
-                  Forgot password?
-                </Button>
-              </Stack>
-            </Stack>
-          </Box>
-        </Stack>
-      </Paper>
-    </Container>
+    <main className="max-w-md mx-auto py-12 px-4">
+      <div className="card p-6">
+        <h1 className="text-2xl font-semibold text-center mb-4">
+          Welcome Back
+        </h1>
+        {authError && !formError && (
+          <div className="mb-4 text-sm rounded-md border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-red-700 dark:text-red-300">
+            {errorMap[authError] || authError}
+          </div>
+        )}
+        {formError && (
+          <div className="mb-4 text-sm rounded-md border border-red-300 bg-red-50 dark:bg-red-900/20 p-3 text-red-700 dark:text-red-300">
+            {formError}
+          </div>
+        )}
+        <OAuthButtons />
+        <div className="relative my-6 flex items-center">
+          <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
+          <span className="px-3 text-xs text-neutral-500">or use email</span>
+          <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
+        </div>
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="flex flex-col gap-4"
+        >
+          <div className="flex flex-col gap-1">
+            <label htmlFor="email" className="text-xs font-medium">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="password" className="text-xs font-medium">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="input"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary w-full px-4 py-2 text-sm font-medium"
+          >
+            {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+          <div className="flex justify-between mt-1 text-xs">
+            <a href="/register" className="text-brand-primary hover:underline">
+              Need an account? Register
+            </a>
+            <a
+              href="/password-reset"
+              className="text-brand-primary hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+        </form>
+      </div>
+    </main>
   );
 }
 
@@ -159,7 +146,7 @@ function OAuthButtons(): React.ReactElement | null {
   const visible = order.filter(id => providers[id]);
   if (visible.length === 0) return null;
   return (
-    <Stack spacing={1}>
+    <div className="flex flex-col gap-2">
       {visible.map(id => (
         <SocialProviderButton
           key={id}
@@ -172,6 +159,6 @@ function OAuthButtons(): React.ReactElement | null {
           }}
         />
       ))}
-    </Stack>
+    </div>
   );
 }
