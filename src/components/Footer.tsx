@@ -24,7 +24,7 @@ export function Footer(): React.ReactElement {
         <Grid container spacing={4}>
           <Grid item xs={12} sm={4}>
             <Typography variant="h6" color="primary" gutterBottom>
-              TeamMatch
+              Teamified
             </Typography>
             <Typography variant="body2" color="text.secondary">
               AI-powered job application platform connecting talent with
@@ -109,7 +109,7 @@ export function Footer(): React.ReactElement {
           align="center"
           sx={{ mt: 4 }}
         >
-          © {currentYear} TeamMatch. All rights reserved.
+          © {currentYear} Teamified. All rights reserved.
         </Typography>
       </Container>
     </Box>

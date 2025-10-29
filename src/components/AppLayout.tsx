@@ -78,7 +78,7 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
               cursor: 'pointer',
             }}
           >
-            TeamMatch
+            Teamified
           </Typography>
 
           {/* Desktop Navigation */}

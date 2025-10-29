@@ -6,7 +6,7 @@ import Providers from '../components/Providers';
 import { AppLayout } from '../components/AppLayout';
 
 export const metadata = {
-  title: 'TeamMatch - AI-Powered Job Application Platform',
+  title: 'Teamified - AI-Powered Job Application Platform',
   description:
     'Discover your next opportunity with AI-enhanced matching, intelligent interviews, and transparent application tracking.',
   keywords: 'jobs, careers, AI interviews, job search, tech jobs, hiring',
