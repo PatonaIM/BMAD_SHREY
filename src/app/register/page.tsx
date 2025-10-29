@@ -40,6 +40,14 @@ export default function RegisterPage(): React.ReactElement {
   const [showPw, setShowPw] = useState(false);
   const strength = useMemo(() => scorePassword(password), [password]);
 
+  // Business-level error returned inside the Result (not thrown as TRPCError)
+  const businessError =
+    registerMutation.isSuccess &&
+    registerMutation.data &&
+    !registerMutation.data.ok
+      ? registerMutation.data.error
+      : null;
+
   const canSubmit =
     email.length > 3 && password.length >= 8 && !registerMutation.isLoading;
 
@@ -127,6 +135,40 @@ export default function RegisterPage(): React.ReactElement {
               {registerMutation.isError && (
                 <Alert severity="error" variant="outlined">
                   {registerMutation.error?.message || 'Registration failed'}
+                </Alert>
+              )}
+              {businessError && (
+                <Alert severity="error" variant="outlined">
+                  {businessError.message}
+                  {businessError.code === 'REGISTER_EMAIL_EXISTS' && (
+                    <>
+                      {' '}
+                      {businessError.message.includes('Google') ? (
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          display="block"
+                          mt={1}
+                        >
+                          Sign in using the original social provider, then
+                          (optionally) add a password from Profile &gt;
+                          Security.
+                        </Typography>
+                      ) : (
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          display="block"
+                          mt={1}
+                        >
+                          You can sign in instead:{' '}
+                          <Button href="/login" size="small">
+                            Go to Login
+                          </Button>
+                        </Typography>
+                      )}
+                    </>
+                  )}
                 </Alert>
               )}
               {registerMutation.isSuccess && registerMutation.data.ok && (

@@ -27,10 +27,19 @@ export async function performRegistration(
   const emailLower = parsed.data.email.toLowerCase();
   const existing = await findUserByEmail(emailLower);
   if (existing) {
-    return err(
-      ErrorCodes.REGISTER_EMAIL_EXISTS,
-      'A user with that email already exists'
-    );
+    // Check if user has a password already
+    if (existing.passwordHash) {
+      return err(
+        ErrorCodes.REGISTER_EMAIL_EXISTS,
+        'This email is already registered. Please sign in with your password.'
+      );
+    } else {
+      // User exists but only through OAuth (no password)
+      return err(
+        ErrorCodes.REGISTER_EMAIL_EXISTS,
+        'This email is already registered via Google or GitHub. Please sign in using that method, or add a password from your profile settings.'
+      );
+    }
   }
   const passwordHash = bcrypt.hashSync(parsed.data.password, 10);
   const user = await createUser({
