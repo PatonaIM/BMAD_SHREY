@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../auth/options';
 import NextLink from 'next/link';
 import { workableClient } from '../../../services/workable/workableClient';
+import { logger } from '../../../monitoring/logger';
 import {
   Container,
   Box,
@@ -27,10 +28,26 @@ interface PageProps {
 }
 
 async function fetchJob(id: string): Promise<Job | null> {
-  // Try workableId first then fallback to Mongo _id
   const byWorkable = await jobRepo.findByWorkableId(id);
-  if (byWorkable) return byWorkable as Job;
-  return jobRepo.findById(id);
+  if (byWorkable) {
+    logger.info({
+      event: 'job_fetch',
+      strategy: 'workableId',
+      id,
+      workableId: byWorkable.workableId,
+      descriptionLen: byWorkable.description?.length || 0,
+    });
+    return byWorkable as Job;
+  }
+  const fallback = await jobRepo.findById(id);
+  logger.info({
+    event: 'job_fetch',
+    strategy: 'mongoId',
+    id,
+    found: Boolean(fallback),
+    descriptionLen: fallback?.description?.length || 0,
+  });
+  return fallback;
 }
 
 async function hydrateJob(job: Job): Promise<Job> {
@@ -39,9 +56,25 @@ async function hydrateJob(job: Job): Promise<Job> {
   const needsRequirements = !job.requirements;
   const needsSkills = !job.skills || job.skills.length === 0;
   if (!needsDescription && !needsRequirements && !needsSkills) return job;
+  logger.info({
+    event: 'job_hydrate_start',
+    workableId: job.workableId,
+    shortcode: job.workableShortcode,
+    needsDescription,
+    needsRequirements,
+    needsSkills,
+    currentDescriptionLen: job.description?.length || 0,
+  });
   try {
-    const detail = await workableClient.getJobDetails(job.workableShortcode);
-    if (!detail) return job;
+    const detail = await workableClient.getJobDetails(job.workableId);
+    if (!detail) {
+      logger.warn({
+        event: 'job_hydrate_detail_missing',
+        workableId: job.workableId,
+        shortcode: job.workableShortcode,
+      });
+      return job;
+    }
     const updates: Partial<Job> = {};
     if (needsDescription && detail.description) {
       const sanitized = sanitizeHtml(detail.description);
@@ -58,11 +91,25 @@ async function hydrateJob(job: Job): Promise<Job> {
     }
     if (Object.keys(updates).length > 0) {
       updates.hydratedAt = new Date();
+      logger.info({
+        event: 'job_hydrate_updates',
+        workableId: job.workableId,
+        updateKeys: Object.keys(updates),
+        newDescriptionLen: updates.description?.length || null,
+      });
       const updated = await jobRepo.update(job.workableId, updates);
       return updated || { ...job, ...updates };
     }
-  } catch {
-    // Silent failure
+    logger.info({
+      event: 'job_hydrate_no_changes',
+      workableId: job.workableId,
+    });
+  } catch (err) {
+    logger.error({
+      event: 'job_hydrate_error',
+      workableId: job.workableId,
+      error: (err as Error).message,
+    });
   }
   return job;
 }
@@ -170,10 +217,12 @@ export default async function JobDetailsPage({ params }: PageProps) {
   if (job.workableShortcode) {
     try {
       fullDetail = await workableClient.getJobDetails(job.workableShortcode);
+      console.log(fullDetail);
     } catch {
       fullDetail = null; // Non-blocking
     }
   }
+
   const descriptionHtml = fullDetail?.description || job.description;
   const requirementsHtml = fullDetail?.requirements || job.requirements || '';
   const safeDescription = sanitizeHtmlAllowBasic(descriptionHtml);
@@ -181,6 +230,16 @@ export default async function JobDetailsPage({ params }: PageProps) {
     ? sanitizeHtmlAllowBasic(requirementsHtml)
     : '';
   const benefits = extractBenefits(descriptionHtml + '\n' + requirementsHtml);
+  logger.info({
+    event: 'job_render',
+    workableId: job.workableId,
+    shortcode: job.workableShortcode,
+    storedDescriptionLen: job.description?.length || 0,
+    fullDetailDescriptionLen: fullDetail?.description?.length || null,
+    renderedDescriptionLen: safeDescription.length,
+    hasRequirements: Boolean(requirementsHtml),
+    benefitsCount: benefits.length,
+  });
 
   return (
     <>

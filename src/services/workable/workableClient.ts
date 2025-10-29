@@ -62,7 +62,7 @@ export class WorkableClient {
   }
 
   async getJobDetails(shortcode: string): Promise<WorkableJobResponse | null> {
-    const url = `${this.baseUrl}/jobs/${encodeURIComponent(shortcode)}`;
+    const url = `${this.baseUrl}/jobs/${shortcode}`;
     logger.info({ event: 'workable_job_detail_fetch_start', shortcode });
     const res = await fetch(url, { headers: this.headers() });
     if (res.status === 404) {
@@ -70,9 +70,9 @@ export class WorkableClient {
       return null;
     }
     if (!res.ok) throw new Error(`Workable job detail error: ${res.status}`);
-    const json = (await res.json()) as { job: WorkableJobResponse };
+    const json = (await res.json()) as WorkableJobResponse;
     logger.info({ event: 'workable_job_detail_fetch_complete', shortcode });
-    return json.job;
+    return json;
   }
 }
 

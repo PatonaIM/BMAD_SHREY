@@ -7,22 +7,24 @@ import Link from 'next/link';
 import { Box, Typography, Button, TextField, Alert } from '@mui/material';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 
+type RawParams = { id: string };
 interface PageProps {
-  params: { id: string };
+  params: RawParams | Promise<RawParams>;
 }
 
 export default async function ApplyPage({ params }: PageProps) {
+  const resolved = await params; // Next.js v15 dynamic params may be Promise
   const session = await getServerSession(authOptions);
   if (!session) {
-    redirect(`/login?redirect=/jobs/${params.id}/apply`);
+    redirect(`/login?redirect=/jobs/${resolved.id}/apply`);
   }
   const job =
-    (await jobRepo.findByWorkableId(params.id)) ||
-    (await jobRepo.findById(params.id));
+    (await jobRepo.findByWorkableId(resolved.id)) ||
+    (await jobRepo.findById(resolved.id));
   if (!job) return notFound();
   const userId = (session.user as { id?: string })?.id;
   if (!userId) {
-    redirect(`/login?redirect=/jobs/${params.id}/apply`);
+    redirect(`/login?redirect=/jobs/${resolved.id}/apply`);
   }
   const existing = await applicationRepo.findByUserAndJob(userId, job._id);
 
@@ -44,7 +46,7 @@ export default async function ApplyPage({ params }: PageProps) {
           </Typography>
           <Box
             component="form"
-            action={`/jobs/${params.id}/apply`}
+            action={`/jobs/${resolved.id}/apply`}
             method="post"
             encType="multipart/form-data"
             sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}
