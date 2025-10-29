@@ -22,7 +22,7 @@
       "@bmad/ai-services/*": ["src/ai/*"],
       "@bmad/monitoring/*": ["src/monitoring/*"]
     },
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "5.0"
   },
   "exclude": ["node_modules", "dist", "build"],
   "include": ["src/**/*.ts", "src/**/*.tsx"]
