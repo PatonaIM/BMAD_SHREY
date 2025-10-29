@@ -324,7 +324,7 @@ export default async function HomePage({
         </section>
         <section aria-labelledby="job-results-heading">
           <h2 id="job-results-heading" className="text-xl font-semibold mb-4">
-            {jobs.length ? `Open Roles (${jobs.length})` : 'No roles found'}
+            {jobs.length ? `Open Roles (${total})` : 'No roles found'}
           </h2>
           <ul className="grid gap-4 list-none p-0 m-0">
             {jobs.map(job => {
