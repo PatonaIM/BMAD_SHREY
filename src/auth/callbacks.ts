@@ -104,7 +104,12 @@ export const callbacks = {
       });
       throw new Error('OAuthProviderInternal');
     }
-    (user as NextAuthUser & { roles?: string[] }).roles = result.roles;
+    const userWithExtendedProps = user as NextAuthUser & {
+      roles?: string[];
+      id?: string;
+    };
+    userWithExtendedProps.roles = result.roles;
+    userWithExtendedProps.id = result.userId;
     return true;
   },
   async redirect({ url, baseUrl }: RedirectParams): Promise<string> {
@@ -122,8 +127,12 @@ export const callbacks = {
   async jwt({ token, user, account }: JwtParams): Promise<JWT> {
     const t = token as TokenShape;
     if (user) {
-      const u = user as NextAuthUser & { roles?: string[] };
+      const u = user as NextAuthUser & { roles?: string[]; id?: string };
       t.roles = u.roles || [];
+      // For OAuth users, set the sub to their MongoDB user ID
+      if (u.id) {
+        t.sub = u.id;
+      }
     }
     if (account && account.provider && account.provider !== 'credentials') {
       t.provider = account.provider;

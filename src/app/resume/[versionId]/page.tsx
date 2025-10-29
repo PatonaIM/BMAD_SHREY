@@ -5,6 +5,8 @@ import { notFound, redirect } from 'next/navigation';
 import { getResume } from '../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../data-access/repositories/userRepo';
 import { getResumeStorage } from '../../../services/storage/resumeStorage';
+import { ResumeViewerActions } from '../../../components/ResumeViewerActions';
+import { BackButton } from '../../../components/BackButton';
 
 interface PageProps {
   params: Promise<{ versionId: string }>;
@@ -13,19 +15,29 @@ interface PageProps {
 export default async function ResumeViewerPage({ params }: PageProps) {
   const { versionId } = await params;
   const session = await getServerSession(authOptions);
-  const userEmail = (session?.user as { email?: string })?.email;
-  if (!userEmail) {
+  const userSession = session
+    ? (session.user as typeof session.user & { id?: string; email?: string })
+    : undefined;
+  if (!userSession?.email) {
     redirect(`/login?redirect=/resume/${versionId}`);
   }
 
-  // Find user by email to get MongoDB user ID
-  const user = await findUserByEmail(userEmail);
-  if (!user) {
-    redirect(`/login?redirect=/resume/${versionId}`);
+  // For OAuth users, use the user ID from session; for credential users, look up by email
+  let userId: string;
+  if (userSession.id) {
+    // OAuth user - use ID from session
+    userId = userSession.id;
+  } else {
+    // Credential user - look up by email
+    const user = await findUserByEmail(userSession.email);
+    if (!user) {
+      redirect(`/login?redirect=/resume/${versionId}`);
+    }
+    userId = user._id;
   }
 
   // Get resume document
-  const resumeDoc = await getResume(user._id);
+  const resumeDoc = await getResume(userId);
   if (!resumeDoc) {
     return notFound();
   }
@@ -37,7 +49,7 @@ export default async function ResumeViewerPage({ params }: PageProps) {
   }
 
   // Verify ownership - the user should own this resume
-  if (resumeDoc._id !== user._id) {
+  if (resumeDoc._id !== userId) {
     return notFound();
   }
 
@@ -55,12 +67,7 @@ export default async function ResumeViewerPage({ params }: PageProps) {
           <p className="text-neutral-600 dark:text-neutral-400 mb-4">
             The resume file could not be loaded at this time.
           </p>
-          <button
-            onClick={() => window.history.back()}
-            className="btn-primary px-4 py-2"
-          >
-            Go Back
-          </button>
+          <BackButton />
         </div>
       </div>
     );
@@ -140,35 +147,7 @@ export default async function ResumeViewerPage({ params }: PageProps) {
           </div>
         )}
       </div>
-      <div className="mt-6 flex gap-3">
-        <button
-          onClick={() => window.history.back()}
-          className="btn-outline px-4 py-2"
-        >
-          Back
-        </button>
-        <a
-          href={resumeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-primary px-4 py-2 inline-flex items-center gap-2"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
-          Open in New Tab
-        </a>
-      </div>
+      <ResumeViewerActions resumeUrl={resumeUrl} />
     </div>
   );
 }

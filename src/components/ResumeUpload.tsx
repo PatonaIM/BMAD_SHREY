@@ -30,15 +30,30 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
       form.append('file', file, file.name);
       const controller = new AbortController();
       abortRef.current = controller;
-      setState({ progress: 5, status: 'uploading' });
+
+      // Start with 10% progress
+      setState({ progress: 10, status: 'uploading' });
+
       try {
-        // Using fetch without real progress events; simulate simple progress steps
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+          setState(s => {
+            if (s.progress < 90) {
+              return { ...s, progress: Math.min(s.progress + 10, 90) };
+            }
+            return s;
+          });
+        }, 200);
+
         const res = await fetch('/api/profile/resume/upload', {
           method: 'POST',
           body: form,
           signal: controller.signal,
         });
-        setState(s => ({ ...s, progress: 70 }));
+
+        clearInterval(progressInterval);
+        setState(s => ({ ...s, progress: 95 }));
+
         const json = await res.json();
         if (!json.ok) {
           setState({
@@ -90,7 +105,7 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
-        className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/30 dark:hover:bg-muted/10"
+        className="border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-md p-6 text-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
       >
         <input
           type="file"
@@ -99,15 +114,18 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
           id="resumeFile"
           onChange={onInputChange}
         />
-        <label htmlFor="resumeFile" className="block text-sm font-medium">
+        <label
+          htmlFor="resumeFile"
+          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer"
+        >
           Drag & drop your resume or click to select (PDF/DOC up to 10MB)
         </label>
       </div>
       {state.status !== 'idle' && (
         <div className="space-y-2">
-          <div className="w-full bg-muted rounded h-3 overflow-hidden">
+          <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3 overflow-hidden">
             <div
-              className="h-3 bg-primary transition-all"
+              className="h-3 bg-brand-primary transition-all duration-300 ease-out rounded-full"
               style={{ width: `${state.progress}%` }}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -115,22 +133,63 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
               role="progressbar"
             />
           </div>
+          <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
+            <span>Uploading...</span>
+            <span>{state.progress}%</span>
+          </div>
           {state.status === 'uploading' && (
-            <button
-              type="button"
-              onClick={cancel}
-              className="btn-outline text-xs"
-            >
-              Cancel
-            </button>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                Uploading your resume...
+              </span>
+              <button
+                type="button"
+                onClick={cancel}
+                className="btn-outline text-xs px-3 py-1"
+              >
+                Cancel
+              </button>
+            </div>
           )}
           {state.status === 'success' && (
-            <p className="text-green-600 text-sm">
-              Uploaded. Version ID: {state.versionId}
-            </p>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-2 h-2 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <p className="text-green-600 dark:text-green-400 text-sm font-medium">
+                Resume uploaded successfully!
+              </p>
+            </div>
           )}
           {state.status === 'error' && (
-            <p className="text-red-600 text-sm">{state.error}</p>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-2 h-2 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                {state.error}
+              </p>
+            </div>
           )}
         </div>
       )}

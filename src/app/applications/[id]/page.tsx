@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { applicationRepo } from '../../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
 import { getResume } from '../../../data-access/repositories/resumeRepo';
+import { findUserByEmail } from '../../../data-access/repositories/userRepo';
 import Link from 'next/link';
 
 interface PageProps {
@@ -39,7 +40,20 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   // Fetch resume details if resumeVersionId exists
   let resumeInfo = null;
   if (app.resumeVersionId) {
-    const resumeDoc = await getResume(app.userId);
+    // For OAuth users, we need to get their actual user ID, not from the application
+    let userId: string = app.userId; // Default to app.userId
+    // If the user has an ID in session (OAuth), use that instead
+    if (userSession.id) {
+      userId = userSession.id;
+    } else {
+      // For credential users, look up by email to get the correct user ID
+      const user = await findUserByEmail(userSession.email);
+      if (user) {
+        userId = user._id;
+      }
+    }
+
+    const resumeDoc = await getResume(userId);
     if (resumeDoc) {
       resumeInfo = resumeDoc.versions.find(
         v => v.versionId === app.resumeVersionId
