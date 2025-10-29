@@ -22,10 +22,8 @@ import {
   Paper,
 } from '@mui/material';
 
-type RawParams = { id: string };
-interface PageProps {
-  params: RawParams | Promise<RawParams>;
-}
+// Next.js v15 supplies params as Promise
+type ParamsPromise = Promise<{ id: string }>;
 
 async function fetchJob(id: string): Promise<Job | null> {
   const byWorkable = await jobRepo.findByWorkableId(id);
@@ -66,7 +64,7 @@ async function hydrateJob(job: Job): Promise<Job> {
     currentDescriptionLen: job.description?.length || 0,
   });
   try {
-    const detail = await workableClient.getJobDetails(job.workableId);
+    const detail = await workableClient.getJobDetails(job.workableShortcode);
     if (!detail) {
       logger.warn({
         event: 'job_hydrate_detail_missing',
@@ -173,9 +171,11 @@ function extractSkills(text: string): string[] {
 
 export async function generateMetadata({
   params,
-}: PageProps): Promise<Metadata> {
-  const resolved = await params; // Await per Next.js dynamic API requirement
-  const job = await fetchJob(resolved.id);
+}: {
+  params: ParamsPromise;
+}): Promise<Metadata> {
+  const { id } = await params; // Await per Next.js dynamic API requirement
+  const job = await fetchJob(id);
   if (!job) {
     return {
       title: 'Job Not Found | Teamified',
@@ -185,7 +185,7 @@ export async function generateMetadata({
   const title = `${job.title} at ${job.company} | Teamified`;
   const description = job.description.slice(0, 160);
   const urlBase = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const url = `${urlBase}/jobs/${resolved.id}`;
+  const url = `${urlBase}/jobs/${id}`;
   return {
     title,
     description,
@@ -199,9 +199,13 @@ export async function generateMetadata({
   };
 }
 
-export default async function JobDetailsPage({ params }: PageProps) {
-  const resolved = await params;
-  let job = await fetchJob(resolved.id);
+export default async function JobDetailsPage({
+  params,
+}: {
+  params: ParamsPromise;
+}) {
+  const { id } = await params;
+  let job = await fetchJob(id);
   if (!job) return notFound();
   job = await hydrateJob(job);
   const session = await getServerSession(authOptions);
@@ -217,7 +221,6 @@ export default async function JobDetailsPage({ params }: PageProps) {
   if (job.workableShortcode) {
     try {
       fullDetail = await workableClient.getJobDetails(job.workableShortcode);
-      console.log(fullDetail);
     } catch {
       fullDetail = null; // Non-blocking
     }
