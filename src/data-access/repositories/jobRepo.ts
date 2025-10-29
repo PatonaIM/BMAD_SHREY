@@ -61,6 +61,59 @@ export class JobRepository {
   }
 
   /**
+   * Upsert a job by workableId. Returns the job and a flag indicating if it was created or updated.
+   */
+  async upsertByWorkableId(
+    workableId: string,
+    data: Omit<Job, '_id' | 'createdAt' | 'updatedAt'>
+  ): Promise<{ job: Job; created: boolean; updatedFields: string[] }> {
+    const collection = await this.getCollection();
+    const existing = await collection.findOne({ workableId });
+    const now = new Date();
+    if (!existing) {
+      const insertDoc: Omit<Job, '_id'> = {
+        ...data,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const result = await collection.insertOne(insertDoc as Job);
+      return {
+        job: { ...insertDoc, _id: result.insertedId.toString() } as Job,
+        created: true,
+        updatedFields: Object.keys(data),
+      };
+    }
+    // Determine changed fields (shallow compare for primitive & string fields)
+    const changed: string[] = [];
+    for (const key of Object.keys(data) as (keyof typeof data)[]) {
+      if (key === 'lastSyncedAt') continue; // always changes
+      if (JSON.stringify(existing[key]) !== JSON.stringify(data[key])) {
+        changed.push(key as string);
+      }
+    }
+    if (changed.length === 0) {
+      return {
+        job: existing as Job,
+        created: false,
+        updatedFields: [],
+      };
+    }
+    const updateDoc = {
+      $set: { ...data, updatedAt: now },
+    };
+    const updated = await collection.findOneAndUpdate(
+      { workableId },
+      updateDoc,
+      { returnDocument: 'after' }
+    );
+    return {
+      job: updated as Job,
+      created: false,
+      updatedFields: changed,
+    };
+  }
+
+  /**
    * Archive jobs (mark as inactive)
    */
   async archive(workableIds: string[]): Promise<number> {
@@ -157,6 +210,26 @@ export class JobRepository {
       .toArray();
 
     return job[0]?.lastSyncedAt || null;
+  }
+
+  /**
+   * Find jobs that likely need hydration (short description, missing requirements, or empty skills) and have a shortcode.
+   */
+  async findNeedingHydration(limit = 50): Promise<Job[]> {
+    const collection = await this.getCollection();
+    return collection
+      .find({
+        workableShortcode: { $exists: true, $type: 'string' },
+        status: 'active',
+        $or: [
+          { description: { $exists: false } },
+          { description: { $type: 'string', $regex: /^.{0,60}$/ } },
+          { requirements: { $exists: false } },
+          { skills: { $size: 0 } },
+        ],
+      })
+      .limit(limit)
+      .toArray();
   }
 }
 

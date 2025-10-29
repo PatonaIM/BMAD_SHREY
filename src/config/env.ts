@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+function sanitizeSubdomain(raw?: string) {
+  if (!raw) return undefined;
+  let v = raw.trim().toLowerCase();
+  // Strip protocol and workable domain if mistakenly included
+  v = v.replace(/^https?:\/\//, '');
+  v = v.replace(/\.workable\.com.*$/, '');
+  // Allow alphanumeric and hyphen only
+  if (!/^[a-z0-9-]+$/.test(v)) return undefined;
+  return v;
+}
+
 const EnvSchema = z
   .object({
     NODE_ENV: z
@@ -43,8 +54,14 @@ const EnvSchema = z
       .optional()
       .transform(v => v === 'true')
       .pipe(z.boolean().default(false)),
-    WORKABLE_API_KEY: z.string().optional(),
-    WORKABLE_SUBDOMAIN: z.string().optional(),
+    WORKABLE_API_KEY: z
+      .string()
+      .optional()
+      .transform(v => (v && v.length > 0 ? v : undefined)),
+    WORKABLE_SUBDOMAIN: z
+      .string()
+      .optional()
+      .transform(v => sanitizeSubdomain(v)),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   })
   .superRefine((data, ctx) => {
@@ -61,6 +78,13 @@ const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['OPENAI_API_KEY'],
         message: 'OPENAI_API_KEY is required when ENABLE_AI_INTERVIEW=true',
+      });
+    }
+    if (data.WORKABLE_SUBDOMAIN && !data.WORKABLE_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['WORKABLE_API_KEY'],
+        message: 'WORKABLE_API_KEY required when WORKABLE_SUBDOMAIN is set',
       });
     }
   });

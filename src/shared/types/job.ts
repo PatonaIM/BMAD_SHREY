@@ -4,6 +4,7 @@ export interface Job {
   workableId: string; // Unique ID from Workable
   workableShortcode?: string; // Workable job shortcode
   lastSyncedAt: Date; // Last sync timestamp from Workable
+  hydratedAt?: Date; // Timestamp when detailed data (description, requirements) was enriched
 
   // Core Job Fields
   title: string;
@@ -38,6 +39,7 @@ export interface Job {
   // Skills and Matching
   skills: string[];
   embeddingVersion?: number;
+  // NOTE: hydration adds sanitizedDescription/requirements if needed later
 
   // Timestamps
   createdAt: Date;
