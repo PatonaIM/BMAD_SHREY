@@ -35,16 +35,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Debug logging in development
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG] Application submission attempt:', {
-        jobId,
-        userEmail: session.user.email,
-        resumeVersionId,
-      });
-    }
-
     // Find user by email to get MongoDB _id
     const user = await findUserByEmail(session.user.email);
     if (!user) {
@@ -61,14 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!job) {
-      return NextResponse.json(
-        {
-          error: 'Job not found',
-          details: `No job found with ID: ${jobId}`,
-          searchedBy: 'Both MongoDB ID and Workable ID',
-        },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     // Check if already applied - use the found job's MongoDB ID
@@ -101,7 +84,6 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    // Return error details for debugging
     return NextResponse.json(
       {
         error: 'Failed to submit application',

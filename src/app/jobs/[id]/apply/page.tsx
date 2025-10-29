@@ -58,16 +58,6 @@ export default async function ApplyPage({
   return (
     <main className="px-4 py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Apply to {job.title}</h1>
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs">
-          <div>
-            <strong>Debug Info:</strong>
-          </div>
-          <div>URL Param ID: {id}</div>
-          <div>Job MongoDB ID: {job._id}</div>
-          <div>Job Workable ID: {job.workableId || 'none'}</div>
-        </div>
-      )}
       {existing ? (
         <div className="card p-4 mb-4 border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 text-sm">
           You already applied to this job. Application ID: {existing._id}
