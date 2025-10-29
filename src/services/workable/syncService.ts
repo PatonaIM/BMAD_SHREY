@@ -12,9 +12,20 @@ export interface SyncResultSummary {
   tookMs: number;
 }
 
-export async function syncWorkableJobs(): Promise<SyncResultSummary> {
+export async function syncWorkableJobs(
+  retries = 2
+): Promise<SyncResultSummary> {
   const start = performance.now();
-  const apiJobs = await workableClient.listJobs();
+  let apiJobs;
+  try {
+    apiJobs = await workableClient.listJobs();
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 500));
+      return syncWorkableJobs(retries - 1);
+    }
+    throw err;
+  }
   let created = 0;
   let updated = 0;
   let unchanged = 0;

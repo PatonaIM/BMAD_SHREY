@@ -1,9 +1,6 @@
 import React from 'react';
-import AuthStatus from '../components/AuthStatus';
 import { jobRepo } from '../data-access/repositories/jobRepo';
 import { buildJobsJsonLd } from '../seo/jobJsonLd';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/options';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
@@ -18,6 +15,8 @@ import {
   Button,
   Chip,
 } from '@mui/material';
+import { Hero } from '../components/Hero';
+import { ApplyButton } from '../components/ApplyButton';
 
 export const metadata: Metadata = {
   title: 'Teamified | Discover Open Roles',
@@ -114,9 +113,6 @@ export default async function HomePage({
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const currentPage = Math.min(filters.page, totalPages);
 
-  // Session to control Apply button behavior
-  const session = await getServerSession(authOptions);
-
   // JSON-LD structured data
   const jsonLd = buildJobsJsonLd(jobs);
 
@@ -135,32 +131,7 @@ export default async function HomePage({
         <link rel="next" href={buildPageHref(currentPage + 1, filters)} />
       )}
       <Box component="main" sx={{ px: 4, py: 6, maxWidth: 1100, mx: 'auto' }}>
-        <Box component="header" sx={{ mb: 5 }}>
-          <Typography
-            variant="h1"
-            sx={{
-              fontSize: { xs: '2rem', md: '2.75rem' },
-              lineHeight: 1.2,
-              mb: 2,
-            }}
-          >
-            Find Your Next Role
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontSize: '1.15rem',
-              maxWidth: 720,
-              mb: 2,
-              color: 'text.secondary',
-            }}
-          >
-            Teamified surfaces curated opportunities synced from our Workable
-            ATS integration. Use the search filters to narrow by location,
-            experience level, or employment type.
-          </Typography>
-          <AuthStatus />
-        </Box>
+        <Hero />
 
         <Box
           component="section"
@@ -293,9 +264,7 @@ export default async function HomePage({
             sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: 2 }}
           >
             {jobs.map(job => {
-              const applyHref = session
-                ? `/jobs/${job.workableId || job._id}/apply`
-                : `/login?redirect=/jobs/${job.workableId || job._id}/apply`;
+              const jobIdentifier = job.workableId || job._id;
               return (
                 <Box
                   component="li"
@@ -342,19 +311,14 @@ export default async function HomePage({
                     ))}
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Button
-                      component={Link}
-                      href={applyHref}
-                      aria-label={`Apply to ${job.title}`}
+                    <ApplyButton
+                      jobId={jobIdentifier}
                       variant="contained"
-                      color="primary"
-                      prefetch
-                    >
-                      {session ? 'Apply Now' : 'Login to Apply'}
-                    </Button>
+                      size="small"
+                    />
                     <Button
                       component={Link}
-                      href={`/jobs/${job.workableId || job._id}`}
+                      href={`/jobs/${jobIdentifier}`}
                       variant="outlined"
                       color="primary"
                       prefetch

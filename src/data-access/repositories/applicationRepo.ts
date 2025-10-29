@@ -47,7 +47,11 @@ export class ApplicationRepository {
       updatedAt: now,
     };
     const result = await collection.insertOne(app as Application);
-    return { ...app, _id: result.insertedId.toString() } as Application;
+    const created = {
+      ...app,
+      _id: result.insertedId.toString(),
+    } as Application;
+    return created;
   }
 
   async findById(id: string): Promise<Application | null> {
@@ -154,14 +158,19 @@ export class ApplicationRepository {
           jobs.set(app.jobId, { title: job.title, company: job.company });
       }
     }
-    return apps.map(a => ({
-      _id: a._id,
-      jobTitle: jobs.get(a.jobId)?.title || 'Unknown',
-      company: jobs.get(a.jobId)?.company || 'Unknown',
-      status: a.status,
-      matchScore: a.matchScore,
-      appliedAt: a.appliedAt,
-    }));
+    return apps.map(a => {
+      const lastEvent = a.timeline[a.timeline.length - 1];
+      return {
+        _id: a._id,
+        jobTitle: jobs.get(a.jobId)?.title || 'Unknown',
+        company: jobs.get(a.jobId)?.company || 'Unknown',
+        status: a.status,
+        matchScore: a.matchScore,
+        appliedAt: a.appliedAt,
+        lastEventStatus: lastEvent?.status,
+        lastEventAt: lastEvent?.timestamp,
+      };
+    });
   }
 }
 

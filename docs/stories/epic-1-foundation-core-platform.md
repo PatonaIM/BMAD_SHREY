@@ -30,7 +30,7 @@ Definition of Done Checklist:
 - [x] Env schema validates required vars (`src/config/env.ts` implemented)
 - [x] README updated (setup & scripts present)
 - [x] CI handled by Vercel (lint, typecheck, tests run on deployment; GitHub Actions removed)
-- [ ] Workable API and OpenAI API env vars added and validated
+- [x] Workable API and OpenAI API env vars added and validated
 
 ## EP1-S2 Multi-Provider Authentication
 
@@ -58,7 +58,7 @@ DoD:
 - [x] Error mapping documented (login page & README auth section)
 - [x] Unit tests: registration, login success, failure, provider linking (see auth tests)
 - [x] README auth section updated
-- [ ] Auth modal/trigger on apply action for anonymous users
+- [x] Auth modal/trigger on apply action for anonymous users
 
 ## EP1-S3 SEO-Optimized Public Homepage
 
@@ -83,15 +83,15 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] Homepage route created with SSR enabled
-- [ ] Hero section with value prop and CTA implemented
-- [ ] Job cards displayed from database with real data
-- [ ] Search form functional (keyword, location, experience filters)
-- [ ] JSON-LD JobPosting structured data added to each job
-- [ ] Meta tags optimized for SEO and social sharing
-- [ ] Sitemap generation implemented
-- [ ] Performance <3s validated with Lighthouse
-- [ ] Responsive design tested on mobile/tablet/desktop
+- [x] Homepage route created with SSR enabled
+- [x] Hero section with value prop and CTA implemented (Apply gating via modal)
+- [x] Job cards displayed from database with real data
+- [x] Search form functional (keyword, location, experience filters)
+- [x] JSON-LD JobPosting structured data added to each job
+- [x] Meta tags optimized for SEO and social sharing
+- [x] Sitemap generation implemented
+- [ ] Performance <3s validated with Lighthouse (needs measurement)
+- [ ] Responsive design tested on mobile/tablet/desktop (manual QA pending)
 - [ ] Accessibility audit passed (WCAG 2.1 AA)
 
 ## EP1-S4 Workable API Integration
@@ -115,13 +115,13 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] Workable API client implemented with auth
+- [x] Workable API client implemented with auth
 - [ ] Scheduled job sync task (cron or Vercel cron)
-- [ ] Job schema mapping from Workable to MongoDB
-- [ ] Create/update/archive logic implemented
-- [ ] Error handling and retry logic with logging
+- [x] Job schema mapping from Workable to MongoDB
+- [x] Create/update/archive logic implemented (archive state mapped; off-list archiving pending)
+- [ ] Error handling and retry logic with logging (basic logging only)
 - [ ] Rate limiting handled gracefully
-- [ ] Admin page showing sync status
+- [x] Admin page showing sync status
 - [ ] Unit tests for API client and sync logic
 - [ ] Documentation for Workable setup
 
@@ -146,14 +146,14 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] Dashboard route created (protected, requires auth)
-- [ ] Applications section with cards and status badges
+- [x] Dashboard route created (protected, requires auth)
+- [x] Applications section with cards and status badges
 - [ ] Activity timeline component implemented
-- [ ] Available jobs section with job cards
-- [ ] Application detail view with timeline
-- [ ] Quick apply functionality
+- [x] Available jobs section with job cards
+- [x] Application detail view with timeline
+- [x] Quick apply functionality (Apply buttons visible for authenticated users)
 - [ ] Responsive design tested
-- [ ] Empty states designed and implemented
+- [x] Empty states designed and implemented
 - [ ] Navigation flow tested
 - [ ] Unit tests for dashboard components
 
@@ -175,8 +175,8 @@ Acceptance Criteria:
 DoD:
 
 - [x] Layout component created (AppLayout with responsive navigation)
-- [ ] Layout integrated globally in root layout
-- [ ] Footer component with company info and links
+- [x] Layout integrated globally in root layout
+- [x] Footer component with company info and links
 - [ ] Responsive tests (mobile + desktop snapshots)
 - [ ] Accessibility lint (aria, contrast) passed
 - [ ] Documentation of layout usage
@@ -200,10 +200,10 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] Job schema with Workable fields defined
-- [ ] Application schema with status workflow
+- [x] Job schema with Workable fields defined
+- [x] Application schema with status workflow
 - [x] User and Profile schemas documented (types exist in src/shared/types/)
-- [ ] Database indexes created for common queries
+- [x] Database indexes created for common queries
 - [ ] tRPC procedures for jobs and applications
 - [x] Unit tests for repositories (auth tests cover userRepo; passwordResetRepo tested)
 - [ ] Audit log interface (no-op impl)

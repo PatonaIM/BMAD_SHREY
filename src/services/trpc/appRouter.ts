@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import type { Context } from './context';
 import { requireRole } from '../../auth/roleGuard';
 import { scoringRouter } from './scoringRouter';
+import { jobsRouter } from './jobsRouter';
 import { performRegistration, RegistrationSchema } from '../auth/register';
 import {
   PasswordResetRequestSchema,
@@ -65,6 +66,7 @@ export const appRouter = t.router({
   health: healthRouter,
   auth: authRouter,
   scoring: scoringRouter,
+  jobs: jobsRouter,
 });
 
 export type AppRouter = typeof appRouter;

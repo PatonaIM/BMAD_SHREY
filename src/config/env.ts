@@ -62,6 +62,7 @@ const EnvSchema = z
       .string()
       .optional()
       .transform(v => sanitizeSubdomain(v)),
+    CRON_SECRET: z.string().optional(),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   })
   .superRefine((data, ctx) => {
