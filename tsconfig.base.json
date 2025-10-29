@@ -21,8 +21,7 @@
       "@bmad/data-access/*": ["src/data-access/*"],
       "@bmad/ai-services/*": ["src/ai/*"],
       "@bmad/monitoring/*": ["src/monitoring/*"]
-    },
-    "ignoreDeprecations": "5.0"
+    }
   },
   "exclude": ["node_modules", "dist", "build"],
   "include": ["src/**/*.ts", "src/**/*.tsx"]
