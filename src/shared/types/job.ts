@@ -49,8 +49,8 @@ export interface JobListItem {
   title: string;
   company: string;
   location?: string;
-  employmentType?: string;
-  experienceLevel?: string;
+  employmentType?: Job['employmentType'];
+  experienceLevel?: Job['experienceLevel'];
   salary?: {
     min?: number;
     max?: number;
@@ -63,8 +63,8 @@ export interface JobListItem {
 export interface JobSearchParams {
   keyword?: string;
   location?: string;
-  experienceLevel?: string;
-  employmentType?: string;
+  experienceLevel?: Job['experienceLevel'];
+  employmentType?: Job['employmentType'];
   page?: number;
   limit?: number;
 }
