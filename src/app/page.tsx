@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 interface HomePageProps {
-  searchParams?: RawSearchParams | Promise<RawSearchParams>;
+  searchParams?: Promise<RawSearchParams>; // Next.js v15 provides searchParams as Promise
 }
 
 const EXPERIENCE_LEVELS = [
@@ -97,7 +97,7 @@ function parseSearchParams(searchParams: RawSearchParams | undefined) {
 export default async function HomePage({
   searchParams,
 }: HomePageProps): Promise<React.ReactElement> {
-  const resolvedSearchParams = await searchParams; // Next.js v15 async searchParams support
+  const resolvedSearchParams = searchParams ? await searchParams : undefined; // Next.js v15 async searchParams support
   const filters = parseSearchParams(resolvedSearchParams);
 
   // Fetch jobs (server-side for SEO). If any filter applied use search, else limited active list.
