@@ -90,7 +90,7 @@ DoD:
 - [x] JSON-LD JobPosting structured data added to each job
 - [x] Meta tags optimized for SEO and social sharing
 - [x] Sitemap generation implemented
-- [ ] Performance <3s validated with Lighthouse (pending measurement – moved to Follow-Up Epic)
+      w- [ ] Performance <3s validated with Lighthouse (pending measurement – moved to Follow-Up Epic)
 - [ ] Responsive design tested on mobile/tablet/desktop (manual QA pending – moved)
 - [ ] Accessibility audit passed (WCAG 2.1 AA – moved)
 
