@@ -21,7 +21,24 @@ export class JobRepository {
    */
   async findById(id: string): Promise<Job | null> {
     const collection = await this.getCollection();
-    return collection.findOne({ _id: id } as Filter<Job>);
+    // eslint-disable-next-line no-console
+    console.log('Finding job by ID:', id);
+
+    // Try finding by string ID first
+    let job = await collection.findOne({ _id: id } as Filter<Job>);
+    // If not found and the ID looks like a MongoDB ObjectId, try with ObjectId
+    if (!job && id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id)) {
+      const { ObjectId } = await import('mongodb');
+      job = await collection.findOne({
+        _id: new ObjectId(id),
+      } as unknown as Filter<Job>);
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      'Job found:',
+      job ? { _id: job._id, title: job.title } : 'null'
+    );
+    return job;
   }
 
   /**
@@ -39,6 +56,13 @@ export class JobRepository {
     };
 
     const result = await collection.insertOne(job as Job);
+    // eslint-disable-next-line no-console
+    console.log(
+      'Created job with ObjectId:',
+      result.insertedId,
+      'as string:',
+      result.insertedId.toString()
+    );
     return { ...job, _id: result.insertedId.toString() } as Job;
   }
 
@@ -77,6 +101,13 @@ export class JobRepository {
         updatedAt: now,
       };
       const result = await collection.insertOne(insertDoc as Job);
+      // eslint-disable-next-line no-console
+      console.log(
+        'Upserted new job with ObjectId:',
+        result.insertedId,
+        'as string:',
+        result.insertedId.toString()
+      );
       return {
         job: { ...insertDoc, _id: result.insertedId.toString() } as Job,
         created: true,
