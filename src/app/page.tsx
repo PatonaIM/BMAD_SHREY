@@ -2,6 +2,8 @@ import React from 'react';
 import { jobRepo } from '../data-access/repositories/jobRepo';
 import { buildJobsJsonLd } from '../seo/jobJsonLd';
 import Link from 'next/link';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/options';
 import type { Metadata } from 'next';
 import { Hero } from '../components/Hero';
 import { ApplyButton } from '../components/ApplyButton';
@@ -87,6 +89,7 @@ export default async function HomePage({
 }: HomePageProps): Promise<React.ReactElement> {
   const resolvedSearchParams = searchParams ? await searchParams : undefined; // Next.js v15 async searchParams support
   const filters = parseSearchParams(resolvedSearchParams);
+  const session = await getServerSession(authOptions);
 
   // Fetch jobs (server-side for SEO). If any filter applied use search, else limited active list.
   // Always use search now to enable pagination consistently
@@ -120,7 +123,7 @@ export default async function HomePage({
         <link rel="next" href={buildPageHref(currentPage + 1, filters)} />
       )}
       <main className="px-4 py-8 max-w-5xl mx-auto">
-        <Hero />
+        <Hero session={session} />
         {/* Marketing Sections */}
         <section className="mb-12" aria-labelledby="stats-heading">
           <h2 id="stats-heading" className="sr-only">
@@ -198,20 +201,32 @@ export default async function HomePage({
               </p>
             </div>
             <div className="relative z-10 flex flex-col gap-3">
-              <Link
-                href="/register"
-                className="btn-primary px-6 py-3 text-sm text-center"
-                prefetch
-              >
-                Get Started
-              </Link>
-              <Link
-                href="/login"
-                className="btn-outline px-6 py-3 text-sm text-center"
-                prefetch
-              >
-                Sign In
-              </Link>
+              {session ? (
+                <Link
+                  href="/dashboard"
+                  className="btn-primary px-6 py-3 text-sm text-center"
+                  prefetch
+                >
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    className="btn-primary px-6 py-3 text-sm text-center"
+                    prefetch
+                  >
+                    Get Started
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="btn-outline px-6 py-3 text-sm text-center"
+                    prefetch
+                  >
+                    Sign In
+                  </Link>
+                </>
+              )}
             </div>
           </ScrollReveal>
         </section>

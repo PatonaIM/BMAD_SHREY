@@ -42,10 +42,10 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
                   key={l.path}
                   href={l.path}
                   className={
-                    'px-3 py-2 text-sm font-medium rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition ' +
+                    'btn-ghost px-3 py-2 text-sm font-medium rounded-md transition focus-visible:ring-2 focus-visible:ring-brand-primary ' +
                     (isActive(l.path)
                       ? 'bg-neutral-100 dark:bg-neutral-800'
-                      : '')
+                      : 'hover:bg-neutral-100 dark:hover:bg-neutral-800')
                   }
                 >
                   {l.label}
@@ -57,10 +57,10 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
                     key={l.path}
                     href={l.path}
                     className={
-                      'px-3 py-2 text-sm font-medium rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition ' +
+                      'btn-ghost px-3 py-2 text-sm font-medium rounded-md transition focus-visible:ring-2 focus-visible:ring-brand-primary ' +
                       (isActive(l.path)
                         ? 'bg-neutral-100 dark:bg-neutral-800'
-                        : '')
+                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800')
                     }
                   >
                     {l.label}
@@ -83,14 +83,17 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
                 </span>
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="btn-outline px-3 py-1.5 text-sm"
+                  className="btn-ghost px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-brand-primary"
                 >
                   Sign Out
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/login" className="btn-outline px-3 py-1.5 text-sm">
+                <Link
+                  href="/login"
+                  className="btn-ghost px-3 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-brand-primary"
+                >
                   Login
                 </Link>
                 <Link

@@ -1,8 +1,12 @@
-'use client';
 import React from 'react';
 import Link from 'next/link';
+import type { Session } from 'next-auth';
 
-export function Hero(): React.ReactElement {
+interface HeroProps {
+  session: Session | null;
+}
+
+export function Hero({ session }: HeroProps): React.ReactElement {
   return (
     <section
       aria-labelledby="hero-heading"
@@ -27,13 +31,23 @@ export function Hero(): React.ReactElement {
         >
           Browse Roles
         </Link>
-        <Link
-          href="/register"
-          aria-label="Create account"
-          className="btn-outline px-5 py-3 text-sm font-semibold"
-        >
-          Create Account
-        </Link>
+        {session ? (
+          <Link
+            href="/dashboard"
+            aria-label="Go to dashboard"
+            className="btn-outline px-5 py-3 text-sm font-semibold"
+          >
+            Dashboard
+          </Link>
+        ) : (
+          <Link
+            href="/register"
+            aria-label="Create account"
+            className="btn-outline px-5 py-3 text-sm font-semibold"
+          >
+            Create Account
+          </Link>
+        )}
       </div>
     </section>
   );

@@ -12,7 +12,7 @@ export function Footer(): React.ReactElement {
               href="/"
               className="text-xl font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent"
             >
-              TeamMatch
+              Teamified
             </Link>
             <p className="text-xs leading-relaxed max-w-sm">
               AI-powered job application platform connecting talent with
@@ -132,7 +132,7 @@ export function Footer(): React.ReactElement {
           </div>
         </div>
         <div className="mt-12 text-center text-xs opacity-70">
-          © {currentYear} TeamMatch. All rights reserved.
+          © {currentYear} Teamified. All rights reserved.
         </div>
       </div>
     </footer>

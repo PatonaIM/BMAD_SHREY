@@ -29,13 +29,16 @@ body {
   @apply btn bg-brand-secondary text-white hover:bg-indigo-600;
 }
 .btn-outline {
-  @apply btn border border-neutral-300 bg-white hover:bg-neutral-100;
+  @apply btn border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800;
+}
+.btn-ghost {
+  @apply btn bg-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-transparent;
 }
 .badge {
   @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-700;
 }
 .input {
-  @apply w-full rounded-md border-neutral-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary;
+  @apply w-full rounded-md border border-neutral-300 bg-white text-neutral-900 placeholder-neutral-500 shadow-sm focus:border-brand-primary focus:ring-brand-primary dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-400;
 }
 
 /* Scroll reveal initial & final state */
