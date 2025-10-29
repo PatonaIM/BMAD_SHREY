@@ -152,23 +152,32 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
             </div>
           )}
           {state.status === 'success' && (
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-2 h-2 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-2 h-2 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <p className="text-green-600 dark:text-green-400 text-sm font-medium">
+                  Resume uploaded successfully!
+                </p>
               </div>
-              <p className="text-green-600 dark:text-green-400 text-sm font-medium">
-                Resume uploaded successfully!
-              </p>
+              {state.versionId && onUploadSuccess && (
+                <div className="pt-2 border-t border-green-200 dark:border-green-700">
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
+                    Next step: Extract profile data with AI
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {state.status === 'error' && (

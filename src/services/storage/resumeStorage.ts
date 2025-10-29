@@ -17,6 +17,7 @@ export interface ResumeStorage {
     _data: Buffer
   ): Promise<StoredFileInfo>;
   getViewUrl(_storageKey: string): Promise<string>;
+  get(_storageKey: string): Promise<Buffer>;
 }
 
 const BASE_DIR = join(process.cwd(), 'data', 'resumes');
@@ -51,6 +52,17 @@ export class LocalFsResumeStorage implements ResumeStorage {
     // Return URL to our API route that will serve the file
     const encodedKey = encodeURIComponent(storageKey);
     return `/api/resume/view/${encodedKey}`;
+  }
+
+  async get(storageKey: string): Promise<Buffer> {
+    const { readFileSync, existsSync } = await import('fs');
+    const fullPath = join(BASE_DIR, storageKey);
+
+    if (!existsSync(fullPath)) {
+      throw new Error(`Resume file not found: ${storageKey}`);
+    }
+
+    return readFileSync(fullPath);
   }
 }
 
