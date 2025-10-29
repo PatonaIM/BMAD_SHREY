@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import Link from 'next/link';
+import { Footer } from './Footer';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -47,7 +48,10 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
 
   const isActive = (path: string): boolean => pathname === path;
 
-  const publicLinks = [{ label: 'Jobs', path: '/jobs' }];
+  const publicLinks = [
+    { label: 'Home', path: '/' },
+    { label: 'Jobs', path: '/jobs' },
+  ];
 
   const authenticatedLinks = [
     { label: 'Dashboard', path: '/dashboard' },
@@ -228,28 +232,7 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
       </Box>
 
       {/* Footer */}
-      <Box
-        component="footer"
-        sx={{
-          py: 3,
-          px: 2,
-          mt: 'auto',
-          bgcolor: 'background.paper',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            align="center"
-            sx={{ fontWeight: 500 }}
-          >
-            © {new Date().getFullYear()} TeamMatch. All rights reserved.
-          </Typography>
-        </Container>
-      </Box>
+      <Footer />
     </Box>
   );
 }

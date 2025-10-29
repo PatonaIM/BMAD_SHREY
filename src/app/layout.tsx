@@ -3,6 +3,14 @@ import type { ReactNode } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/options';
 import Providers from '../components/Providers';
+import { AppLayout } from '../components/AppLayout';
+
+export const metadata = {
+  title: 'TeamMatch - AI-Powered Job Application Platform',
+  description:
+    'Discover your next opportunity with AI-enhanced matching, intelligent interviews, and transparent application tracking.',
+  keywords: 'jobs, careers, AI interviews, job search, tech jobs, hiring',
+};
 
 export default async function RootLayout({
   children,
@@ -13,7 +21,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session}>
+          <AppLayout>{children}</AppLayout>
+        </Providers>
       </body>
     </html>
   );

@@ -43,6 +43,9 @@ const EnvSchema = z
       .optional()
       .transform(v => v === 'true')
       .pipe(z.boolean().default(false)),
+    WORKABLE_API_KEY: z.string().optional(),
+    WORKABLE_SUBDOMAIN: z.string().optional(),
+    NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   })
   .superRefine((data, ctx) => {
     // Require NEXTAUTH_SECRET strictly in production

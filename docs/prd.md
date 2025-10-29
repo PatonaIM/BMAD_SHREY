@@ -7,10 +7,11 @@
 - **Transform hiring processes:** Replace manual resume screening with AI-enhanced semantic matching achieving 85% accuracy in candidate-job fit assessment (vs current 40% manual accuracy)
 - **Candidate success metrics:** Achieve 2x higher interview rates (target: 40% interview rate vs industry average 20%) for candidates completing full platform journey including AI interviews
 - **Recruiter efficiency gains:** Reduce average screening time from 23 hours to 14 hours per hire while improving quality scores by 25% through AI pre-filtering and structured feedback
-- **Platform differentiation:** Launch first-to-market combination of semantic AI matching (OpenAI embeddings) with interactive AI interviews (Realtime API + D-ID avatars) creating 10-15 point score improvement opportunity
+- **Platform differentiation:** Launch first-to-market combination of semantic AI matching (OpenAI embeddings) with interactive AI interviews (Realtime API + D-ID avatars) creating 10-15 point score improvement opportunity, integrated seamlessly with Workable ATS
 - **Transparency and feedback:** Deliver 90% candidate satisfaction with feedback quality and 95% application status transparency (measured via NPS surveys and platform analytics)
-- **Revenue and scale targets:** Generate $500K ARR within 12 months through tiered SaaS model ($99/month recruiters, $19/month premium candidates) supporting 10,000 MAU job seekers and 100 active enterprise clients
-- **Technical foundation:** Build scalable architecture supporting 50,000+ concurrent users, <3 second page loads, 99.9% uptime, and seamless integration with existing ATS systems (Phase 2)
+- **SEO and discoverability:** Achieve top 10 organic search rankings for target job keywords within 6 months through optimized public job listings and structured data markup
+- **Workable integration:** Seamlessly sync job listings from Workable ATS every 15 minutes, eliminating manual job posting and ensuring real-time accuracy
+- **Technical foundation:** Build scalable architecture supporting 50,000+ concurrent users, <3 second page loads, 99.9% uptime, and seamless Workable API integration
 
 ### Background Context
 
@@ -27,10 +28,13 @@ The hiring landscape suffers from systemic inefficiencies affecting both sides o
 **Solution Architecture:**
 TeamMatch addresses these challenges through a comprehensive AI-first platform combining:
 
+- **Workable Integration:** Automatic job synchronization from Workable ATS every 15 minutes, eliminating manual job posting overhead and ensuring real-time accuracy
+- **SEO-Optimized Public Job Board:** Fully accessible public homepage with structured data markup, server-side rendering, and optimized metadata for maximum organic discoverability
 - **Semantic Understanding:** OpenAI text-embedding-3-large models process full resume context (not just keywords) achieving 85% accuracy in skill extraction vs 40% for traditional parsing
 - **Interactive Assessment:** 15-20 minute AI interviews using OpenAI Realtime API provide standardized soft skill evaluation missing from resume-only assessment
 - **Professional Presentation:** D-ID avatar technology creates engaging, bias-free interview experiences maintaining professional standards
 - **Transparent Scoring:** Multi-factor scoring algorithm (40% semantic match, 35% skills alignment, 15% experience level, 10% additional factors) with detailed explanations
+- **Candidate-Centric Dashboard:** Post-login view showing application status, activity timeline, and personalized job recommendations all in one place
 
 **Technical Foundation Validation:**
 Our October 27, 2025 architecture session confirmed:
@@ -39,41 +43,45 @@ Our October 27, 2025 architecture session confirmed:
 - **Development Efficiency:** Next.js full-stack approach reduces complexity and deployment overhead
 - **Cost Structure:** OpenAI API costs projected at $0.15-0.30 per candidate assessment, sustainable for freemium model
 - **Integration Path:** NextAuth.js + Material-UI provides rapid MVP development with enterprise-ready foundation
+- **Workable API:** RESTful API with straightforward authentication supports real-time job synchronization with rate limiting considerations
 
 ### Change Log
 
-| Date       | Version | Description                                                                          | Author          |
-| ---------- | ------- | ------------------------------------------------------------------------------------ | --------------- |
-| 2025-10-27 | 1.0     | Initial PRD creation based on Project Brief and technical architecture brainstorming | Product Manager |
+| Date       | Version | Description                                                                             | Author          |
+| ---------- | ------- | --------------------------------------------------------------------------------------- | --------------- |
+| 2025-10-27 | 1.0     | Initial PRD creation based on Project Brief and technical architecture brainstorming    | Product Manager |
+| 2025-10-29 | 2.0     | Major pivot to Workable integration, SEO-optimized homepage, removed manual job posting | Product Manager |
 
 ## Requirements
 
 ### Functional
 
-1. **FR1:** The system shall provide anonymous job browsing capabilities allowing unregistered users to view all active job listings with complete job descriptions, requirements, and company information
-2. **FR2:** The system shall support multi-provider authentication using NextAuth.js with email/password, Google OAuth, and GitHub OAuth providers with automatic account linking based on email address
-3. **FR3:** The system shall process uploaded PDF/DOC resumes using OpenAI API to extract structured profile data including personal information, skills, experience timeline, and education details
-4. **FR4:** The system shall allow manual editing and updating of all AI-extracted profile data with version control maintaining both original files and user modifications
-5. **FR5:** The system shall generate semantic embeddings of complete resume text using OpenAI text-embedding-3-large model and store vectors in MongoDB Atlas Vector Search
-6. **FR6:** The system shall calculate candidate-job match scores using multi-factor algorithm: 40% semantic similarity, 35% skills alignment, 15% experience level, 10% additional factors (location, industry, company size)
-7. **FR7:** The system shall provide detailed score breakdowns showing strengths, improvement areas, and specific missing skills or experience gaps
-8. **FR8:** The system shall offer optional 15-20 minute AI interviews using OpenAI Realtime API with D-ID avatar presentation for voice-to-voice interaction
-9. **FR9:** The system shall generate role-specific interview questions based on candidate resume and target job description prior to interview session
-10. **FR10:** The system shall record complete AI interview sessions (audio and video) and store securely for recruiter review and candidate reference
-11. **FR11:** The system shall score AI interviews on technical accuracy (60%) and communication clarity (40%) providing 5-15 point boost to overall application scores
-12. **FR12:** The system shall support multi-stage application workflow: Draft → Submitted → AI Interview → Human Interview/Assessment → Offer → Disqualified
-13. **FR13:** The system shall enable recruiters to manually update application statuses with notes and schedule follow-up activities
-14. **FR14:** The system shall maintain complete application timeline with all status changes, timestamps, and responsible party tracking
-15. **FR15:** The system shall provide candidate dashboard showing application portfolio with real-time status, scores, next actions, and historical timeline
-16. **FR16:** The system shall enable candidates to apply to unlimited jobs simultaneously with independent tracking and scoring per application
-17. **FR17:** The system shall provide basic recruiter admin interface for job posting, candidate review, and application management
-18. **FR18:** The system shall generate AI-powered recruiter insights explaining candidate fit including strengths, concerns, and hiring recommendations
-19. **FR19:** The system shall normalize skills data (React.js → React) and track experience years, recency, and complexity level per skill
-20. **FR20:** The system shall implement role-based access control with candidate, recruiter, and admin permission levels
+1. **FR1:** The system shall provide SEO-optimized public homepage with server-side rendered job listings, structured data markup (JSON-LD), optimized meta tags, and sitemap generation for maximum search engine visibility
+2. **FR2:** The system shall display job listings on homepage with search functionality supporting keyword, location, and experience level filtering without requiring authentication
+3. **FR3:** The system shall sync job data from Workable API automatically every 15 minutes, including job title, description, requirements, location, department, employment type, and posting status
+4. **FR4:** The system shall store Workable job data in local MongoDB with full-text search indexes and maintain referential integrity with application records
+5. **FR5:** The system shall require authentication (email/password, Google OAuth, or GitHub OAuth) for candidates to apply to jobs, triggering login flow if not authenticated
+6. **FR6:** The system shall support multi-provider authentication using NextAuth.js with automatic account linking based on email address and default CANDIDATE role assignment
+7. **FR7:** The system shall display authenticated candidate dashboard showing application status, activity timeline, match scores, and personalized job recommendations in unified view
+8. **FR8:** The system shall process uploaded PDF/DOC resumes using OpenAI API to extract structured profile data including personal information, skills, experience timeline, and education details
+9. **FR9:** The system shall allow manual editing and updating of all AI-extracted profile data with version control maintaining both original files and user modifications
+10. **FR10:** The system shall generate semantic embeddings of complete resume text using OpenAI text-embedding-3-large model and store vectors in MongoDB Atlas Vector Search
+11. **FR11:** The system shall calculate candidate-job match scores using multi-factor algorithm: 40% semantic similarity, 35% skills alignment, 15% experience level, 10% additional factors (location, industry)
+12. **FR12:** The system shall provide detailed score breakdowns showing strengths, improvement areas, and specific missing skills or experience gaps
+13. **FR13:** The system shall offer optional 15-20 minute AI interviews using OpenAI Realtime API with D-ID avatar presentation for voice-to-voice interaction
+14. **FR14:** The system shall generate role-specific interview questions based on candidate resume and target job description prior to interview session
+15. **FR15:** The system shall record complete AI interview sessions (audio and video) and store securely for recruiter review and candidate reference
+16. **FR16:** The system shall score AI interviews on technical accuracy (60%) and communication clarity (40%) providing 5-15 point boost to overall application scores
+17. **FR17:** The system shall support multi-stage application workflow: Submitted → AI Interview → Under Review → Interview Scheduled → Offer → Rejected
+18. **FR18:** The system shall maintain complete application timeline with all status changes, timestamps, and system/recruiter actions
+19. **FR19:** The system shall enable candidates to apply to unlimited jobs simultaneously with independent tracking and scoring per application
+20. **FR20:** The system shall normalize skills data (React.js → React) and track experience years, recency, and complexity level per skill
+21. **FR21:** The system shall implement role-based access control with candidate, recruiter, and admin permission levels
+22. **FR22:** The system shall provide recruiter interface for viewing applications, candidate profiles, match scores, and interview recordings without job posting capabilities
 
 ### Non Functional
 
-1. **NFR1:** The system shall achieve <3 second page load times for all core user interfaces under normal load conditions
+1. **NFR1:** The system shall achieve <3 second page load times for homepage and all core user interfaces under normal load conditions with server-side rendering
 2. **NFR2:** The system shall maintain 99.9% uptime availability with automated failover and monitoring
 3. **NFR3:** The system shall support 50,000+ concurrent users with horizontal scaling capabilities using MongoDB Atlas auto-scaling
 4. **NFR4:** The system shall process AI interviews with <500ms latency for voice interaction using OpenAI Realtime API
@@ -88,6 +96,9 @@ Our October 27, 2025 architecture session confirmed:
 13. **NFR13:** The system shall support OpenAI API cost optimization keeping per-candidate assessment costs below $0.30
 14. **NFR14:** The system shall implement secure file upload with virus scanning and size limits (10MB per resume)
 15. **NFR15:** The system shall provide comprehensive error handling with user-friendly messages and automatic retry mechanisms
+16. **NFR16:** The system shall implement SEO best practices including semantic HTML, meta tags, Open Graph, Twitter Cards, and structured data (JSON-LD) for job postings
+17. **NFR17:** The system shall sync Workable jobs with <5 minute delay during business hours and gracefully handle API rate limits and failures
+18. **NFR18:** The system shall generate dynamic sitemaps updated daily for search engine crawling optimization
 
 ## User Interface Design Goals
 
@@ -107,14 +118,14 @@ TeamMatch will deliver a modern, AI-native user experience that makes job search
 
 From a product perspective, the critical screens necessary to deliver TeamMatch's value proposition include:
 
-- **Public Job Listings Page:** Anonymous-accessible job browse with advanced filtering, company information, and clear "Apply Now" calls-to-action
-- **Authentication Modal/Page:** Streamlined multi-provider signup/login with clear value proposition and privacy assurances
+- **SEO-Optimized Homepage:** Public job listings with search (keyword, location, experience), hero section with value proposition, futuristic design with header/footer navigation, structured data markup
+- **Job Detail Page:** Server-side rendered job information with apply CTA, company details, requirements, and benefits (public access)
+- **Authentication Modal/Page:** Streamlined multi-provider signup/login triggered on apply action with clear value proposition
 - **Profile Creation Wizard:** Step-by-step resume upload, AI extraction review, and manual editing interface with progress indicators
-- **Job Detail & Application Page:** Comprehensive job information with real-time match scoring, application form, and AI interview scheduling
+- **Candidate Dashboard:** Unified post-login view showing application status/activity, personalized job recommendations, match scores, and quick actions
+- **Application Detail View:** Deep-dive into specific applications with timeline, feedback, score breakdown, and AI interview option
 - **AI Interview Interface:** Professional interview environment with D-ID avatar, clear audio controls, question progression, and confidence-building design
-- **Candidate Dashboard:** Application portfolio overview with status tracking, score summaries, improvement opportunities, and quick actions
-- **Application Detail View:** Deep-dive into specific applications with timeline, feedback, score breakdown, and next steps
-- **Recruiter Admin Interface:** Job posting, candidate review, application management with AI insights and bulk actions
+- **Recruiter Interface:** Candidate review, application management, score analysis, and interview recording access (no job posting)
 
 ### Accessibility: WCAG 2.1 AA
 
@@ -248,7 +259,7 @@ Each epic builds upon previous functionality while delivering standalone value, 
 
 ## Epic 1: Foundation & Core Platform
 
-**Epic Goal:** Establish a production-ready web application with secure authentication, responsive user interface, and basic job browsing functionality. This epic creates the technical foundation supporting all future AI features while delivering immediate value as a functional job board that users can browse anonymously and register to access personalized features.
+**Epic Goal:** Establish a production-ready web application with secure authentication, SEO-optimized public homepage, Workable ATS integration, and candidate dashboard. This epic creates the technical foundation supporting all future AI features while delivering immediate value as a functional job board that syncs automatically from Workable, supports public job discovery with search engine optimization, and provides authenticated candidates with personalized application tracking.
 
 ### Story 1.1: Project Setup & Development Environment
 
@@ -258,20 +269,20 @@ So that **I can begin feature development with consistent code quality, testing 
 
 #### Acceptance Criteria
 
-1. Next.js 15+ application created with TypeScript and App Router configuration
+1. Next.js 15+ application created with TypeScript and App Router configuration with server-side rendering enabled
 2. Material-UI 5+ integrated with custom theme extending brand colors (#A16AE8, #8096FD)
 3. ESLint, Prettier, and Husky pre-commit hooks configured for automated code quality
-4. Jest and React Testing Library setup for unit testing with sample test cases
+4. Vitest configured for unit testing with sample test cases
 5. MongoDB Atlas connection configured with environment variable management
-6. GitHub repository initialized with CI/CD pipeline for automated testing and deployment
-7. Vercel deployment configuration ready for staging and production environments
+6. GitHub repository initialized with Vercel deployment for automated testing and deployment
+7. Environment configuration for Workable API credentials and OpenAI API keys
 8. Development documentation created with setup instructions and coding standards
 
 ### Story 1.2: Multi-Provider Authentication System
 
 As a **job seeker**,  
 I want **to register and login using email/password, Google, or GitHub accounts**,  
-So that **I can securely access personalized features without creating yet another password**.
+So that **I can securely access personalized features and apply to jobs without creating yet another password**.
 
 #### Acceptance Criteria
 
@@ -284,8 +295,68 @@ So that **I can securely access personalized features without creating yet anoth
 7. Password requirements enforced (8+ characters) with client and server validation
 8. Error handling provides clear messages for authentication failures
 9. User session persists across browser sessions and device changes
+10. Authentication modal/page triggered when anonymous users click "Apply" on jobs
 
-### Story 1.3: Responsive Application Layout
+### Story 1.3: SEO-Optimized Public Homepage
+
+As a **job seeker or search engine crawler**,  
+I want **a fast, SEO-optimized homepage with public job listings and search functionality**,  
+So that **I can easily discover relevant jobs through search engines and browse opportunities without registration**.
+
+#### Acceptance Criteria
+
+1. Server-side rendered homepage with <3 second initial load time
+2. Futuristic, modern design with prominent header navigation and footer with company info/links
+3. Hero section with value proposition, call-to-action, and engaging visuals
+4. Job listings displayed in card layout showing title, company, location, salary (if available), and posting date
+5. Search form with keyword input and filters (location, experience level) prominently placed
+6. Each job card has "Apply Now" button triggering authentication for anonymous users
+7. Semantic HTML5 markup with proper heading hierarchy and ARIA labels
+8. JSON-LD structured data for JobPosting schema on each job card
+9. Optimized meta tags (title, description, Open Graph, Twitter Cards) for social sharing
+10. Dynamic sitemap.xml generated and updated daily with job URLs
+11. robots.txt configured properly for search engine crawling
+12. Responsive design working seamlessly on mobile, tablet, and desktop
+
+### Story 1.4: Workable API Integration
+
+As a **system administrator**,  
+I want **automatic job synchronization from Workable ATS**,  
+So that **recruiters don't need to manually post jobs and listings are always up-to-date**.
+
+#### Acceptance Criteria
+
+1. Workable API client configured with authentication (API key/subdomain)
+2. Cron job or scheduled task fetches jobs from Workable API every 15 minutes
+3. Job data mapped from Workable schema to internal MongoDB schema (title, description, requirements, location, department, employment_type, etc.)
+4. New jobs automatically created in local database with active status
+5. Existing jobs updated when Workable data changes (description, status, etc.)
+6. Jobs marked as inactive/archived when removed or closed in Workable
+7. Error handling and retry logic for API failures with logging
+8. Rate limit handling respects Workable API constraints (typically 10 requests/second)
+9. Admin interface shows last sync time and sync status/errors
+10. Webhook support (optional) for real-time updates when Workable jobs change
+
+### Story 1.5: Candidate Dashboard & Application Tracking
+
+As an **authenticated job seeker**,  
+I want **a unified dashboard showing my application status and available jobs**,  
+So that **I can track my progress and discover new opportunities in one place**.
+
+#### Acceptance Criteria
+
+1. Post-login dashboard displays applications section with status badges (Submitted, Under Review, Interview Scheduled, etc.)
+2. Application cards show job title, company, application date, current status, and match score (once calculated)
+3. Activity timeline shows recent actions (application submitted, status changed, interview completed)
+4. "Available Jobs" section displays personalized recommendations or recent postings
+5. Quick apply button on job cards for authenticated users
+6. Application detail view accessible by clicking application cards
+7. Dashboard responsive and accessible on all device sizes
+8. Empty states with helpful messages when no applications exist yet
+9. Navigation between dashboard, profile, and job listings seamless
+10. Real-time or near real-time status updates when application status changes
+
+### Story 1.6: Responsive Application Layout
 
 As a **user**,  
 I want **a professional, responsive interface that works seamlessly on desktop and mobile devices**,  
@@ -293,86 +364,34 @@ So that **I can access the platform efficiently regardless of my device or scree
 
 #### Acceptance Criteria
 
-1. Material-UI LayoutMUI component implemented with header, navigation, and content areas
+1. Material-UI AppLayout component implemented with header, navigation, and content areas
 2. Responsive design adapts to mobile (320px+), tablet (768px+), and desktop (1024px+) breakpoints
 3. Header contains TeamMatch branding, navigation links, and authentication status/controls
-4. Navigation menu provides access to Jobs, Dashboard (authenticated), and Profile (authenticated)
-5. Material-UI theme applied consistently across all interface elements
-6. Loading states and skeleton screens implemented for better perceived performance
-7. WCAG 2.1 AA accessibility compliance including keyboard navigation and screen reader support
-8. Cross-browser compatibility verified on Chrome, Firefox, Safari, and Edge
-
-### Story 1.4: Anonymous Job Browsing
-
-As an **anonymous visitor**,  
-I want **to browse available job listings without registering**,  
-So that **I can evaluate the platform's job quality and relevance before committing to account creation**.
-
-#### Acceptance Criteria
-
-1. Public job listings page displays all active jobs in card-based layout
-2. Each job card shows title, company, location, salary range (if available), and posting date
-3. Job cards include "Apply Now" call-to-action that triggers authentication modal for anonymous users
-4. Basic filtering implemented by location, company, and job type (full-time, part-time, contract)
-5. Search functionality allows keyword matching across job titles and descriptions
-6. Pagination or infinite scroll handles large job datasets efficiently
-7. Job detail pages accessible without authentication showing full job descriptions
-8. Responsive design ensures optimal browsing experience on all device sizes
-9. Loading performance optimized with <3 second initial page load times
-
-### Story 1.5: Job Management System (Admin)
-
-As a **recruiter**,  
-I want **to post and manage job listings through an admin interface**,  
-So that **I can attract qualified candidates and maintain accurate job information**.
-
-#### Acceptance Criteria
-
-1. Recruiter authentication and role-based access control implemented
-2. Job posting form captures title, description, requirements, location, salary range, and company info
-3. Rich text editor enables formatted job descriptions with bullets, headers, and links
-4. Job status management (Draft, Active, Closed) with publish/unpublish functionality
-5. Job listing management interface shows all recruiter's jobs with edit/delete capabilities
-6. Form validation ensures required fields completed before job publication
-7. Auto-save functionality prevents data loss during job creation/editing
-8. Job approval workflow (optional) for enterprise accounts with admin oversight
-9. SEO-friendly URLs generated for published job listings
-
-### Story 1.6: User Profile Foundation
-
-As a **registered user**,  
-I want **to create and manage my basic profile information**,  
-So that **I can personalize my platform experience and prepare for future AI-enhanced features**.
-
-#### Acceptance Criteria
-
-1. Profile creation wizard guides new users through essential information setup
-2. Basic profile fields include name, email, phone, location, and professional summary
-3. Profile photo upload with image cropping and optimization capabilities
-4. Profile completeness indicator shows progress and encourages completion
-5. Profile editing interface allows updates to all user information
-6. Email notification preferences management for future communication features
-7. Account deletion functionality with data export option for GDPR compliance
-8. Profile privacy settings control visibility to recruiters and public
-9. Input validation prevents malformed data and provides helpful error messages
+4. Navigation menu provides access to Home (public), Dashboard (authenticated), and Profile (authenticated)
+5. Footer with company information, links (About, Privacy, Terms), and social media icons
+6. Material-UI theme applied consistently across all interface elements
+7. Loading states and skeleton screens implemented for better perceived performance
+8. WCAG 2.1 AA accessibility compliance including keyboard navigation and screen reader support
+9. Cross-browser compatibility verified on Chrome, Firefox, Safari, and Edge
 
 ### Story 1.7: Database Schema & API Foundation
 
 As a **developer**,  
-I want **well-structured database schemas and RESTful API routes**,  
-So that **I can efficiently store user data, job information, and build scalable backend functionality**.
+I want **well-structured database schemas and API routes for Workable integration and application tracking**,  
+So that **I can efficiently store job data, user information, and build scalable backend functionality**.
 
 #### Acceptance Criteria
 
-1. MongoDB collections designed for users, jobs, profiles, and applications with proper indexing
-2. RESTful API routes implemented for user management, job CRUD operations, and profile management
-3. API middleware handles authentication, authorization, rate limiting, and error responses
-4. Data validation schemas ensure data integrity and prevent injection attacks
-5. API documentation generated with OpenAPI specification for future integrations
-6. Database connection pooling and query optimization for performance
-7. Audit logging captures all user actions and system events for security monitoring
-8. Backup and recovery procedures established with automated daily backups
-9. Environment-specific configurations for development, staging, and production databases
+1. MongoDB collections designed for users, jobs (from Workable), profiles, and applications with proper indexing
+2. Jobs collection includes Workable job ID, sync timestamp, and all relevant job fields
+3. Applications collection with userId, jobId, status, timeline, and match score fields
+4. tRPC procedures implemented for job queries, application submission, and profile management
+5. API middleware handles authentication, authorization, rate limiting, and error responses
+6. Data validation schemas (Zod) ensure data integrity and prevent injection attacks
+7. Database indexes optimized for common queries (jobs by location, applications by userId, full-text search)
+8. Audit logging captures all user actions and system events for security monitoring
+9. Backup and recovery procedures established with MongoDB Atlas automated backups
+10. Environment-specific configurations for development, staging, and production databases
 
 ### Story 1.8: Security & Performance Optimization
 

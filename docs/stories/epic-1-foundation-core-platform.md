@@ -2,6 +2,8 @@
 
 Source: See `docs/prd.md` (Epic 1 section). Story IDs use prefix EP1-S#.
 
+**MAJOR UPDATE (2025-10-29):** Epic 1 pivoted to Workable ATS integration approach. Manual job posting removed (old EP1-S5). New focus on SEO-optimized homepage, Workable API sync, and candidate dashboard with application tracking.
+
 ## EP1-S1 Project Setup & Dev Environment
 
 As a developer,
@@ -10,12 +12,13 @@ So that I can build features rapidly with consistent standards.
 
 Acceptance Criteria:
 
-- Next.js 16 App Router + TS strict configured (upgrade path validated; initial scaffold may start on 14.x if blockers discovered, but Epic completion requires 16)
+- Next.js 15+ App Router + TS strict configured with SSR enabled
 - MUI theme with brand colors (#A16AE8, #8096FD)
 - ESLint + Prettier + Husky pre-commit hooks fire on staged files
-- Sample unit test (e.g. health ping) passes in CI
+- Vitest configured with sample tests passing
 - MongoDB connection helper with env validation
-- CI pipeline running typecheck + tests on PR
+- Vercel deployment pipeline running typecheck + tests
+- Environment configuration for Workable API and OpenAI API keys
 - Coding standards doc referenced in README
 
 Definition of Done Checklist:
@@ -27,12 +30,13 @@ Definition of Done Checklist:
 - [x] Env schema validates required vars (`src/config/env.ts` implemented)
 - [x] README updated (setup & scripts present)
 - [x] CI handled by Vercel (lint, typecheck, tests run on deployment; GitHub Actions removed)
+- [ ] Workable API and OpenAI API env vars added and validated
 
 ## EP1-S2 Multi-Provider Authentication
 
 As a job seeker,
 I want to register/login with email/password, Google, or GitHub,
-So that I can access features easily.
+So that I can access features easily and apply to jobs.
 
 Acceptance Criteria:
 
@@ -44,6 +48,7 @@ Acceptance Criteria:
 - Session persists across refresh & days (configurable maxAge)
 - Logout clears session
 - JWT includes roles; session callback exposes roles
+- Authentication modal/page triggered when clicking "Apply" on jobs while not logged in
 
 DoD:
 
@@ -53,100 +58,155 @@ DoD:
 - [x] Error mapping documented (login page & README auth section)
 - [x] Unit tests: registration, login success, failure, provider linking (see auth tests)
 - [x] README auth section updated
+- [ ] Auth modal/trigger on apply action for anonymous users
 
-## EP1-S3 Responsive Application Layout
+## EP1-S3 SEO-Optimized Public Homepage
+
+As a job seeker or search engine crawler,
+I want a fast, SEO-optimized homepage with public job listings and search,
+So that I can discover relevant jobs through search engines without registration.
+
+Acceptance Criteria:
+
+- Server-side rendered homepage with <3 second initial load
+- Futuristic modern design with prominent header navigation and footer
+- Hero section with value proposition, CTA, and engaging visuals
+- Job listings in card layout (title, company, location, salary, date)
+- Search form with keyword input and filters (location, experience level)
+- "Apply Now" button on each job card triggers auth for anonymous users
+- Semantic HTML5 markup with proper heading hierarchy and ARIA labels
+- JSON-LD structured data for JobPosting schema on each job
+- Optimized meta tags (title, description, Open Graph, Twitter Cards)
+- Dynamic sitemap.xml generated and updated daily
+- robots.txt configured for search engine crawling
+- Responsive design (mobile, tablet, desktop)
+
+DoD:
+
+- [ ] Homepage route created with SSR enabled
+- [ ] Hero section with value prop and CTA implemented
+- [ ] Job cards displayed from database with real data
+- [ ] Search form functional (keyword, location, experience filters)
+- [ ] JSON-LD JobPosting structured data added to each job
+- [ ] Meta tags optimized for SEO and social sharing
+- [ ] Sitemap generation implemented
+- [ ] Performance <3s validated with Lighthouse
+- [ ] Responsive design tested on mobile/tablet/desktop
+- [ ] Accessibility audit passed (WCAG 2.1 AA)
+
+## EP1-S4 Workable API Integration
+
+As a system administrator,
+I want automatic job synchronization from Workable ATS,
+So that recruiters don't need to manually post jobs.
+
+Acceptance Criteria:
+
+- Workable API client configured with authentication (API key/subdomain)
+- Cron job/scheduled task fetches jobs every 15 minutes
+- Job data mapped from Workable schema to internal MongoDB schema
+- New jobs automatically created with active status
+- Existing jobs updated when Workable data changes
+- Jobs marked inactive/archived when removed/closed in Workable
+- Error handling and retry logic with logging
+- Rate limit handling respects Workable constraints
+- Admin interface shows last sync time and status
+- Webhook support (optional) for real-time updates
+
+DoD:
+
+- [ ] Workable API client implemented with auth
+- [ ] Scheduled job sync task (cron or Vercel cron)
+- [ ] Job schema mapping from Workable to MongoDB
+- [ ] Create/update/archive logic implemented
+- [ ] Error handling and retry logic with logging
+- [ ] Rate limiting handled gracefully
+- [ ] Admin page showing sync status
+- [ ] Unit tests for API client and sync logic
+- [ ] Documentation for Workable setup
+
+## EP1-S5 Candidate Dashboard & Application Tracking
+
+As an authenticated job seeker,
+I want a unified dashboard showing my application status and available jobs,
+So that I can track progress and discover opportunities in one place.
+
+Acceptance Criteria:
+
+- Post-login dashboard displays applications with status badges
+- Application cards show job title, company, date, status, match score
+- Activity timeline shows recent actions (submitted, status changed, interview)
+- "Available Jobs" section displays recommendations or recent postings
+- Quick apply button on job cards for authenticated users
+- Application detail view accessible by clicking cards
+- Dashboard responsive on all device sizes
+- Empty states with helpful messages when no applications
+- Navigation between dashboard, profile, jobs seamless
+- Real-time or near real-time status updates
+
+DoD:
+
+- [ ] Dashboard route created (protected, requires auth)
+- [ ] Applications section with cards and status badges
+- [ ] Activity timeline component implemented
+- [ ] Available jobs section with job cards
+- [ ] Application detail view with timeline
+- [ ] Quick apply functionality
+- [ ] Responsive design tested
+- [ ] Empty states designed and implemented
+- [ ] Navigation flow tested
+- [ ] Unit tests for dashboard components
+
+## EP1-S6 Responsive Application Layout
 
 As a user,
-I want a professional responsive layout,
+I want a professional responsive layout with header and footer,
 So that I can navigate on any device.
 
 Acceptance Criteria:
 
-- Layout with header (branding, nav, auth state)
+- Layout with header (branding, nav, auth state) and footer (links, social)
 - Responsive breakpoints (mobile, tablet, desktop) verified
-- Navigation links: Jobs (public), Dashboard/Profile (authed)
+- Navigation links: Home (public), Dashboard/Profile (authed)
 - Skeletons for data fetch states
 - WCAG keyboard navigation for header & menu
 - Color contrast >= 4.5:1 for text
 
 DoD:
 
-- [x] Layout component integrated globally (AppLayout created with responsive navigation)
-- [ ] Responsive tests (mobile + desktop snapshots) (pending)
-- [ ] Accessibility lint (aria, contrast) passed (pending tooling)
-- [ ] Documentation of layout usage (pending)
-
-## EP1-S4 Anonymous Job Browsing
-
-As an anonymous visitor,
-I want to browse jobs without signup,
-So that I can evaluate platform relevance.
-
-Acceptance Criteria:
-
-- Public /jobs page lists active jobs (mock data acceptable initially)
-- Card includes title, company, location, posting date, salary (optional)
-- Search (title/description keywords)
-- Basic filters (location, type, company)
-- Pagination or infinite scroll (choose one) with performant queries
-- Job detail accessible anonymously
-- Apply CTA triggers auth if not logged in
-- Initial load < 3s (local dev baseline)
-
-DoD:
-
-- [ ] Job model + repository (pending)
-- [ ] Public jobs route (pending)
-- [ ] Filtering logic test (pending)
-- [ ] Performance budget note (<3s) (pending)
-- [ ] Accessibility on cards (aria role="article") (pending)
-
-## EP1-S5 Job Management (Recruiter Admin)
-
-As a recruiter,
-I want to post/manage job listings,
-So that I can attract candidates.
-
-Acceptance Criteria:
-
-- Auth required with RECRUITER/ADMIN role
-- Create/edit form (title, description, requirements, location, salary, company)
-- Status transitions: Draft -> Active -> Closed
-- Rich text (MVP: limited markdown or editor)
-- List view with edit/delete
-- Validation & error states
-
-DoD:
-
-- [ ] Role guard middleware tests (pending)
-- [ ] CRUD repository + tRPC procedures (pending)
-- [ ] Form validation (zod) + unit tests (pending)
-- [ ] Markdown sanitization (XSS safe) (pending)
-
-## EP1-S6 (Moved) Basic Profile Creation – Consolidated into EP2-S3
-
-This initial profile foundation (fields, avatar, privacy, completeness metric) has been merged with the AI extraction editing flow in Epic 2 for a single cohesive candidate profile experience. See `epic-2-ai-profile-system.md` Story EP2-S3.
+- [x] Layout component created (AppLayout with responsive navigation)
+- [ ] Layout integrated globally in root layout
+- [ ] Footer component with company info and links
+- [ ] Responsive tests (mobile + desktop snapshots)
+- [ ] Accessibility lint (aria, contrast) passed
+- [ ] Documentation of layout usage
 
 ## EP1-S7 Database Schema & API Foundation
 
 As a developer,
-I want structured collections & validated endpoints,
+I want structured collections & validated endpoints for Workable and applications,
 So that future features build on solid data.
 
 Acceptance Criteria:
 
-- Collections: users, jobs, profiles, applications (seed placeholder)
-- Indexes: users.email, jobs.status+postedAt, applications.userId+jobId
+- Collections: users, jobs (from Workable), profiles, applications
+- Jobs collection includes Workable job ID and sync timestamp
+- Applications collection with userId, jobId, status, timeline, match score
+- Indexes: users.email, jobs.workableId, jobs.status+postedAt, applications.userId+jobId
 - Central zod validation per payload
+- tRPC procedures for job queries, application submission, profile management
 - Error formatting standardized
 - Audit logging stub for critical actions
 
 DoD:
 
-- [ ] Migrations or initialization script (pending)
-- [x] Schemas documented (User, Job, Application, Interview types exist in src/shared/types/)
+- [ ] Job schema with Workable fields defined
+- [ ] Application schema with status workflow
+- [x] User and Profile schemas documented (types exist in src/shared/types/)
+- [ ] Database indexes created for common queries
+- [ ] tRPC procedures for jobs and applications
 - [x] Unit tests for repositories (auth tests cover userRepo; passwordResetRepo tested)
-- [ ] Audit log interface (no-op impl) (pending)
+- [ ] Audit log interface (no-op impl)
 
 ## EP1-S8 Security & Performance Baseline
 
