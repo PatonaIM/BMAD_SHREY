@@ -17,7 +17,7 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const linksPublic = [
     { label: 'Home', path: '/' },
-    { label: 'Jobs', path: '/' },
+    { label: 'Jobs', path: '/jobs' }, // distinct path for unique key
   ];
   const linksAuthed = [{ label: 'Dashboard', path: '/dashboard' }];
   const isActive = (p: string) => pathname === p;
