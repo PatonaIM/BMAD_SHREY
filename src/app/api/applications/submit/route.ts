@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] Application submission attempt:', {
+        jobId,
+        userEmail: session.user.email,
+        resumeVersionId,
+      });
+    }
+
     // Find user by email to get MongoDB _id
     const user = await findUserByEmail(session.user.email);
     if (!user) {
@@ -61,10 +71,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if already applied
+    // Check if already applied - use the found job's MongoDB ID
     const existing = await applicationRepo.findByUserEmailAndJob(
       candidateEmail,
-      jobId
+      job._id
     );
     if (existing) {
       return NextResponse.json(
@@ -73,10 +83,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create application with job details
+    // Create application with job details - use the found job's MongoDB ID
     const application = await applicationRepo.create(
       userId,
-      jobId,
+      job._id, // Use the actual job's MongoDB ID
       candidateEmail,
       job.title,
       job.company,

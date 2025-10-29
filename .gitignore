@@ -79,3 +79,5 @@ docker-compose.yml
 
 .next
 data/resumes/
+
+next-env.d.ts
