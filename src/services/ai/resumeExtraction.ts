@@ -7,6 +7,7 @@ import type {
 } from '../../shared/types/profile';
 import { logger } from '../../monitoring/logger';
 import { getResumeStorage } from '../storage/resumeStorage';
+import { skillNormalizationService } from './skillNormalization';
 
 // Cost estimation constants (OpenAI GPT-4 pricing as of 2024)
 const GPT4_INPUT_COST_PER_1K_TOKENS = 0.03; // $0.03 per 1K input tokens
@@ -222,11 +223,23 @@ Return only the JSON, no additional text:`;
     // Basic validation and normalization
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parsed = data as any; // Safe cast since we validate each field
+    // Filter and normalize skills
+    const rawSkills = Array.isArray(parsed.skills)
+      ? parsed.skills.filter(this.isValidSkill)
+      : [];
+    const normalizedSkills = rawSkills.map((skill: ExtractedSkill) => {
+      const normalized = skillNormalizationService.normalizeSkill(skill.name);
+      return {
+        ...skill,
+        name: normalized.normalized, // Use normalized name
+        category: (normalized.category ||
+          'other') as ExtractedSkill['category'],
+      };
+    });
+
     const result = {
       summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
-      skills: Array.isArray(parsed.skills)
-        ? parsed.skills.filter(this.isValidSkill)
-        : [],
+      skills: normalizedSkills,
       experience: Array.isArray(parsed.experience)
         ? parsed.experience.filter(this.isValidExperience)
         : [],

@@ -14,7 +14,13 @@ export interface ExtractedSkill {
   category: SkillCategory;
   proficiency?: 'beginner' | 'intermediate' | 'advanced' | 'expert';
   yearsOfExperience?: number;
-  normalized?: string; // Canonical form after normalization
+}
+
+export interface NormalizedSkill {
+  original: string;
+  normalized: string;
+  category: string | null;
+  confidence?: number;
 }
 
 export type SkillCategory =
