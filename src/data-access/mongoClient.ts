@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import { getEnv } from '../config/env';
+import { ensureResumeIndexes } from './repositories/resumeRepo';
 import { logger } from '../monitoring/logger';
 
 let client: MongoClient | null = null;
@@ -41,6 +42,7 @@ async function ensureIndexes(mongo: MongoClient) {
     );
 
     logger.info({ msg: 'Indexes ensured' });
+    await ensureResumeIndexes();
   } catch (err) {
     logger.error({
       msg: 'Index creation failed',

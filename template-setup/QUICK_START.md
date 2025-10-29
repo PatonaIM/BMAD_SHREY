@@ -3,11 +3,13 @@
 ## 🚀 Setting Up Your Development Environment
 
 ### Option 1: Cross-Platform (Recommended)
+
 ```bash
 python3 template-setup/setup.py
 ```
 
 ### Option 2: Platform-Specific
+
 ```bash
 # macOS
 ./template-setup/setup-macos.sh
@@ -20,6 +22,7 @@ python3 template-setup/setup.py
 ```
 
 ### Option 3: Using npm scripts
+
 ```bash
 # Cross-platform
 npm run setup
@@ -44,12 +47,14 @@ npm run setup:windows
 ## ⚙️ Configuration
 
 The setup scripts will prompt you for:
+
 - Git user name and email
 - Whether to skip Docker or VS Code installation
 
 ## 🔧 Customization
 
 Edit `template-setup/config/setup-config.json` to customize:
+
 - Tool versions
 - VS Code extensions
 - Git configuration

@@ -7,23 +7,21 @@
 ### Brand Colors
 
 ```typescript
+primary: '#A16AE8'; // Brand Purple
 
-primary: '#A16AE8'    // Brand Purple
-
-secondary: '#8096FD'  // Brand Blue
+secondary: '#8096FD'; // Brand Blue
 ```
 
 ### Status Colors
 
 ```typescript
+success: '#10B981'; // Green
 
-success: '#10B981'    // Green
+warning: '#F59E0B'; // Orange
 
-warning: '#F59E0B'    // Orange
+error: '#EF4444'; // Red
 
-error: '#EF4444'      // Red
-
-info: '#3B82F6'       // Blue
+info: '#3B82F6'; // Blue
 ```
 
 ## 📝 Typography
@@ -161,7 +159,7 @@ const MyPage = () => {
 ```typescript
 // Mobile first approach
 
-sx={{ 
+sx={{
   display: { xs: 'block', md: 'flex' },
   flexDirection: { xs: 'column', md: 'row' }
 }}
@@ -292,7 +290,7 @@ const MyPage = () => {
           <Typography variant="h1" color="primary" gutterBottom>
             Page Title
           </Typography>
-          
+
           <Card sx={{ p: 3, mb: 3 }}>
             <CardContent>
               <Typography variant="h5" gutterBottom>
@@ -320,13 +318,12 @@ export default MyPage;
 
 ## 📚 Resources
 
-* **Full Style Guide**: `docs/style-guide/material-ui-3-expressive-design.md`
-* **Theme Config**: `frontend/src/theme/muiTheme.ts`
-* **Layout Component**: `frontend/src/components/LayoutMUI.tsx`
-* **Sidebar Component**: `frontend/src/components/SidebarMUI.tsx`
+- **Full Style Guide**: `docs/style-guide/material-ui-3-expressive-design.md`
+- **Theme Config**: `frontend/src/theme/muiTheme.ts`
+- **Layout Component**: `frontend/src/components/LayoutMUI.tsx`
+- **Sidebar Component**: `frontend/src/components/SidebarMUI.tsx`
 
 ## 🎯 Best Practices
-
 
 1. **Always use ThemeProvider** - Wrap components with muiTheme
 2. **Use semantic HTML** - Proper heading hierarchy and form structure
@@ -342,10 +339,10 @@ export default MyPage;
 
 ```typescript
 // Header Section Pattern
-<Paper elevation={0} sx={{ 
-  p: 3, 
-  mb: 4, 
-  borderRadius: 3, 
+<Paper elevation={0} sx={{
+  p: 3,
+  mb: 4,
+  borderRadius: 3,
   border: '1px solid #E5E7EB',
   background: 'linear-gradient(135deg, rgba(161, 106, 232, 0.05) 0%, rgba(128, 150, 253, 0.05) 100%)'
 }}>
@@ -379,7 +376,7 @@ export default MyPage;
       Form description
     </Typography>
   </Box>
-  
+
   <Box>
     {/* Form content here - always visible */}
   </Box>

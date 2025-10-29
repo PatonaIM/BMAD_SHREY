@@ -10,19 +10,19 @@ This document defines the Material-UI 3 Expressive Design system for the Teamifi
 
 ### Core Principles
 
-* **Bold Simplicity**: Clean, uncluttered interfaces with purposeful elements
-* **Intuitive Navigation**: Clear information hierarchy and logical user flows
-* **Accessibility-First**: WCAG 2.1 AA compliant design with inclusive practices
-* **Expressive Design**: Dynamic typography, generous spacing, and thoughtful micro-interactions
-* **Brand Consistency**: Unified visual language across all touchpoints
+- **Bold Simplicity**: Clean, uncluttered interfaces with purposeful elements
+- **Intuitive Navigation**: Clear information hierarchy and logical user flows
+- **Accessibility-First**: WCAG 2.1 AA compliant design with inclusive practices
+- **Expressive Design**: Dynamic typography, generous spacing, and thoughtful micro-interactions
+- **Brand Consistency**: Unified visual language across all touchpoints
 
 ### Material-UI 3 Expressive Characteristics
 
-* **Generous Spacing**: 8px base unit with breathing room between elements
-* **Rounded Corners**: 16px+ border radius for modern, friendly appearance
-* **Layered Shadows**: Subtle depth and elevation for visual hierarchy
-* **Dynamic Typography**: Expressive font sizes and weights for better readability
-* **Smooth Animations**: 0.2s cubic-bezier transitions for polished interactions
+- **Generous Spacing**: 8px base unit with breathing room between elements
+- **Rounded Corners**: 16px+ border radius for modern, friendly appearance
+- **Layered Shadows**: Subtle depth and elevation for visual hierarchy
+- **Dynamic Typography**: Expressive font sizes and weights for better readability
+- **Smooth Animations**: 0.2s cubic-bezier transitions for polished interactions
 
 ## Color System
 
@@ -114,8 +114,7 @@ text: {
 ### Font Family
 
 ```typescript
-
-fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 ```
 
 ### Type Scale
@@ -209,8 +208,8 @@ overline: {
 
 ### Base Unit
 
-* **Base Unit**: 8px
-* **Spacing Scale**: Multiples of 8px (8, 16, 24, 32, 40, 48, 56, 64, 72, 80)
+- **Base Unit**: 8px
+- **Spacing Scale**: Multiples of 8px (8, 16, 24, 32, 40, 48, 56, 64, 72, 80)
 
 ### Common Spacing Values
 
@@ -234,10 +233,10 @@ xxxl: 64, // 64px - Page spacing
 
 ### Layout Spacing
 
-* **Page Margins**: 24px (mobile), 32px (tablet), 48px (desktop)
-* **Card Padding**: 24px
-* **Form Field Spacing**: 16px vertical
-* **Button Padding**: 14px vertical, 28px horizontal
+- **Page Margins**: 24px (mobile), 32px (tablet), 48px (desktop)
+- **Card Padding**: 24px
+- **Form Field Spacing**: 16px vertical
+- **Button Padding**: 14px vertical, 28px horizontal
 
 ## Border Radius
 
@@ -276,15 +275,15 @@ IconButton: 12px
 ```typescript
 // Elevation Levels
 
-elevation1: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-elevation2: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-elevation3: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+elevation1: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+elevation2: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+elevation3: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
 
 // Special Shadows
 
-dialog: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-buttonHover: '0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-cardHover: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+dialog: '0 25px 50px -12px rgba(0, 0, 0, 0.25)';
+buttonHover: '0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+cardHover: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
 ```
 
 ## Component Specifications
@@ -319,8 +318,7 @@ sizeSmall: '10px 20px', fontSize: '0.75rem'
 #### Outlined Button
 
 ```typescript
-
-borderWidth: '2px'
+borderWidth: '2px';
 // Hover maintains 2px border width
 ```
 
@@ -451,13 +449,13 @@ mobile: 'lg' // Below 1200px is considered mobile
 ```typescript
 // Standard Transition
 
-transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
 
 // Hover Transitions
 
-buttonHover: '0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-cardHover: '0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-sidebarTransition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+buttonHover: '0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+cardHover: '0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+sidebarTransition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 ```
 
 ### Transform Effects
@@ -465,25 +463,25 @@ sidebarTransition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
 ```typescript
 // Button Hover
 
-transform: 'translateY(-1px)'
+transform: 'translateY(-1px)';
 
 // Card Hover
 
-transform: 'translateY(-2px)'
+transform: 'translateY(-2px)';
 
 // Icon Button Hover
 
-transform: 'scale(1.05)'
+transform: 'scale(1.05)';
 ```
 
 ## Accessibility Standards
 
 ### WCAG 2.1 AA Compliance
 
-* **Color Contrast**: Minimum 4.5:1 for normal text, 3:1 for large text
-* **Focus Indicators**: Clear focus states for all interactive elements
-* **Keyboard Navigation**: Full keyboard accessibility
-* **Screen Reader Support**: Proper ARIA labels and semantic HTML
+- **Color Contrast**: Minimum 4.5:1 for normal text, 3:1 for large text
+- **Focus Indicators**: Clear focus states for all interactive elements
+- **Keyboard Navigation**: Full keyboard accessibility
+- **Screen Reader Support**: Proper ARIA labels and semantic HTML
 
 ### Accessibility Features
 
@@ -507,7 +505,6 @@ role: 'button' | 'link' | 'tab' | etc.
 ## Usage Guidelines
 
 ### Component Usage
-
 
 1. **Always use ThemeProvider**: Wrap all components with the muiTheme
 2. **Consistent Spacing**: Use the 8px spacing system
@@ -575,20 +572,19 @@ const MyPage = () => {
 />
 ```
 
-
 ## File References
 
 ### Theme Configuration
 
-* `frontend/src/theme/muiTheme.ts` - Complete theme configuration
+- `frontend/src/theme/muiTheme.ts` - Complete theme configuration
 
 ### Layout Components
 
-* `frontend/src/components/LayoutMUI.tsx` - Main layout wrapper
-* `frontend/src/components/SidebarMUI.tsx` - Sidebar navigation
+- `frontend/src/components/LayoutMUI.tsx` - Main layout wrapper
+- `frontend/src/components/SidebarMUI.tsx` - Sidebar navigation
 
 ### Example Implementations
 
-* `frontend/src/pages/ProfilePage.tsx` - Profile page implementation
-* `frontend/src/pages/DashboardPageMUI.tsx` - Dashboard implementation
-* `frontend/src/pages/EmploymentRecordsPage.tsx` - Employment records implementation
+- `frontend/src/pages/ProfilePage.tsx` - Profile page implementation
+- `frontend/src/pages/DashboardPageMUI.tsx` - Dashboard implementation
+- `frontend/src/pages/EmploymentRecordsPage.tsx` - Employment records implementation

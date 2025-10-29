@@ -49,21 +49,13 @@
       "name": "Node.js",
       "required": true,
       "version": "18.x",
-      "packages": [
-        "npm",
-        "yarn",
-        "pnpm"
-      ]
+      "packages": ["npm", "yarn", "pnpm"]
     },
     "python": {
       "name": "Python",
       "required": true,
       "version": "3.11",
-      "packages": [
-        "pip",
-        "pipenv",
-        "virtualenv"
-      ]
+      "packages": ["pip", "pipenv", "virtualenv"]
     },
     "playwright": {
       "name": "Playwright",

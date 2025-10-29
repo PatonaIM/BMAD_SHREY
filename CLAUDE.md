@@ -9,6 +9,7 @@ This is a repository template for Teamified projects featuring a full-stack arch
 ## Architecture & Code Organization
 
 ### Backend (NestJS)
+
 - **Module Structure**: Organized by feature with entities, services, controllers, DTOs, and tests
 - **File Naming**: kebab-case with descriptive suffixes (e.g., `feature.entity.ts`, `feature.service.ts`)
 - **Database**: TypeORM entities with UUID primary keys, snake_case column names
@@ -16,6 +17,7 @@ This is a repository template for Teamified projects featuring a full-stack arch
 - **API**: RESTful endpoints at `/api/v1/` prefix
 
 ### Frontend (React + TypeScript)
+
 - **Component Structure**: Functional components with TypeScript interfaces
 - **State Management**: Local state with useState, form handling patterns
 - **UI Framework**: Material-UI 3 with custom expressive design theme
@@ -24,6 +26,7 @@ This is a repository template for Teamified projects featuring a full-stack arch
 ## Design System
 
 ### Material-UI 3 Expressive Design
+
 - **Colors**: Primary `#A16AE8` (purple), Secondary `#8096FD` (blue)
 - **Typography**: Plus Jakarta Sans font family with expressive scale
 - **Spacing**: 8px base unit system
@@ -31,6 +34,7 @@ This is a repository template for Teamified projects featuring a full-stack arch
 - **Layout**: LayoutMUI wrapper with SidebarMUI navigation
 
 ### Key Design Patterns
+
 - **Buttons**: Rounded corners (16px), gradient backgrounds, hover effects
 - **Cards**: 20px border radius, subtle shadows with hover elevation
 - **Forms**: Always-visible patterns with 16px field spacing
@@ -39,13 +43,15 @@ This is a repository template for Teamified projects featuring a full-stack arch
 ## Code Standards
 
 ### Backend Standards
+
 - **Entities**: TypeORM decorators, validation with class-validator
 - **Services**: Injectable with Repository pattern, proper error handling
 - **Controllers**: Route prefix `/api/v1/`, ValidationPipe with whitelist
 - **DTOs**: Request/response DTOs with ApiProperty decorators
 - **Testing**: Jest with mock repositories and comprehensive test coverage
 
-### Frontend Standards  
+### Frontend Standards
+
 - **Components**: TypeScript interfaces, proper prop typing
 - **Forms**: Controlled components with validation patterns
 - **Styling**: Material-UI sx prop with theme integration
@@ -53,11 +59,12 @@ This is a repository template for Teamified projects featuring a full-stack arch
 - **Error Handling**: Try-catch with user-friendly error messages
 
 ### File Structure Examples
+
 ```
 Backend:
 src/{feature}/
 ├── entities/{feature}.entity.ts
-├── services/{feature}.service.ts  
+├── services/{feature}.service.ts
 ├── controllers/{feature}.controller.ts
 ├── dto/{feature}.dto.ts
 └── {feature}.module.ts

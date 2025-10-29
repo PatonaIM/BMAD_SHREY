@@ -20,10 +20,10 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] Upload route + component
-- [ ] Validation utility tests
-- [ ] Storage abstraction (local fs provider)
-- [ ] Metadata persistence
+- [x] Upload route + component
+- [x] Validation utility tests
+- [x] Storage abstraction (local fs provider)
+- [x] Metadata persistence
 
 ## EP2-S2 AI Resume Data Extraction
 

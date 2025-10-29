@@ -1,6 +1,7 @@
 # Coding Standards
 
 ## Overview
+
 This document defines the coding standards and best practices for the Teamified projects, covering both backend (NestJS) and frontend (React) development.
 
 ## Backend Standards (NestJS)
@@ -8,6 +9,7 @@ This document defines the coding standards and best practices for the Teamified 
 ### Code Organization
 
 #### Module Structure
+
 ```
 src/
 ├── {feature}/
@@ -27,6 +29,7 @@ src/
 ```
 
 #### File Naming Conventions
+
 - **Entities**: `{feature}.entity.ts` (e.g., `eor-profile.entity.ts`)
 - **Services**: `{feature}.service.ts` (e.g., `profile-completion.service.ts`)
 - **Controllers**: `{feature}.controller.ts` (e.g., `auth.controller.ts`)
@@ -36,6 +39,7 @@ src/
 ### Entity Standards
 
 #### TypeORM Decorators
+
 ```typescript
 @Entity('table_name')
 export class EntityName {
@@ -54,6 +58,7 @@ export class EntityName {
 ```
 
 #### Validation Decorators
+
 ```typescript
 import {
   IsOptional,
@@ -81,6 +86,7 @@ export class EntityName {
 ```
 
 #### Relationships
+
 ```typescript
 // One-to-One
 @OneToOne(() => RelatedEntity)
@@ -100,12 +106,13 @@ parent: ParentEntity;
 ### Service Standards
 
 #### Service Structure
+
 ```typescript
 @Injectable()
 export class FeatureService {
   constructor(
     private readonly repository: Repository<FeatureEntity>,
-    private readonly logger: Logger,
+    private readonly logger: Logger
   ) {}
 
   async create(data: CreateFeatureDto): Promise<FeatureEntity> {
@@ -121,6 +128,7 @@ export class FeatureService {
 ```
 
 #### Error Handling
+
 ```typescript
 // Use NestJS built-in exceptions
 import {
@@ -143,6 +151,7 @@ if (!isAuthorized) {
 ### Controller Standards
 
 #### Controller Structure
+
 ```typescript
 @Controller('api/v1/features')
 @UseGuards(JwtAuthGuard)
@@ -151,7 +160,9 @@ export class FeatureController {
 
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  async create(@Body() createFeatureDto: CreateFeatureDto): Promise<FeatureEntity> {
+  async create(
+    @Body() createFeatureDto: CreateFeatureDto
+  ): Promise<FeatureEntity> {
     return this.featureService.create(createFeatureDto);
   }
 
@@ -163,6 +174,7 @@ export class FeatureController {
 ```
 
 #### HTTP Status Codes
+
 - `200` - Success (GET, PUT, PATCH)
 - `201` - Created (POST)
 - `204` - No Content (DELETE)
@@ -175,6 +187,7 @@ export class FeatureController {
 ### DTO Standards
 
 #### Request DTOs
+
 ```typescript
 export class CreateFeatureDto {
   @IsString()
@@ -191,6 +204,7 @@ export class CreateFeatureDto {
 ```
 
 #### Response DTOs
+
 ```typescript
 export class FeatureResponseDto {
   @ApiProperty()
@@ -215,6 +229,7 @@ export class FeatureResponseDto {
 ### Component Structure
 
 #### Functional Components
+
 ```typescript
 import React, { useState, useEffect } from 'react';
 import type { ComponentProps } from './types';
@@ -225,10 +240,10 @@ interface ComponentProps {
   isLoading?: boolean;
 }
 
-const ComponentName: React.FC<ComponentProps> = ({ 
-  title, 
-  onSave, 
-  isLoading = false 
+const ComponentName: React.FC<ComponentProps> = ({
+  title,
+  onSave,
+  isLoading = false
 }) => {
   const [formData, setFormData] = useState<FormData>({
     // initial state
@@ -253,6 +268,7 @@ export default ComponentName;
 ```
 
 #### File Organization
+
 ```
 src/
 ├── components/
@@ -280,6 +296,7 @@ src/
 ### State Management
 
 #### Local State
+
 ```typescript
 const [formData, setFormData] = useState<FormData>({
   email: '',
@@ -291,6 +308,7 @@ const [isLoading, setIsLoading] = useState(false);
 ```
 
 #### Form Handling
+
 ```typescript
 const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const { name, value, type, checked } = e.target;
@@ -298,7 +316,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     ...prev,
     [name]: type === 'checkbox' ? checked : value,
   }));
-  
+
   // Clear error when user starts typing
   if (errors[name]) {
     setErrors(prev => ({ ...prev, [name]: '' }));
@@ -309,6 +327,7 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 ### Validation
 
 #### Client-Side Validation
+
 ```typescript
 const validateEmail = (email: string): string => {
   if (!email) return 'Email is required';
@@ -319,10 +338,10 @@ const validateEmail = (email: string): string => {
 
 const validateForm = (): boolean => {
   const newErrors: { [key: string]: string } = {};
-  
+
   const emailError = validateEmail(formData.email);
   if (emailError) newErrors.email = emailError;
-  
+
   setErrors(newErrors);
   return Object.keys(newErrors).length === 0;
 };
@@ -331,6 +350,7 @@ const validateForm = (): boolean => {
 ### Error Handling
 
 #### Error Display
+
 ```typescript
 {errors.general && (
   <div className="form-error form-error--general">
@@ -346,6 +366,7 @@ const validateForm = (): boolean => {
 ```
 
 #### API Error Handling
+
 ```typescript
 try {
   const result = await apiCall(data);
@@ -366,6 +387,7 @@ try {
 ### Backend Testing (Jest)
 
 #### Test Structure
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { FeatureService } from './feature.service';
@@ -404,15 +426,19 @@ describe('FeatureService', () => {
       mockRepository.findOne.mockResolvedValue(mockFeature);
 
       const result = await service.findOne('test-id');
-      
+
       expect(result).toBe(mockFeature);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: 'test-id' } });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'test-id' },
+      });
     });
 
     it('should throw NotFoundException when feature not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('test-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('test-id')).rejects.toThrow(
+        NotFoundException
+      );
     });
   });
 });
@@ -421,6 +447,7 @@ describe('FeatureService', () => {
 ### Frontend Testing (Vitest + React Testing Library)
 
 #### Test Structure
+
 ```typescript
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
@@ -439,7 +466,7 @@ describe('ComponentName', () => {
 
   it('calls onSave when form is submitted', async () => {
     render(<ComponentName {...mockProps} />);
-    
+
     const submitButton = screen.getByRole('button', { name: /save/i });
     fireEvent.click(submitButton);
 
@@ -453,17 +480,20 @@ describe('ComponentName', () => {
 ## Code Quality Standards
 
 ### ESLint Configuration
+
 - Use TypeScript ESLint rules
 - Enforce consistent code style
 - Catch common programming errors
 - Maintain code quality standards
 
 ### Prettier Configuration
+
 - Consistent code formatting
 - Automatic code formatting on save
 - Unified code style across the team
 
 ### TypeScript Configuration
+
 - Strict mode enabled
 - No implicit any types
 - Strict null checks
@@ -472,12 +502,14 @@ describe('ComponentName', () => {
 ## Performance Standards
 
 ### Backend
+
 - Use database indexes for frequently queried fields
 - Implement caching strategies where appropriate
 - Use pagination for large result sets
 - Optimize database queries
 
 ### Frontend
+
 - Lazy load components when possible
 - Implement proper memoization
 - Use React.memo for expensive components
@@ -486,6 +518,7 @@ describe('ComponentName', () => {
 ## Security Standards
 
 ### Backend
+
 - Input validation and sanitization
 - JWT token validation
 - Role-based access control
@@ -493,6 +526,7 @@ describe('ComponentName', () => {
 - XSS protection
 
 ### Frontend
+
 - Input validation
 - Secure storage of sensitive data
 - HTTPS enforcement
@@ -501,6 +535,7 @@ describe('ComponentName', () => {
 ## Documentation Standards
 
 ### Code Comments
+
 ```typescript
 /**
  * Creates a new feature in the system
@@ -515,12 +550,14 @@ async create(data: CreateFeatureDto): Promise<FeatureEntity> {
 ```
 
 ### API Documentation
+
 - Use Swagger/OpenAPI decorators
 - Document all endpoints
 - Include request/response examples
 - Document error responses
 
 ### README Files
+
 - Project setup instructions
 - Development workflow
 - Testing instructions
