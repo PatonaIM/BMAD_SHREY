@@ -7,13 +7,13 @@ import Link from 'next/link';
 
 export default async function ApplicationsDebugPage() {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string })?.id;
+  const userEmail = (session?.user as { email?: string })?.email;
 
-  if (!userId) {
+  if (!userEmail) {
     redirect('/login');
   }
 
-  const applications = await applicationRepo.findByUser(userId);
+  const applications = await applicationRepo.findByUserEmail(userEmail);
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -21,7 +21,7 @@ export default async function ApplicationsDebugPage() {
 
       <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
         <p className="text-sm">
-          <strong>User ID:</strong> {userId}
+          <strong>User Email:</strong> {userEmail}
         </p>
         <p className="text-sm">
           <strong>Total Applications:</strong> {applications.length}

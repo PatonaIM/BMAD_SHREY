@@ -16,6 +16,7 @@ export interface ResumeStorage {
     _mimeType: string,
     _data: Buffer
   ): Promise<StoredFileInfo>;
+  getViewUrl(_storageKey: string): Promise<string>;
 }
 
 const BASE_DIR = join(process.cwd(), 'data', 'resumes');
@@ -44,6 +45,12 @@ export class LocalFsResumeStorage implements ResumeStorage {
       bytes: data.length,
       mimeType,
     };
+  }
+
+  async getViewUrl(storageKey: string): Promise<string> {
+    // Return URL to our API route that will serve the file
+    const encodedKey = encodeURIComponent(storageKey);
+    return `/api/resume/view/${encodedKey}`;
   }
 }
 

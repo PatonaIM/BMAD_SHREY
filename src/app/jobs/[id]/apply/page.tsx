@@ -6,6 +6,7 @@ import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import Link from 'next/link';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { getResume } from '../../../../data-access/repositories/resumeRepo';
+import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { ApplyForm } from '../../../../components/ApplyForm';
 
 export default async function ApplyPage({
@@ -21,14 +22,25 @@ export default async function ApplyPage({
   const job =
     (await jobRepo.findByWorkableId(id)) || (await jobRepo.findById(id));
   if (!job) return notFound();
-  const userId = (session.user as { id?: string })?.id;
-  if (!userId) {
+
+  const userEmail = (session.user as { email?: string })?.email;
+  if (!userEmail) {
     redirect(`/login?redirect=/jobs/${id}/apply`);
   }
-  const existing = await applicationRepo.findByUserAndJob(userId, job._id);
+
+  // Find user by email to get MongoDB user ID
+  const user = await findUserByEmail(userEmail);
+  if (!user) {
+    redirect(`/login?redirect=/jobs/${id}/apply`);
+  }
+
+  const existing = await applicationRepo.findByUserEmailAndJob(
+    userEmail,
+    job._id
+  );
 
   // Get user's existing resume if any
-  const resumeDoc = await getResume(userId);
+  const resumeDoc = await getResume(user._id);
 
   // Serialize resume data for client component (convert to plain objects)
   const serializedResume = resumeDoc

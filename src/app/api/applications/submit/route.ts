@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../auth/options';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
+import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 
 interface SessionUser {
   id: string;
@@ -34,13 +35,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await findUserByEmail(session.user.email.toLowerCase());
+    // Find user by email to get MongoDB _id
+    const user = await findUserByEmail(session.user.email);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const userId = user._id;
+    const candidateEmail = session.user.email;
+
+    // Get job details - try both MongoDB ID and Workable ID
+    let job = await jobRepo.findById(jobId);
+    if (!job) {
+      job = await jobRepo.findByWorkableId(jobId);
+    }
+
+    if (!job) {
+      return NextResponse.json(
+        {
+          error: 'Job not found',
+          details: `No job found with ID: ${jobId}`,
+          searchedBy: 'Both MongoDB ID and Workable ID',
+        },
+        { status: 404 }
+      );
+    }
+
     // Check if already applied
-    const existing = await applicationRepo.findByUserAndJob(user._id, jobId);
+    const existing = await applicationRepo.findByUserEmailAndJob(
+      candidateEmail,
+      jobId
+    );
     if (existing) {
       return NextResponse.json(
         { error: 'Already applied to this job' },
@@ -48,10 +73,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create application
+    // Create application with job details
     const application = await applicationRepo.create(
-      user._id,
+      userId,
       jobId,
+      candidateEmail,
+      job.title,
+      job.company,
       resumeVersionId
     );
 

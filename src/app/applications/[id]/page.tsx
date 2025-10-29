@@ -27,13 +27,13 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   const userSession = session
-    ? (session.user as typeof session.user & { id?: string })
+    ? (session.user as typeof session.user & { id?: string; email?: string })
     : undefined;
-  if (!userSession?.id) redirect(`/login?redirect=/applications/${id}`);
+  if (!userSession?.email) redirect(`/login?redirect=/applications/${id}`);
 
   const app = await applicationRepo.findById(id);
   if (!app) return notFound();
-  if (app.userId !== userSession.id) return notFound();
+  if (app.candidateEmail !== userSession.email) return notFound();
   const job = await jobRepo.findById(app.jobId);
 
   // Fetch resume details if resumeVersionId exists
@@ -172,7 +172,14 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             <div className="space-y-2 text-sm">
               <div>
                 <span className="text-muted-foreground">File:</span>{' '}
-                <span className="font-medium">{resumeInfo.fileName}</span>
+                <Link
+                  href={`/resume/${resumeInfo.versionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand-primary hover:underline"
+                >
+                  {resumeInfo.fileName}
+                </Link>
               </div>
               <div>
                 <span className="text-muted-foreground">Size:</span>{' '}
@@ -193,6 +200,35 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
                     'UNKNOWN'}
                 </span>
               </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+              <Link
+                href={`/resume/${resumeInfo.versionId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-outline px-3 py-1.5 text-xs inline-flex items-center gap-2"
+              >
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                </svg>
+                View Resume
+              </Link>
             </div>
           </div>
         )}

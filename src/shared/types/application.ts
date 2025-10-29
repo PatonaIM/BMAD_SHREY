@@ -18,6 +18,10 @@ export interface Application {
   _id: string;
   userId: string;
   jobId: string;
+  candidateEmail: string; // Email of the candidate who applied
+  // Job details stored for faster retrieval
+  jobTitle: string;
+  jobCompany: string;
 
   // Status Management
   status: ApplicationStatus;

@@ -5,7 +5,6 @@ import type {
   ApplicationStatus,
   ApplicationTimelineEvent,
 } from '../../shared/types/application';
-import { jobRepo } from './jobRepo';
 
 export class ApplicationRepository {
   private async getCollection(): Promise<Collection<Application>> {
@@ -16,6 +15,9 @@ export class ApplicationRepository {
   async create(
     userId: string,
     jobId: string,
+    candidateEmail: string,
+    jobTitle: string,
+    jobCompany: string,
     resumeVersionId?: string
   ): Promise<Application> {
     const collection = await this.getCollection();
@@ -24,6 +26,9 @@ export class ApplicationRepository {
       _id: crypto.randomUUID(),
       userId,
       jobId,
+      candidateEmail,
+      jobTitle,
+      jobCompany,
       status: 'submitted',
       timeline: [
         {
@@ -56,12 +61,45 @@ export class ApplicationRepository {
       .toArray();
   }
 
+  async findByUserEmail(
+    candidateEmail: string,
+    limit = 50
+  ): Promise<Application[]> {
+    const collection = await this.getCollection();
+    return collection
+      .find({ candidateEmail })
+      .sort({ appliedAt: -1 })
+      .limit(limit)
+      .toArray();
+  }
+
+  async findByUserOrEmail(
+    userId: string,
+    candidateEmail: string,
+    limit = 50
+  ): Promise<Application[]> {
+    const collection = await this.getCollection();
+    return collection
+      .find({ $or: [{ userId }, { candidateEmail }] })
+      .sort({ appliedAt: -1 })
+      .limit(limit)
+      .toArray();
+  }
+
   async findByUserAndJob(
     userId: string,
     jobId: string
   ): Promise<Application | null> {
     const collection = await this.getCollection();
     return collection.findOne({ userId, jobId } as Filter<Application>);
+  }
+
+  async findByUserEmailAndJob(
+    candidateEmail: string,
+    jobId: string
+  ): Promise<Application | null> {
+    const collection = await this.getCollection();
+    return collection.findOne({ candidateEmail, jobId } as Filter<Application>);
   }
 
   async updateStatus(
@@ -137,21 +175,13 @@ export class ApplicationRepository {
   }
 
   async enrichListItems(apps: Application[]) {
-    // This is a naive N+1; later optimize with aggregation or caching.
-    const jobs = new Map<string, { title: string; company: string }>();
-    for (const app of apps) {
-      if (!jobs.has(app.jobId)) {
-        const job = await jobRepo.findById(app.jobId);
-        if (job)
-          jobs.set(app.jobId, { title: job.title, company: job.company });
-      }
-    }
+    // Job details are now stored directly in applications
     return apps.map(a => {
       const lastEvent = a.timeline[a.timeline.length - 1];
       return {
         _id: a._id,
-        jobTitle: jobs.get(a.jobId)?.title || 'Unknown',
-        company: jobs.get(a.jobId)?.company || 'Unknown',
+        jobTitle: a.jobTitle,
+        company: a.jobCompany,
         status: a.status,
         matchScore: a.matchScore,
         appliedAt: a.appliedAt,

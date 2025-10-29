@@ -1,6 +1,7 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
+import { applicationRepo } from '../../../data-access/repositories/applicationRepo';
 import type { Job } from '../../../shared/types/job';
 import { buildJobsJsonLd } from '../../../seo/jobJsonLd';
 import type { Metadata } from 'next';
@@ -198,6 +199,9 @@ export default async function JobDetailsPage({
   if (!job) return notFound();
   job = await hydrateJob(job);
   const session = await getServerSession(authOptions);
+  // Get application count for this job
+  const applications = await applicationRepo.listForJob(job._id);
+  const applicationCount = applications.length;
   const jsonLd = buildJobsJsonLd([job]);
   // Removed unused applyHref variable (navigation handled by ApplyButton component)
 
@@ -263,6 +267,10 @@ export default async function JobDetailsPage({
             {job.location && <> • {job.location}</>}
             {job.employmentType && <> • {job.employmentType}</>}
             {job.experienceLevel && <> • {job.experienceLevel} level</>}
+          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+            {applicationCount}{' '}
+            {applicationCount === 1 ? 'application' : 'applications'} submitted
           </p>
         </header>
         {job.salary?.min && (

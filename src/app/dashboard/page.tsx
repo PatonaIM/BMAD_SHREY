@@ -9,13 +9,13 @@ import Link from 'next/link';
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const userSession = session
-    ? (session.user as typeof session.user & { id?: string })
+    ? (session.user as typeof session.user & { id?: string; email?: string })
     : undefined;
-  if (!userSession?.id) {
+  if (!userSession?.email) {
     redirect(`/login?redirect=/dashboard`);
   }
-  const userId = userSession.id as string;
-  const apps = await applicationRepo.findByUser(userId, 100);
+  const candidateEmail = userSession.email as string;
+  const apps = await applicationRepo.findByUserEmail(candidateEmail, 100);
   const enriched = await applicationRepo.enrichListItems(apps);
   const latestJobs = (await jobRepo.search({ page: 1, limit: 5 })).jobs;
 
