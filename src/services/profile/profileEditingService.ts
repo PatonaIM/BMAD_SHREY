@@ -47,16 +47,19 @@ export class ProfileEditingService {
         about: request.edits.about ?? undefined,
         isPrivate: request.edits.isPrivate ?? false,
         tags: request.edits.tags ?? [],
+        skills: request.edits.skills ?? base.skills,
+        experience: request.edits.experience ?? base.experience,
+        education: request.edits.education ?? base.education,
         lastEditedAt: new Date().toISOString(),
       };
 
-      // Persist minimal fields back to extracted profile collection (extended metadata not strictly part of original schema - stored alongside)
+      // Persist all fields back to extracted profile collection
       await upsertExtractedProfile(this._userId, base.resumeVersionId, {
         ...base,
         summary: editable.summaryOverride || editable.summary,
-        skills: base.skills,
-        experience: base.experience,
-        education: base.education,
+        skills: editable.skills,
+        experience: editable.experience,
+        education: editable.education,
         extractedAt: base.extractedAt,
         extractionStatus: base.extractionStatus,
         extractionError: base.extractionError,

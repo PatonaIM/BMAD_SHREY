@@ -129,7 +129,7 @@ export const callbacks = {
     if (user) {
       const u = user as NextAuthUser & { roles?: string[]; id?: string };
       t.roles = u.roles || [];
-      // For OAuth users, set the sub to their MongoDB user ID
+      // Set the sub to the user's MongoDB ID for ALL auth methods (credentials + OAuth)
       if (u.id) {
         t.sub = u.id;
       }

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../auth/options';
+import { getSessionUserId } from '../../../../auth/sessionHelpers';
 import { resumeExtractionService } from '../../../../services/ai/resumeExtraction';
 import { upsertExtractedProfile } from '../../../../data-access/repositories/extractedProfileRepo';
 import { getResume } from '../../../../data-access/repositories/resumeRepo';
-import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { logger } from '../../../../monitoring/logger';
 
 interface SessionUser {
@@ -39,19 +39,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user ID (OAuth vs credential users)
-    let userId: string;
-    if (session.user.id) {
-      userId = session.user.id;
-    } else {
-      const user = await findUserByEmail(session.user.email);
-      if (!user) {
-        return NextResponse.json(
-          { ok: false, error: 'User not found' },
-          { status: 404 }
-        );
-      }
-      userId = user._id;
+    // Get user ID using helper (handles both OAuth and credentials users)
+    const userId = await getSessionUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { ok: false, error: 'User not found' },
+        { status: 404 }
+      );
     }
 
     // Get resume document to find the storage key

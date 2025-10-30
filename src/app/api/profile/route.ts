@@ -9,7 +9,8 @@ import type {
   ApplyProfileChangesRequest,
   EditableProfile,
 } from '../../../shared/types/profileEditing';
-import { ok, err } from '../../../shared/result';
+import { ok } from '../../../shared/result';
+import { logger } from '../../../monitoring/logger';
 
 interface SessionUser {
   email?: string;
@@ -30,13 +31,17 @@ async function getSessionUserEmail(): Promise<string | null> {
 export async function GET(req: NextRequest) {
   try {
     const email = await getSessionUserEmail();
-    if (!email)
+    if (!email) {
+      logger.warn({ event: 'profile_api_no_session' });
       return json(
         { ok: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
         401
       );
+    }
+    logger.info({ event: 'profile_api_lookup', email });
     const user = await findUserByEmail(email);
-    if (!user)
+    if (!user) {
+      logger.warn({ event: 'profile_api_user_not_found', email });
       return json(
         {
           ok: false,
@@ -44,18 +49,43 @@ export async function GET(req: NextRequest) {
         },
         404
       );
-
-    // Attempt to derive latest editable profile from latest version; fallback to extracted profile
-    const editingService = new ProfileEditingService(user._id);
-    const versionsRes = await editingService.list(1);
-    let profileSource: EditableProfile | null = null;
-    if (versionsRes.ok && versionsRes.value.length && versionsRes.value[0]) {
-      profileSource = versionsRes.value[0].profile;
-    } else {
-      profileSource = await getExtractedProfile(user._id);
     }
-    if (!profileSource)
-      return json(err('PROFILE_NOT_FOUND', 'No profile data').error, 404);
+    logger.info({ event: 'profile_api_user_found', userId: user._id });
+
+    // First check for extracted profile (primary source)
+    let profileSource: EditableProfile | null = await getExtractedProfile(
+      user._id
+    );
+    logger.info({
+      event: 'profile_api_extracted_check',
+      hasExtracted: !!profileSource,
+    });
+
+    // If extracted profile exists, check for newer version edits
+    if (profileSource) {
+      const editingService = new ProfileEditingService(user._id);
+      const versionsRes = await editingService.list(1);
+      logger.info({
+        event: 'profile_api_version_check',
+        hasVersions: versionsRes.ok && versionsRes.value.length > 0,
+      });
+      // Use version if it exists and is newer
+      if (versionsRes.ok && versionsRes.value.length && versionsRes.value[0]) {
+        profileSource = versionsRes.value[0].profile;
+        logger.info({ event: 'profile_api_using_version' });
+      }
+    }
+
+    if (!profileSource) {
+      logger.warn({ event: 'profile_api_no_profile', userId: user._id });
+      return json(
+        {
+          ok: false,
+          error: { code: 'PROFILE_NOT_FOUND', message: 'No profile data' },
+        },
+        404
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const includeCompleteness =
@@ -64,6 +94,7 @@ export async function GET(req: NextRequest) {
       ? computeCompleteness(profileSource)
       : null;
 
+    logger.info({ event: 'profile_api_success', userId: user._id });
     return json(
       ok({
         profile: profileSource,
@@ -73,6 +104,7 @@ export async function GET(req: NextRequest) {
     );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
+    logger.error({ event: 'profile_api_error', error: message });
     return json({ ok: false, error: { code: 'SERVER_ERROR', message } }, 500);
   }
 }

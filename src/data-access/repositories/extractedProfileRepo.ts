@@ -3,7 +3,8 @@ import { getMongoClient } from '../mongoClient';
 import type { ExtractedProfile } from '../../shared/types/profile';
 
 export interface ExtractedProfileDocument extends ExtractedProfile {
-  _id: string; // userId
+  _id: string; // userId in MongoDB
+  userId: string; // Same as _id, for convenience
   resumeVersionId: string;
   updatedAt: string;
 }
@@ -40,6 +41,7 @@ export async function upsertExtractedProfile(
   const doc: ExtractedProfileDocument = {
     ...profile,
     _id: userId,
+    userId: userId,
     resumeVersionId,
     updatedAt: now,
   };
@@ -52,7 +54,14 @@ export async function getExtractedProfile(
   userId: string
 ): Promise<ExtractedProfileDocument | null> {
   const c = await col();
-  return c.findOne({ _id: userId });
+  const doc = await c.findOne({ _id: userId });
+  if (!doc) return null;
+  // Ensure userId and resumeVersionId are included in the returned object
+  return {
+    ...doc,
+    userId: doc._id,
+    resumeVersionId: doc.resumeVersionId,
+  };
 }
 
 export async function deleteExtractedProfile(userId: string): Promise<void> {

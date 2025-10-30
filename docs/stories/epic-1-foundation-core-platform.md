@@ -131,18 +131,24 @@ As an authenticated job seeker,
 I want a unified dashboard showing my application status and available jobs,
 So that I can track progress and discover opportunities in one place.
 
+**UPDATED for Simplified Candidate Flow:** Dashboard now serves as central hub showing profile completeness, application scores, AI interview opportunities, and personalized job suggestions.
+
 Acceptance Criteria:
 
 - Post-login dashboard displays applications with status badges
-- Application cards show job title, company, date, status, match score
+- Application cards show job title, company, date, status, match score (with visual indicators)
 - Activity timeline shows recent actions (submitted, status changed, interview)
-- "Available Jobs" section displays recommendations or recent postings
+- "Available Jobs" section displays personalized recommendations with match scores
 - Quick apply button on job cards for authenticated users
 - Application detail view accessible by clicking cards
 - Dashboard responsive on all device sizes
 - Empty states with helpful messages when no applications
 - Navigation between dashboard, profile, jobs seamless
 - Real-time or near real-time status updates
+- **NEW:** Profile completeness widget with score and recommendations
+- **NEW:** Quick actions section (Complete Profile, Take AI Interview, Update Resume)
+- **NEW:** Match scores displayed on all application cards
+- **NEW:** "Boost Score" prompts for applications with 60-85% match
 
 DoD:
 
@@ -156,6 +162,10 @@ DoD:
 - [x] Empty states designed and implemented
 - [ ] Navigation flow tested – moved
 - [ ] Unit tests for dashboard components – moved
+- [ ] **NEW:** Profile completeness card integrated
+- [ ] **NEW:** Quick actions widget with contextual CTAs
+- [ ] **NEW:** Match scores shown on application cards
+- [ ] **NEW:** AI interview boost prompts for eligible applications
 
 ## EP1-S6 Responsive Application Layout
 
@@ -242,3 +252,41 @@ Story set for Epic 1 complete once all DoD checkboxes cleared and cross-referenc
 Core functional objectives delivered (setup, auth, SEO homepage, Workable sync foundation, dashboard basics, layout, schema, baseline security). Remaining unchecked items have been migrated to a follow-up hardening epic to avoid blocking progression to Epic 2.
 
 See new follow-up epic: `epic-1-follow-up-hardening.md` for the migrated tasks.
+
+---
+
+## EP1-S9: Enhanced Dashboard with Profile Widgets (NEW - Simplified Flow)
+
+As a job seeker,
+I want my dashboard to show profile completeness and optimization opportunities,
+So that I know exactly what to do to improve my chances.
+
+**Purpose:** Implements steps 7-11 of the simplified candidate flow, providing visibility into profile strength, application scores, and improvement opportunities.
+
+Acceptance Criteria:
+
+- Profile completeness card with score (0-100) and visual indicator
+- Completeness breakdown showing section scores (summary, skills, experience, education)
+- Recommendations list with actionable items (e.g., "Add 3 more skills", "Complete education section")
+- Quick actions widget with contextual CTAs:
+  - "Complete Profile" (if <85% complete)
+  - "Upload Resume" (if no resume)
+  - "Take AI Interview" (if eligible applications exist)
+  - "Update Skills" (if skill gaps detected)
+- Skills gap widget showing missing skills from top jobs
+- Match distribution visualization (how candidate compares across all jobs)
+- Responsive design on mobile, tablet, desktop
+- Real-time updates when profile changes
+
+DoD:
+
+- [ ] ProfileCompletenessCard component created
+- [ ] QuickActionsWidget component with dynamic CTAs
+- [ ] SkillsGapWidget component (shows top 5 missing skills)
+- [ ] MatchDistributionChart component (simple bar/pie chart)
+- [ ] Dashboard layout updated to include new widgets
+- [ ] Integration with completenessScoring service
+- [ ] Integration with job matching service for skill gaps
+- [ ] Responsive CSS/Tailwind classes verified
+- [ ] Unit tests for all new components
+- [ ] Accessibility audit (ARIA labels, keyboard navigation)

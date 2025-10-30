@@ -55,16 +55,19 @@ export function CompletenessDisplay({ score }: CompletenessDisplayProps) {
 
       <div className="space-y-3 mb-4">
         <h4 className="text-sm font-medium text-gray-700">Breakdown:</h4>
-        {Object.entries(score.breakdown).map(([section, sectionScore]) => (
-          <div key={section} className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 capitalize">
-              {section.replace(/([A-Z])/g, ' $1').trim()}
-            </span>
-            <span className="text-sm font-medium text-gray-900">
-              {sectionScore}%
-            </span>
-          </div>
-        ))}
+        {Object.entries(score.breakdown).map(([section, sectionScore]) => {
+          const percentage = Math.round(sectionScore * 100);
+          return (
+            <div key={section} className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 capitalize">
+                {section.replace(/([A-Z])/g, ' $1').trim()}
+              </span>
+              <span className="text-sm font-medium text-gray-900">
+                {percentage}%
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {score.recommendations && score.recommendations.length > 0 && (

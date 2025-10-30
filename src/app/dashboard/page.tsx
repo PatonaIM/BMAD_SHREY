@@ -4,7 +4,17 @@ import { authOptions } from '../../auth/options';
 import { redirect } from 'next/navigation';
 import { applicationRepo } from '../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../data-access/repositories/jobRepo';
+import { findUserByEmail } from '../../data-access/repositories/userRepo';
+import { getExtractedProfile } from '../../data-access/repositories/extractedProfileRepo';
+import { getResume } from '../../data-access/repositories/resumeRepo';
+import { computeCompleteness } from '../../services/profile/completenessScoring';
+import { ProfileEditingService } from '../../services/profile/profileEditingService';
+import { ProfileCompletenessCard } from '../../components/dashboard/ProfileCompletenessCard';
+import { QuickActionsWidget } from '../../components/dashboard/QuickActionsWidget';
+import { SkillsGapWidget } from '../../components/dashboard/SkillsGapWidget';
+import { MatchDistributionChart } from '../../components/dashboard/MatchDistributionChart';
 import Link from 'next/link';
+import type { EditableProfile } from '../../shared/types/profileEditing';
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -14,13 +24,88 @@ export default async function DashboardPage() {
   if (!userSession?.email) {
     redirect(`/login?redirect=/dashboard`);
   }
+
   const candidateEmail = userSession.email as string;
-  const apps = await applicationRepo.findByUserEmail(candidateEmail, 100);
+
+  // Get user ID for profile/resume lookups
+  let userId: string | null = null;
+  if (userSession.id) {
+    userId = userSession.id;
+  } else {
+    const user = await findUserByEmail(candidateEmail);
+    userId = user?._id || null;
+  }
+
+  // Fetch user data
+  const [apps, latestJobs, extractedProfile, resume] = await Promise.all([
+    applicationRepo.findByUserEmail(candidateEmail, 100),
+    jobRepo.search({ page: 1, limit: 5 }).then(r => r.jobs),
+    userId ? getExtractedProfile(userId) : null,
+    userId ? getResume(userId) : null,
+  ]);
+
+  // Get the most recent profile (same logic as API route)
+  let profile: EditableProfile | null = extractedProfile;
+  if (profile && userId) {
+    const editingService = new ProfileEditingService(userId);
+    const versionsRes = await editingService.list(1);
+    // Use version if it exists and is newer
+    if (versionsRes.ok && versionsRes.value.length && versionsRes.value[0]) {
+      profile = versionsRes.value[0].profile;
+    }
+  }
+
   const enriched = await applicationRepo.enrichListItems(apps);
-  const latestJobs = (await jobRepo.search({ page: 1, limit: 5 })).jobs;
+
+  // Calculate profile completeness
+  const completenessCalc = profile
+    ? computeCompleteness(profile)
+    : { ok: false, value: null, error: 'No profile' };
+  const completenessResult = completenessCalc.ok
+    ? completenessCalc.value
+    : null;
+
+  // Calculate match distribution (placeholder - will be enhanced)
+  const matchDistribution = {
+    excellent: enriched.filter(app => app.matchScore && app.matchScore >= 85)
+      .length,
+    good: enriched.filter(
+      app => app.matchScore && app.matchScore >= 65 && app.matchScore < 85
+    ).length,
+    fair: enriched.filter(
+      app => app.matchScore && app.matchScore >= 40 && app.matchScore < 65
+    ).length,
+    poor: enriched.filter(app => app.matchScore && app.matchScore < 40).length,
+  };
+
+  // Calculate eligible interview count (60-85% match, not yet interviewed)
+  const eligibleInterviewCount = enriched.filter(
+    app =>
+      app.matchScore &&
+      app.matchScore >= 60 &&
+      app.matchScore < 85 &&
+      !app.lastEventStatus?.includes('interview')
+  ).length;
+
+  // Extract skills from profile for gap analysis (placeholder)
+  const userSkills = new Set(
+    (profile?.skills || []).map(s => s.name.toLowerCase())
+  );
+  const jobSkills = latestJobs.flatMap(j => j.skills);
+  const skillCounts: Record<string, number> = {};
+  jobSkills.forEach(skill => {
+    const skillLower = skill.toLowerCase();
+    if (!userSkills.has(skillLower)) {
+      skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+    }
+  });
+  const missingSkills = Object.entries(skillCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([name, demand]) => ({ name, demand }));
 
   return (
-    <div className="flex flex-col gap-12">
+    <div className="flex flex-col gap-8">
       <header
         aria-labelledby="dashboard-heading"
         className="flex flex-col gap-2"
@@ -36,6 +121,21 @@ export default async function DashboardPage() {
         </p>
       </header>
 
+      {/* Top Widgets Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProfileCompletenessCard
+          score={completenessResult}
+          hasResume={!!resume}
+        />
+        <QuickActionsWidget
+          profileCompleteness={completenessResult?.score || 0}
+          hasResume={!!resume}
+          eligibleInterviewCount={eligibleInterviewCount}
+          hasSkillGaps={missingSkills.length > 0}
+        />
+      </div>
+
+      {/* Applications Section */}
       <section
         aria-labelledby="applications-heading"
         className="flex flex-col gap-4"
@@ -46,8 +146,8 @@ export default async function DashboardPage() {
         {enriched.length === 0 && (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              You haven't applied to any jobs yet. Browse roles and apply to get
-              started.
+              You haven&apos;t applied to any jobs yet. Browse roles and apply
+              to get started.
             </p>
             <Link
               href="/"
@@ -80,8 +180,18 @@ export default async function DashboardPage() {
                   {app.status}
                 </span>
                 {typeof app.matchScore === 'number' && (
-                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-300 dark:ring-neutral-700">
-                    Match {app.matchScore}
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
+                      app.matchScore >= 85
+                        ? 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 ring-green-600/20'
+                        : app.matchScore >= 65
+                          ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 ring-blue-600/20'
+                          : app.matchScore >= 40
+                            ? 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 ring-yellow-600/20'
+                            : 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 ring-red-600/20'
+                    }`}
+                  >
+                    Match {app.matchScore}%
                   </span>
                 )}
               </div>
@@ -104,6 +214,16 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {/* Bottom Widgets Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SkillsGapWidget missingSkills={missingSkills} />
+        <MatchDistributionChart
+          distribution={matchDistribution}
+          totalJobs={enriched.length}
+        />
+      </div>
+
+      {/* Available Jobs Section */}
       <section
         aria-labelledby="latest-jobs-heading"
         className="flex flex-col gap-4"

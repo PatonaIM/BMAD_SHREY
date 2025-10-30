@@ -7,14 +7,14 @@ import type {
 import { ok, err, type Result } from '../../shared/result';
 
 // Weight configuration (sum to 1)
+// Projects removed - weight redistributed to other sections
 const SECTION_WEIGHTS: Record<keyof CompletenessScoreSectionBreakdown, number> =
   {
-    summary: 0.18,
-    skills: 0.26,
-    experience: 0.26,
-    education: 0.14,
-    projects: 0.08,
-    meta: 0.08,
+    summary: 0.2, // was 0.18, +0.02
+    skills: 0.28, // was 0.26, +0.02
+    experience: 0.28, // was 0.26, +0.02
+    education: 0.16, // was 0.14, +0.02
+    meta: 0.08, // unchanged
   };
 
 // Simple band thresholds
@@ -34,7 +34,6 @@ export function computeCompleteness(
       skills: scoreSkills(profile),
       experience: scoreExperience(profile),
       education: scoreEducation(profile),
-      projects: scoreProjects(profile),
       meta: scoreMeta(profile),
     };
     const weighted = (
@@ -132,18 +131,12 @@ function scoreEducation(p: EditableProfile): number {
   return countScore * 0.6 + degreeDepth * 0.4;
 }
 
-function scoreProjects(p: EditableProfile): number {
-  // Placeholder - until projects field added
-  // Provide partial credit if tags include project hints
-  const tags = p.tags || [];
-  const projectTags = tags.filter(t =>
-    /project|portfolio|case study|open source/i.test(t)
-  ).length;
-  if (!projectTags) return 0;
-  return Math.min(1, projectTags / 5); // credit scaled
-}
-
 function scoreMeta(p: EditableProfile): number {
+  // Meta section scores profile metadata and additional information:
+  // - About field: 40% if more than 60 characters (personal statement)
+  // - Tags: 30% if 5 or more tags present (interests, domains, certifications)
+  // - Privacy decision: 15% if isPrivate is explicitly set (user engagement)
+  // - Cached completeness: 15% if previous scoring exists (profile maturity)
   let score = 0;
   if (p.about && p.about.length > 60) score += 0.4;
   if (p.tags && p.tags.length >= 5) score += 0.3;

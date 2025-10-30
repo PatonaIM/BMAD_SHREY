@@ -53,7 +53,9 @@ export default function ProfileEditPage() {
           setCompleteness(data.value.completeness);
         }
       } else {
-        setError(data.error?.message || 'Failed to load profile');
+        const errorMsg =
+          data.error?.message || data.error?.code || 'Failed to load profile';
+        setError(errorMsg);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -98,6 +100,9 @@ export default function ProfileEditPage() {
               about: profile.about,
               isPrivate: profile.isPrivate,
               tags: profile.tags,
+              skills: profile.skills,
+              experience: profile.experience,
+              education: profile.education,
             },
             createVersion,
           }),
@@ -149,9 +154,37 @@ export default function ProfileEditPage() {
 
   if (!profile) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-red-600">
-          {error || 'No profile found'}
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-900">
+        <div className="max-w-md mx-auto p-8 bg-white dark:bg-neutral-800 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
+            Profile Not Found
+          </h2>
+          <p className="text-gray-700 dark:text-neutral-300 mb-4">
+            {error || 'No profile data available'}
+          </p>
+          {error?.includes('No profile data') && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-neutral-400">
+                To edit your profile, you first need to create one by uploading
+                your resume. Our AI will extract the information and create your
+                initial profile.
+              </p>
+              <div className="flex gap-3">
+                <a
+                  href="/profile/resume"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Upload Resume
+                </a>
+                <a
+                  href="/dashboard"
+                  className="px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-neutral-200 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-600"
+                >
+                  Go to Dashboard
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

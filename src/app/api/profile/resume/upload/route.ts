@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../auth/options';
+import { getSessionUserId } from '../../../../../auth/sessionHelpers';
 import { validateResume } from '../../../../../services/profile/resumeValidation';
 import { getResumeStorage } from '../../../../../services/storage/resumeStorage';
 import { upsertResumeVersion } from '../../../../../data-access/repositories/resumeRepo';
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   const session = (await getServerSession(
     authOptions
   )) as unknown as SafeSession;
-  if (!session?.user?.email || !session.user.id) {
+  if (!session?.user?.email) {
     return Response.json(
       {
         ok: false,
@@ -33,6 +34,21 @@ export async function POST(req: NextRequest) {
         },
       },
       { status: 401 }
+    );
+  }
+
+  // Get user ID using helper (handles both OAuth and credentials users)
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: ErrorCodes.RESUME_UPLOAD_UNAUTHORIZED,
+          message: 'User not found',
+        },
+      },
+      { status: 404 }
     );
   }
   try {
@@ -51,13 +67,8 @@ export async function POST(req: NextRequest) {
       return Response.json(validation, { status: 400 });
     }
     const storage = getResumeStorage();
-    const stored = await storage.store(
-      session.user.id,
-      file.name,
-      file.type,
-      buffer
-    );
-    const doc = await upsertResumeVersion(session.user.id, {
+    const stored = await storage.store(userId, file.name, file.type, buffer);
+    const doc = await upsertResumeVersion(userId, {
       fileName: file.name,
       fileSize: stored.bytes,
       mimeType: stored.mimeType,

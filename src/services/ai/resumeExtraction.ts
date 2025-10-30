@@ -9,6 +9,12 @@ import { logger } from '../../monitoring/logger';
 import { getResumeStorage } from '../storage/resumeStorage';
 import { skillNormalizationService } from './skillNormalization';
 
+// pdf-parse-fork (v1) works better server-side without workers
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse-fork');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mammoth = require('mammoth');
+
 // Cost estimation constants (OpenAI GPT-4 pricing as of 2024)
 const GPT4_INPUT_COST_PER_1K_TOKENS = 0.03; // $0.03 per 1K input tokens
 const GPT4_OUTPUT_COST_PER_1K_TOKENS = 0.06; // $0.06 per 1K output tokens
@@ -90,21 +96,40 @@ export class ResumeExtractionService {
   }
 
   private async extractTextFromBuffer(buffer: Buffer): Promise<string> {
-    // For now, we'll implement a simple text extraction
-    // In a production system, you'd want to use libraries like:
-    // - pdf-parse for PDFs
-    // - mammoth for DOCX files
-    // For this MVP, we'll assume the content is already text or use a placeholder
-
-    // Simple heuristic: if it starts with PDF magic bytes, it's a PDF
+    // Check if it's a PDF file (starts with %PDF magic bytes)
     if (buffer.length > 4 && buffer.toString('ascii', 0, 4) === '%PDF') {
-      // TODO: Implement PDF text extraction
-      throw new Error(
-        'PDF text extraction not yet implemented. Please convert to text first.'
-      );
+      try {
+        // pdf-parse-fork v1 API - simple and works well server-side
+        const data = await pdfParse(buffer);
+        return data.text;
+      } catch (error) {
+        logger.error({
+          event: 'pdf_extraction_error',
+          error: (error as Error).message,
+        });
+        throw new Error(
+          `Failed to extract text from PDF: ${(error as Error).message}`
+        );
+      }
     }
 
-    // Assume it's a text-based format (DOCX, TXT, etc.)
+    // Check if it's a DOCX file (ZIP signature: PK)
+    if (buffer.length > 2 && buffer[0] === 0x50 && buffer[1] === 0x4b) {
+      try {
+        const result = await mammoth.extractRawText({ buffer });
+        return result.value;
+      } catch (error) {
+        logger.error({
+          event: 'docx_extraction_error',
+          error: (error as Error).message,
+        });
+        throw new Error(
+          `Failed to extract text from DOCX: ${(error as Error).message}`
+        );
+      }
+    }
+
+    // For other files, assume it's plain text
     return buffer.toString('utf-8');
   }
 

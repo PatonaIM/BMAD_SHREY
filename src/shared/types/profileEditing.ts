@@ -7,6 +7,10 @@ import type { ExtractedProfile } from './profile';
 // EditableProfile is the canonical shape exposed to the UI editor. It merges
 // AI-extracted data with user overrides and additional manual fields.
 export interface EditableProfile extends ExtractedProfile {
+  // User ID (from MongoDB document)
+  userId?: string;
+  // Resume version this profile was extracted from
+  resumeVersionId?: string;
   // User-provided summary override (if they tweak AI summary)
   summaryOverride?: string;
   // Free-form bio / about section distinct from summary
@@ -64,8 +68,7 @@ export interface CompletenessScoreSectionBreakdown {
   skills: number; // Skill count, diversity, proficiency coverage
   experience: number; // Experience entries with dates & descriptions
   education: number; // Education entries coverage
-  projects: number; // (Future) side projects / portfolio
-  meta: number; // Tags, about, privacy preferences
+  meta: number; // About section, privacy preferences
 }
 
 export interface CompletenessScore {
@@ -105,7 +108,10 @@ export interface AutoSavePayload {
   about?: string;
   isPrivate?: boolean;
   tags?: string[];
-  // Partial skill edits could be added later
+  // Allow editing structured data
+  skills?: ExtractedProfile['skills'];
+  experience?: ExtractedProfile['experience'];
+  education?: ExtractedProfile['education'];
 }
 
 // Editor status response shape for UI live updates
