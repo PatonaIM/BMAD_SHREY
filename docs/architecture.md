@@ -887,3 +887,65 @@ This section captures validation outcomes against the Architecture & Implementat
 ---
 
 _Document will continue evolving interactively; all decisions recorded with rationale for traceability._
+
+---
+
+## Profile Editing & Versioning System
+
+### Overview
+
+The Profile Editing System enables users to refine AI-extracted profile data while maintaining version history and tracking profile completeness. It implements auto-save, version snapshots, restoration, and diff tracking.
+
+### Architecture Components
+
+**Types** (`src/shared/types/profileEditing.ts`):
+
+- `EditableProfile`: Extends `ExtractedProfile` with `summaryOverride`, `about`, `tags`, `isPrivate`
+- `ProfileVersion`: Immutable snapshot with id, userId, createdAt, source, profile, completeness, diff
+- `CompletenessScore`: Score (0-100), section breakdown, band (poor/fair/good/excellent), recommendations
+
+**Repository** (`src/data-access/repositories/profileVersionRepo.ts`):
+
+- CRUD + pagination (beforeId cursor), retention policy (max 100 versions)
+- Indexes: userId+createdAt desc, id unique
+
+**Service** (`src/services/profile/profileEditingService.ts`):
+
+- `applyEdits`: Merge changes, compute completeness, create version, enforce retention
+- `diff`: Field-level comparison with impact estimation (semantic/skills/experience)
+- `restoreVersion`: Create new snapshot from historical version
+
+**Completeness Scoring** (`src/services/profile/completenessScoring.ts`):
+
+- Weighted: Summary 18%, Skills 26%, Experience 26%, Education 14%, Projects 8%, Meta 8%
+- Proficiency: beginner=2, intermediate=5, advanced=8, expert=10
+- Bands: <40 poor, <65 fair, <85 good, ≥85 excellent
+
+**API Routes**:
+
+- `GET /api/profile?computeCompleteness=true`: Fetch latest editable profile
+- `PUT /api/profile`: Apply edits with optional diff
+- `GET /api/profile/versions`: List history with pagination
+- `POST /api/profile/versions/[id]/restore`: Restore version
+
+**UI** (`src/app/profile/edit/page.tsx` + components):
+
+- ProfileEditor: Debounced auto-save (1.5s)
+- AutoSaveStatus: Visual save indicator
+- VersionHistoryPanel: History with restore
+- CompletenessDisplay: Score breakdown with recommendations
+
+### Diff Algorithm
+
+Tracks scalar fields, array lengths, estimates impact:
+
+- Semantic: Jaccard similarity on summary (revectorize if > 0.3 change)
+- Skills: Set difference (flag if > 0.2 change)
+- Experience: Set difference (flag if > 0.25 change)
+
+### Future Enhancements
+
+- Manual version tagging
+- Side-by-side diff UI
+- Collaborative editing with conflict resolution
+- Version export (JSON/PDF)

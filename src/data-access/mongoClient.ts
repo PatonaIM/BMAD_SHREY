@@ -3,9 +3,10 @@ import { getEnv } from '../config/env';
 import { ensureResumeIndexes } from './repositories/resumeRepo';
 import { ensureExtractedProfileIndexes } from './repositories/extractedProfileRepo';
 import { ensureResumeVectorIndexes } from './repositories/resumeVectorRepo';
+import { ensureProfileVersionIndexes } from './repositories/profileVersionRepo';
 import { logger } from '../monitoring/logger';
 
-let client: MongoClient | null = null;
+export let client: MongoClient | null = null;
 export async function getMongoClient(): Promise<MongoClient> {
   if (client) return client;
   const { MONGODB_URI } = getEnv();
@@ -47,6 +48,7 @@ async function ensureIndexes(mongo: MongoClient) {
     await ensureResumeIndexes();
     await ensureExtractedProfileIndexes();
     await ensureResumeVectorIndexes();
+    await ensureProfileVersionIndexes();
   } catch (err) {
     logger.error({
       msg: 'Index creation failed',

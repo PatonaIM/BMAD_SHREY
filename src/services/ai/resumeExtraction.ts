@@ -137,7 +137,7 @@ export class ResumeExtractionService {
         {
           role: 'system',
           content:
-            'You are a professional resume parser. Extract structured information from resumes and return valid JSON.',
+            'You are a professional resume parser. Extract structured information from resumes and return ONLY valid JSON without any markdown formatting, code blocks, or additional text.',
         },
         {
           role: 'user',
@@ -154,7 +154,9 @@ export class ResumeExtractionService {
     }
 
     try {
-      const parsed = JSON.parse(content);
+      // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+      const cleanedContent = this.stripMarkdownCodeBlocks(content);
+      const parsed = JSON.parse(cleanedContent);
       return this.validateAndNormalizeExtraction(parsed);
     } catch (error) {
       logger.error({
@@ -164,6 +166,25 @@ export class ResumeExtractionService {
       });
       throw new Error('Failed to parse AI response as JSON');
     }
+  }
+
+  /**
+   * Strip markdown code block formatting from response
+   * Handles: ```json ... ```, ``` ... ```, or plain JSON
+   */
+  private stripMarkdownCodeBlocks(content: string): string {
+    let cleaned = content.trim();
+
+    // Remove ```json\n ... \n``` blocks
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    // Remove ``` ... ``` blocks
+    else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+
+    return cleaned.trim();
   }
 
   private buildExtractionPrompt(resumeText: string): string {
@@ -211,7 +232,7 @@ Use ISO date format (YYYY-MM-DD) or YYYY-MM for dates. Set isCurrent=true for cu
 Resume text:
 ${resumeText}
 
-Return only the JSON, no additional text:`;
+IMPORTANT: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks or backticks. Do NOT include any text before or after the JSON.`;
   }
 
   private validateAndNormalizeExtraction(
