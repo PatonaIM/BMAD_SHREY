@@ -17,9 +17,10 @@ function json(result: unknown, status = 200) {
 
 export async function POST(
   _req: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const email = ((await getServerSession(authOptions)) as SafeSession | null)
       ?.user?.email;
     if (!email)
@@ -37,7 +38,7 @@ export async function POST(
         404
       );
     const service = new ProfileEditingService(user._id);
-    const restoreRes = await service.restoreVersion(context.params.id);
+    const restoreRes = await service.restoreVersion(id);
     return json(
       restoreRes.ok ? restoreRes : { ok: false, error: restoreRes.error },
       restoreRes.ok ? 200 : 400

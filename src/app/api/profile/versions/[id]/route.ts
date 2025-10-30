@@ -17,9 +17,10 @@ function json(result: unknown, status = 200) {
 
 export async function GET(
   _req: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const email = ((await getServerSession(authOptions)) as SafeSession | null)
       ?.user?.email;
     if (!email)
@@ -37,7 +38,7 @@ export async function GET(
         404
       );
 
-    const versionRes = await getProfileVersion(user._id, context.params.id);
+    const versionRes = await getProfileVersion(user._id, id);
     return json(
       versionRes.ok ? versionRes : { ok: false, error: versionRes.error },
       versionRes.ok ? 200 : 404
