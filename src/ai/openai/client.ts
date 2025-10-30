@@ -1,4 +1,4 @@
-import { getEnv } from '@bmad/config/env';
+import { getEnv } from '../../config/env';
 // Defer importing openai to avoid bundling worker dependencies in environments where it's unused.
 // Some Next.js build paths (especially edge or vendor chunk optimization) can error resolving worker.js.
 let openai: any | null = null;

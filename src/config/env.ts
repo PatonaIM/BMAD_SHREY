@@ -64,6 +64,11 @@ const EnvSchema = z
       .transform(v => sanitizeSubdomain(v)),
     CRON_SECRET: z.string().optional(),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+    VECTOR_DIMENSIONS: z
+      .string()
+      .optional()
+      .transform(v => (v && v.length > 0 ? parseInt(v, 10) : 1536))
+      .pipe(z.number().int().min(384).max(3072)),
   })
   .superRefine((data, ctx) => {
     // Require NEXTAUTH_SECRET strictly in production
