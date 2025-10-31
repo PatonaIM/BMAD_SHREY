@@ -41,6 +41,7 @@ export function InterviewInterface({
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isFinalizingUpload, setIsFinalizingUpload] = useState(false);
 
   // Audio levels
   const [userAudioLevel, setUserAudioLevel] = useState(0);
@@ -81,6 +82,9 @@ export function InterviewInterface({
   const lastSpeechTimestampRef = useRef<number>(Date.now());
   const silenceWarningIssuedRef = useRef<boolean>(false);
   const inactivityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Interview state ref for callbacks
+  const isInterviewingRef = useRef<boolean>(false);
 
   // Streaming upload refs
   const uploadedBlockIds = useRef<string[]>([]);
@@ -213,10 +217,11 @@ export function InterviewInterface({
           {
             onAudioLevel: level => setUserAudioLevel(level),
             onAudioData: audioData => {
-              // Send audio to WebSocket when interviewing
+              // Only send audio to WebSocket when interview is actually running
               if (
                 websocketManagerRef.current &&
-                websocketManagerRef.current.isConnected()
+                websocketManagerRef.current.isConnected() &&
+                isInterviewingRef.current
               ) {
                 websocketManagerRef.current.sendAudio(audioData);
               }
@@ -277,10 +282,13 @@ export function InterviewInterface({
         await websocketManagerRef.current.connect();
 
         // Configure session with greeting and dynamic question generation
+        // DO NOT auto-start - wait for explicit createResponse() call
         await websocketManagerRef.current.updateSession({
           instructions: `You are a concise, professional AI interviewer. Keep ALL responses under 20 words.
 
-GREETING: "Hi! I'm your AI interviewer. Let's discuss your skills and experience. Ready to begin?"
+IMPORTANT: DO NOT speak until the interview officially starts. Wait for the start signal.
+
+GREETING (when interview starts): "Hi! I'm your AI interviewer. Let's discuss your skills and experience. Ready to begin?"
 
 STYLE:
 - One brief question at a time (max 15 words)
@@ -297,9 +305,7 @@ QUESTION MIX:
 
 AFTER 5-7 MIN: "Thanks for your time today. That's all I need. Great talking with you!"
 
-CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", immediately respond: "Understood. Ending interview now. Thank you!" then call the end_interview function.
-
-Start with greeting only.`,
+CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", immediately respond: "Understood. Ending interview now. Thank you!" then call the end_interview function.`,
           voice: 'alloy',
           inputAudioFormat: 'pcm16',
           outputAudioFormat: 'pcm16',
@@ -416,6 +422,9 @@ Start with greeting only.`,
       uploadQueue.current = [];
       isUploadingRef.current = false;
 
+      // Enable audio streaming to AI
+      isInterviewingRef.current = true;
+
       await videoManagerRef.current.startRecording();
       setPhase('interviewing');
       setIsRecording(true);
@@ -465,6 +474,26 @@ Start with greeting only.`,
     try {
       setPhase('ending');
 
+      // Disable audio streaming to AI
+      isInterviewingRef.current = false;
+
+      // Stop AI from speaking immediately
+      setAISpeaking(false);
+      setAIAudioLevel(0);
+
+      // Stop any ongoing AI audio playback
+      if (audioContextRef.current) {
+        // Clear the audio queue
+        audioQueueRef.current = [];
+        playbackCursorRef.current = 0;
+        schedulingRef.current = false;
+      }
+
+      // Disconnect WebSocket to stop AI responses
+      if (websocketManagerRef.current) {
+        websocketManagerRef.current.disconnect();
+      }
+
       // Stop timers
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -498,6 +527,7 @@ Start with greeting only.`,
 
         // Wait for any pending uploads to complete
         if (uploadQueue.current.length > 0) {
+          setIsFinalizingUpload(true);
           setError('Finishing upload... Please wait.');
 
           // Wait for upload queue to empty
@@ -506,6 +536,8 @@ Start with greeting only.`,
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
           }
+
+          setIsFinalizingUpload(false);
 
           if (uploadQueue.current.length > 0) {
             throw new Error(
@@ -769,10 +801,10 @@ Start with greeting only.`,
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex flex-col">
+    <div className="fixed inset-0 overflow-hidden bg-white dark:bg-gray-900 flex flex-col top-[20px]">
       {/* Error Banner */}
       {error && (
-        <div className="bg-red-500/90 backdrop-blur-sm border-b border-red-400 px-4 py-3 animate-in slide-in-from-top duration-300">
+        <div className="bg-red-500/90 backdrop-blur-sm border-b border-red-400 px-4 py-3 flex-shrink-0">
           <p className="text-white text-sm text-center font-medium flex items-center justify-center gap-2">
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -786,9 +818,9 @@ Start with greeting only.`,
         </div>
       )}
 
-      {/* Enhanced Header with Controls */}
-      <div className="px-6 py-4 bg-white/5 backdrop-blur-lg border-b border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-4 flex-1">
+      {/* Header with Controls */}
+      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-4">
           <InterviewStatus
             status={connectionStatus}
             currentQuestion={1}
@@ -802,7 +834,7 @@ Start with greeting only.`,
           {phase === 'ready' && (
             <button
               onClick={startInterview}
-              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-green-500/50 hover:scale-105 flex items-center gap-2"
+              className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path
@@ -818,82 +850,99 @@ Start with greeting only.`,
           {phase === 'interviewing' && (
             <button
               onClick={endInterview}
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-red-500/50 hover:scale-105 flex items-center gap-2"
+              disabled={isFinalizingUpload}
+              className="bg-[#EF4444] hover:bg-[#DC2626] disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm"
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              End Interview
+              {isFinalizingUpload ? (
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  End Interview
+                </>
+              )}
             </button>
           )}
         </div>
       </div>
 
-      {/* Main Interview Interface - Equal Split with Enhanced Styling */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 p-6 overflow-hidden">
-        {/* Candidate Video (Left/Top - 50%) */}
-        <div className="flex-1 flex flex-col gap-3 animate-in fade-in slide-in-from-left duration-500 min-h-0">
-          <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl">
-            <VideoPreview
-              stream={mediaStream}
-              isReady={phase === 'ready' || phase === 'interviewing'}
-              onToggleCamera={handleToggleCamera}
-              onToggleMicrophone={handleToggleMicrophone}
-              cameraEnabled={cameraEnabled}
-              microphoneEnabled={microphoneEnabled}
-            />
-          </div>
+      {/* Main Interview Interface */}
+      <div className="flex-1 flex flex-col md:flex-row gap-6 p-6 overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900">
+        {/* Candidate Video */}
+        <div className="flex-1 relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 bg-black min-h-0 min-w-0">
+          <VideoPreview
+            stream={mediaStream}
+            isReady={phase === 'ready' || phase === 'interviewing'}
+            onToggleCamera={handleToggleCamera}
+            onToggleMicrophone={handleToggleMicrophone}
+            cameraEnabled={cameraEnabled}
+            microphoneEnabled={microphoneEnabled}
+          />
 
-          {/* Compact Audio Visualizer */}
-          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-lg px-4 py-2.5 shadow-lg ring-1 ring-white/10 flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50" />
-              <span className="text-xs font-medium text-white/90">
-                Your Audio
-              </span>
-            </div>
-            <div className="flex-1">
+          {/* Audio Indicator - Bottom Right */}
+          <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg">
+            <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse" />
+            <div className="w-16">
               <AudioVisualizer
                 audioLevel={userAudioLevel}
                 isActive={microphoneEnabled && isRecording}
-                height={32}
+                height={20}
               />
             </div>
           </div>
         </div>
 
-        {/* AI Interviewer (Right/Bottom - 50%) */}
-        <div className="flex-1 flex flex-col gap-4 animate-in fade-in slide-in-from-right duration-500 min-h-0">
-          {/* AI Animation with Enhanced Container */}
-          <div className="flex-1 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-blue-600/20 backdrop-blur-xl rounded-2xl shadow-2xl ring-2 ring-white/20 flex flex-col items-center justify-center p-8 relative overflow-hidden">
-            {/* Background animated gradient orbs */}
-            <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
-              <div className="absolute -top-20 -right-20 w-60 h-60 bg-blue-500 rounded-full blur-3xl animate-pulse" />
-              <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-purple-500 rounded-full blur-3xl animate-pulse animation-delay-1000" />
-            </div>
+        {/* AI Interviewer */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="flex-1 bg-gradient-to-br from-[#A16AE8]/10 to-[#8096FD]/10 dark:from-[#A16AE8]/20 dark:to-[#8096FD]/20 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg flex flex-col items-center justify-center p-8 overflow-hidden">
+            <AISpeakingAnimation
+              isSpeaking={aiSpeaking}
+              audioLevel={aiAudioLevel}
+              size={180}
+            />
 
-            <div className="relative z-10">
-              <AISpeakingAnimation
-                isSpeaking={aiSpeaking}
-                audioLevel={aiAudioLevel}
-                size={200}
-              />
-            </div>
-
-            <div className="mt-8 text-center relative z-10">
-              <p className="text-xl font-semibold text-white mb-2">
-                {phase === 'ready' ? '🎯 Ready to Begin' : '🤖 AI Interviewer'}
+            <div className="mt-6 text-center">
+              <p className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                {phase === 'ready' ? 'Ready to Begin' : 'AI Interviewer'}
               </p>
-              <p className="text-sm text-blue-200/80">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {phase === 'ready'
                   ? "Click start when you're ready"
                   : aiSpeaking
-                    ? '🎤 AI is speaking...'
-                    : '👂 Listening...'}
+                    ? 'Speaking...'
+                    : 'Listening...'}
               </p>
             </div>
           </div>

@@ -22,6 +22,13 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
   const linksAuthed = [{ label: 'Dashboard', path: '/dashboard' }];
   const isActive = (p: string) => pathname === p;
 
+  // Hide layout for interview pages
+  const isInterviewPage = pathname?.startsWith('/interview/');
+
+  if (isInterviewPage) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 w-full backdrop-blur bg-white/80 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-700">
