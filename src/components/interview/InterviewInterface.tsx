@@ -522,7 +522,7 @@ Start with greeting only.`,
             body: JSON.stringify({
               sessionId,
               blockIds: uploadedBlockIds.current,
-              duration: recordingDuration,
+              duration: Math.floor(recordingDuration / 1000), // Convert ms to seconds
               fileSize: totalFileSize.current,
               videoFormat: 'video/webm',
               videoResolution: '1280x720',
