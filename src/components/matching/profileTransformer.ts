@@ -32,7 +32,7 @@ export function extractedProfileToCandidateProfile(
     summary: extracted.summary,
 
     // Transform skills: ExtractedSkill[] -> CandidateProfile skills format
-    skills: extracted.skills.map(skill => ({
+    skills: (extracted.skills || []).map(skill => ({
       name: skill.name,
       category: skill.category,
       proficiency: skill.proficiency,
@@ -40,7 +40,7 @@ export function extractedProfileToCandidateProfile(
     })),
 
     // Transform experience: Keep most fields, remove achievements not in CandidateProfile
-    experience: extracted.experience.map(exp => ({
+    experience: (extracted.experience || []).map(exp => ({
       company: exp.company,
       position: exp.position,
       startDate: exp.startDate,
@@ -52,7 +52,7 @@ export function extractedProfileToCandidateProfile(
     })),
 
     // Transform education: Keep only relevant fields for matching
-    education: extracted.education.map(edu => ({
+    education: (extracted.education || []).map(edu => ({
       institution: edu.institution,
       degree: edu.degree,
       fieldOfStudy: edu.fieldOfStudy,
@@ -103,7 +103,7 @@ export function isProfileReadyForMatching(
   const hasExperience = extracted.experience && extracted.experience.length > 0;
 
   // At minimum, need skills OR experience for matching
-  return hasSkills || hasExperience;
+  return !!(hasSkills || hasExperience);
 }
 
 /**
@@ -140,37 +140,40 @@ export function calculateProfileCompleteness(
   }
 
   // Skills completeness (30 points)
-  if (extracted.skills.length >= 5) {
+  const skillsLength = extracted.skills?.length || 0;
+  if (skillsLength >= 5) {
     score += weights.skills;
-  } else if (extracted.skills.length > 0) {
-    score += weights.skills * (extracted.skills.length / 5);
+  } else if (skillsLength > 0) {
+    score += weights.skills * (skillsLength / 5);
   }
 
   // Check skill proficiency levels for bonus
-  const skillsWithProficiency = extracted.skills.filter(
+  const skillsWithProficiency = (extracted.skills || []).filter(
     s => s.proficiency
   ).length;
-  if (skillsWithProficiency >= extracted.skills.length * 0.7) {
+  if (skillsWithProficiency >= skillsLength * 0.7) {
     score += 5; // Bonus for proficiency levels
   }
 
   // Experience completeness (35 points)
-  if (extracted.experience.length >= 3) {
+  const experienceLength = extracted.experience?.length || 0;
+  if (experienceLength >= 3) {
     score += weights.experience;
-  } else if (extracted.experience.length > 0) {
-    score += weights.experience * (extracted.experience.length / 3);
+  } else if (experienceLength > 0) {
+    score += weights.experience * (experienceLength / 3);
   }
 
   // Check for detailed experience entries
-  const detailedExperience = extracted.experience.filter(
+  const detailedExperience = (extracted.experience || []).filter(
     exp => exp.description && exp.description.length > 50
   ).length;
-  if (detailedExperience >= extracted.experience.length * 0.5) {
+  if (detailedExperience >= experienceLength * 0.5) {
     score += 5; // Bonus for detailed descriptions
   }
 
   // Education completeness (20 points)
-  if (extracted.education.length >= 1) {
+  const educationLength = extracted.education?.length || 0;
+  if (educationLength >= 1) {
     score += weights.education;
   }
 
@@ -195,18 +198,18 @@ export function getProfileSearchTerms(extracted: ExtractedProfile): string[] {
   const terms: Set<string> = new Set();
 
   // Add all skill names
-  extracted.skills.forEach(skill => {
+  (extracted.skills || []).forEach(skill => {
     terms.add(skill.name.toLowerCase());
   });
 
   // Add company names
-  extracted.experience.forEach(exp => {
+  (extracted.experience || []).forEach(exp => {
     terms.add(exp.company.toLowerCase());
     terms.add(exp.position.toLowerCase());
   });
 
   // Add education institutions and fields
-  extracted.education.forEach(edu => {
+  (extracted.education || []).forEach(edu => {
     terms.add(edu.institution.toLowerCase());
     if (edu.degree) terms.add(edu.degree.toLowerCase());
     if (edu.fieldOfStudy) terms.add(edu.fieldOfStudy.toLowerCase());
