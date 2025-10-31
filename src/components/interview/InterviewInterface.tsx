@@ -63,6 +63,8 @@ export function InterviewInterface({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const playbackCursorRef = useRef<number>(0);
+  const schedulingRef = useRef<boolean>(false);
 
   // Initialize managers when permissions are granted
   const handlePermissionsGranted = useCallback(
@@ -132,7 +134,7 @@ export function InterviewInterface({
         // Initialize WebSocket manager
         websocketManagerRef.current = new RealtimeWebSocketManager(token, {
           onAudioDelta: (audioData: ArrayBuffer) => {
-            // Queue audio for playback
+            // Queue audio for playback (debug logging removed after validation)
             audioQueueRef.current.push(audioData);
             playAudioQueue();
             setAIAudioLevel(0.8);
@@ -157,9 +159,18 @@ export function InterviewInterface({
 
         await websocketManagerRef.current.connect();
 
-        // Configure session with first question
+        // Configure session with first question and explicit audio formats
         await websocketManagerRef.current.updateSession({
           instructions: `You are conducting a professional interview. Ask this question: "${questions[0]?.question}". Listen to the candidate's response and provide natural follow-up based on their answer.`,
+          voice: 'alloy',
+          inputAudioFormat: 'pcm16',
+          outputAudioFormat: 'pcm16',
+          turnDetection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            silence_duration_ms: 500,
+            prefix_padding_ms: 400,
+          },
         });
 
         setConnectionStatus('connected');
@@ -178,47 +189,38 @@ export function InterviewInterface({
     setConnectionStatus('disconnected');
   }, []);
 
-  // Play audio queue from OpenAI
-  const playAudioQueue = useCallback(async () => {
-    if (!audioContextRef.current || audioQueueRef.current.length === 0) {
-      return;
+  // Sequential scheduling playback to prevent overlapping sources (which sounds like multiple voices)
+  const playAudioQueue = useCallback(() => {
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+    if (schedulingRef.current) return;
+    if (audioQueueRef.current.length === 0) return;
+
+    schedulingRef.current = true;
+    let cursor = playbackCursorRef.current;
+    const now = ctx.currentTime;
+    if (cursor < now) cursor = now;
+
+    while (audioQueueRef.current.length > 0) {
+      const chunk = audioQueueRef.current.shift();
+      if (!chunk) break;
+      const pcm16 = new Int16Array(chunk);
+      const floatData = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        floatData[i] = (pcm16[i] ?? 0) / 32768.0;
+      }
+      const buffer = ctx.createBuffer(1, floatData.length, 24000);
+      buffer.getChannelData(0).set(floatData);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(ctx.destination);
+      src.start(cursor);
+      // Initial scheduling debug removed
+      cursor += buffer.duration;
     }
 
-    const audioData = audioQueueRef.current.shift();
-    if (!audioData) return;
-
-    try {
-      // Convert PCM16 to AudioBuffer
-      const pcm16Data = new Int16Array(audioData);
-      const floatData = new Float32Array(pcm16Data.length);
-
-      // Convert Int16 to Float32 (-1 to 1 range)
-      for (let i = 0; i < pcm16Data.length; i++) {
-        floatData[i] = (pcm16Data[i] || 0) / 32768.0;
-      }
-
-      // Create audio buffer
-      const audioBuffer = audioContextRef.current.createBuffer(
-        1, // mono
-        floatData.length,
-        24000 // sample rate
-      );
-
-      audioBuffer.getChannelData(0).set(floatData);
-
-      // Create and play buffer source
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
-      source.start();
-
-      // Schedule next chunk
-      if (audioQueueRef.current.length > 0) {
-        setTimeout(() => playAudioQueue(), 50);
-      }
-    } catch (error) {
-      console.error('Error playing audio:', error);
-    }
+    playbackCursorRef.current = cursor;
+    schedulingRef.current = false;
   }, []);
 
   // Start interview

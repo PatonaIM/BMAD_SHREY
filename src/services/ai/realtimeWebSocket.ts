@@ -56,6 +56,7 @@ export interface RealtimeEventHandlers {
   // Audio events
   onAudioDelta?: (_audioData: ArrayBuffer) => void;
   onAudioDone?: () => void;
+  onAudioCombinedDone?: (_audioData: ArrayBuffer) => void;
   onAudioTranscriptDelta?: (_delta: string) => void;
   onAudioTranscriptDone?: (_transcript: string) => void;
 
@@ -84,6 +85,7 @@ export class RealtimeWebSocketManager {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private audioQueue: ArrayBuffer[] = [];
   private isProcessingQueue = false;
+  private currentResponseAudioChunks: string[] = [];
 
   constructor(sessionToken: string, handlers?: RealtimeEventHandlers) {
     this.sessionToken = sessionToken;
@@ -194,10 +196,12 @@ export class RealtimeWebSocketManager {
     if (!this.isConnected()) {
       throw new Error('Cannot update session: not connected');
     }
+    // Transform camelCase keys to snake_case expected by OpenAI Realtime API
+    const sessionPayload = this.transformSessionConfig(config);
 
     this.sendEvent({
       type: 'session.update',
-      session: config,
+      session: sessionPayload,
     });
   }
 
@@ -375,12 +379,28 @@ export class RealtimeWebSocketManager {
 
       case 'response.audio.delta':
         if (event.delta && typeof event.delta === 'string') {
+          // Collect raw base64 delta for later assembly and immediate streaming
+          this.currentResponseAudioChunks.push(event.delta);
           const audioBuffer = this.base64ToArrayBuffer(event.delta);
           this.handlers.onAudioDelta?.(audioBuffer);
         }
         break;
+      case 'response.output_item.added':
+      case 'response.output_item.done':
+      case 'response.content_part.added':
+      case 'response.content_part.done':
+      case 'rate_limits.updated':
+        // Non-audio informational events; expose via generic onMessage handler already called above.
+        break;
 
       case 'response.audio.done':
+        // Combine all collected chunks into a single ArrayBuffer for potential alternate decoding (wav/mp3)
+        if (this.currentResponseAudioChunks.length > 0) {
+          const combinedBase64 = this.currentResponseAudioChunks.join('');
+          const combined = this.base64ToArrayBuffer(combinedBase64);
+          this.handlers.onAudioCombinedDone?.(combined);
+          this.currentResponseAudioChunks = [];
+        }
         this.handlers.onAudioDone?.();
         break;
 
@@ -505,6 +525,30 @@ export class RealtimeWebSocketManager {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes.buffer;
+  }
+
+  /**
+   * Transform session config object keys from camelCase to snake_case for API compatibility
+   */
+  private transformSessionConfig(
+    config: Partial<RealtimeSessionConfig>
+  ): Record<string, unknown> {
+    const keyMap: Record<string, string> = {
+      inputAudioFormat: 'input_audio_format',
+      outputAudioFormat: 'output_audio_format',
+      inputAudioTranscription: 'input_audio_transcription',
+      turnDetection: 'turn_detection',
+      maxOutputTokens: 'max_output_tokens',
+      // voice and instructions already match expected naming
+    };
+
+    const transformed: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (value === undefined) continue;
+      const mappedKey = keyMap[key] || key; // default to original if not mapped
+      transformed[mappedKey] = value;
+    }
+    return transformed;
   }
 
   /**
