@@ -93,8 +93,8 @@ export async function POST(req: NextRequest) {
       userId: userId.slice(0, 8),
       resumeVersionId,
       status: extractedProfile.extractionStatus,
-      skillCount: extractedProfile.skills.length,
-      experienceCount: extractedProfile.experience.length,
+      skillCount: extractedProfile.skills?.length || 0,
+      experienceCount: extractedProfile.experience?.length || 0,
     });
 
     return NextResponse.json({
@@ -102,9 +102,9 @@ export async function POST(req: NextRequest) {
       value: {
         extractionStatus: savedProfile.extractionStatus,
         extractedAt: savedProfile.extractedAt,
-        skillCount: savedProfile.skills.length,
-        experienceCount: savedProfile.experience.length,
-        educationCount: savedProfile.education.length,
+        skillCount: savedProfile.skills?.length || 0,
+        experienceCount: savedProfile.experience?.length || 0,
+        educationCount: savedProfile.education?.length || 0,
         costEstimate: savedProfile.costEstimate,
       },
     });
