@@ -287,7 +287,12 @@ async function calculateMatches(
           return null;
         }
 
-        return matchResult.value;
+        // Override jobId to use the requested ID format (workableId or _id)
+        const match = matchResult.value;
+        return {
+          ...match,
+          jobId, // Use the original requested jobId instead of job._id
+        };
       } catch (error) {
         logger.error({
           msg: 'Error calculating match',

@@ -2,10 +2,10 @@
  * Job-Candidate Matching Algorithm
  *
  * Implements sophisticated matching with weighted scoring:
- * - 40% Semantic similarity (vector embeddings)
- * - 35% Skills alignment (exact + fuzzy matching)
- * - 15% Experience match (level + domain + recency)
- * - 10% Other factors (location, employment type, salary, company fit)
+ * - 0% Semantic similarity (DISABLED - job embeddings not yet implemented)
+ * - 60% Skills alignment (exact + fuzzy matching) - PRIMARY FACTOR
+ * - 25% Experience match (level + domain + recency)
+ * - 15% Other factors (location, employment type, salary, company fit)
  *
  * Target: <500ms for single match calculation
  */
@@ -26,10 +26,10 @@ import { skillNormalizationService } from './skillNormalization';
 
 export class JobCandidateMatchingService {
   private readonly defaultWeights: MatchWeights = {
-    semantic: 0.4,
-    skills: 0.35,
-    experience: 0.15,
-    other: 0.1,
+    semantic: 0.0, // Disabled until job embeddings are properly implemented
+    skills: 0.6, // Primary matching factor - exact skill alignment
+    experience: 0.25, // Experience level and domain relevance
+    other: 0.15, // Location, employment type, salary, etc.
   };
 
   private readonly performanceTarget = 500; // ms

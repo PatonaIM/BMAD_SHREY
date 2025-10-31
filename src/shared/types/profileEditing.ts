@@ -112,6 +112,7 @@ export interface AutoSavePayload {
   skills?: ExtractedProfile['skills'];
   experience?: ExtractedProfile['experience'];
   education?: ExtractedProfile['education'];
+  certifications?: ExtractedProfile['certifications'];
 }
 
 // Editor status response shape for UI live updates

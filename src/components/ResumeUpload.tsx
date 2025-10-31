@@ -179,7 +179,7 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
         }
       }
     },
-    [onUploadSuccess]
+    [triggerExtraction]
   );
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

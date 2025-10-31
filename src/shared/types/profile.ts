@@ -1,12 +1,28 @@
+export interface Certification {
+  name: string;
+  issuer: string;
+  issueDate?: string;
+  expiryDate?: string;
+  credentialId?: string;
+  url?: string;
+}
+
 export interface ExtractedProfile {
-  summary?: string;
-  skills: ExtractedSkill[];
-  experience: ExperienceEntry[];
-  education: EducationEntry[];
-  extractedAt: string;
-  extractionStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  summary?: string; // High-level professional summary
+  skills?: ExtractedSkill[]; // Normalized skill set
+  experience?: ExperienceEntry[]; // Work history
+  education?: EducationEntry[]; // Educational background
+  certifications?: Certification[]; // Professional certifications
+  extractedAt?: string; // ISO timestamp
+  extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   extractionError?: string;
-  costEstimate?: number; // in USD cents
+  costEstimate?: {
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCostUSD: number;
+  };
 }
 
 export interface ExtractedSkill {

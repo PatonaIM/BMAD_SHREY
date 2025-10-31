@@ -5,11 +5,10 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { ProfileEditor } from '../../../components/profile/ProfileEditor';
 import { AutoSaveStatus } from '../../../components/profile/AutoSaveStatus';
-import { VersionHistoryPanel } from '../../../components/profile/VersionHistoryPanel';
 import { CompletenessDisplay } from '../../../components/profile/CompletenessDisplay';
+import { ResumeUpload } from '../../../components/ResumeUpload';
 import type {
   EditableProfile,
-  ProfileVersion,
   CompletenessScore,
 } from '../../../shared/types/profileEditing';
 
@@ -21,11 +20,12 @@ export default function ProfileEditPage() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [versions, setVersions] = useState<ProfileVersion[]>([]);
   const [completeness, setCompleteness] = useState<CompletenessScore | null>(
     null
   );
-  const [showHistory, setShowHistory] = useState(false);
+  const [showResumeUpload, setShowResumeUpload] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(false);
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -38,7 +38,6 @@ export default function ProfileEditPage() {
   useEffect(() => {
     if (status === 'authenticated') {
       loadProfile();
-      loadVersions();
     }
   }, [status]);
 
@@ -69,7 +68,7 @@ export default function ProfileEditPage() {
       const res = await fetch('/api/profile/versions?limit=10');
       const data = await res.json();
       if (data.ok) {
-        setVersions(data.value || []);
+        // Versions feature removed for now
       }
     } catch {
       // Failed to load versions, not critical
@@ -103,6 +102,7 @@ export default function ProfileEditPage() {
               skills: profile.skills,
               experience: profile.experience,
               education: profile.education,
+              certifications: profile.certifications,
             },
             createVersion,
           }),
@@ -123,6 +123,7 @@ export default function ProfileEditPage() {
     [profile]
   );
 
+  /* Version history feature temporarily disabled
   const handleRestoreVersion = async (versionId: string) => {
     try {
       setSaving(true);
@@ -133,7 +134,6 @@ export default function ProfileEditPage() {
       if (data.ok) {
         await loadProfile();
         await loadVersions();
-        setShowHistory(false);
       } else {
         setError(data.error?.message || 'Restore failed');
       }
@@ -143,6 +143,7 @@ export default function ProfileEditPage() {
       setSaving(false);
     }
   };
+  */
 
   if (status === 'loading' || loading) {
     return (
@@ -191,10 +192,61 @@ export default function ProfileEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Success Notification */}
+        {showUpdateNotification && (
+          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg
+                  className="w-3 h-3 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="text-green-800 dark:text-green-200 font-medium">
+                  Profile Updated Successfully!
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Your profile has been updated with the latest information from
+                  your resume.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowUpdateNotification(false)}
+              className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Edit Profile</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-neutral-100">
+            Edit Profile
+          </h1>
           <div className="flex items-center gap-4">
             <AutoSaveStatus
               saving={saving}
@@ -204,21 +256,103 @@ export default function ProfileEditPage() {
             <button
               onClick={() => handleSave(true)}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
             >
               Save Version
-            </button>
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-            >
-              {showHistory ? 'Hide' : 'Show'} History
             </button>
           </div>
         </div>
 
+        {/* Profile Complete Toggle */}
+        <div className="mb-6 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100 mb-2">
+                Profile Status
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-neutral-400">
+                {profileComplete
+                  ? 'Your profile is marked as complete. You can now focus on applying to jobs!'
+                  : "Mark your profile as complete when you're done editing to unlock full matching features."}
+              </p>
+            </div>
+            <button
+              onClick={() => setProfileComplete(!profileComplete)}
+              className={`px-6 py-3 rounded-md font-medium text-sm transition-colors ${
+                profileComplete
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {profileComplete ? '✓ Profile Complete' : 'Mark as Complete'}
+            </button>
+          </div>
+        </div>
+
+        {/* Resume Upload Section */}
+        <div className="mb-6 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-sm">
+          <button
+            onClick={() => setShowResumeUpload(!showResumeUpload)}
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <svg
+                className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">
+                  Update Resume
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-neutral-400">
+                  Upload a new resume to refresh your profile data
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform ${showResumeUpload ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+          {showResumeUpload && (
+            <div className="px-6 pb-6 border-t border-gray-200 dark:border-neutral-700 pt-4">
+              <ResumeUpload
+                onUploadSuccess={async () => {
+                  // Reload profile with new extracted data
+                  await loadProfile();
+                  // Show success notification
+                  setShowUpdateNotification(true);
+                  // Auto-close the upload section after successful extraction
+                  setShowResumeUpload(false);
+                  // Hide notification after 5 seconds
+                  setTimeout(() => setShowUpdateNotification(false), 5000);
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className={showHistory ? 'lg:col-span-2' : 'lg:col-span-2'}>
+          <div className="lg:col-span-2">
             <ProfileEditor
               profile={profile}
               onChange={handleProfileChange}
@@ -227,13 +361,6 @@ export default function ProfileEditPage() {
           </div>
           <div className="lg:col-span-1 space-y-6">
             <CompletenessDisplay score={completeness} />
-            {showHistory && (
-              <VersionHistoryPanel
-                versions={versions}
-                onRestore={handleRestoreVersion}
-                loading={saving}
-              />
-            )}
           </div>
         </div>
       </div>

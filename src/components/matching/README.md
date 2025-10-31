@@ -85,10 +85,11 @@ import { ScoreBreakdownModal } from '@/components/matching';
 **Features:**
 
 - **Overall Score**: Large progress bar with confidence percentage
-- **Component Breakdown**: 4 sub-scores (semantic, skills, experience, other)
+- **Component Breakdown**: 3 sub-scores (skills, experience, other factors)
 - **Skills Analysis**: Visual badges for matched (green) and missing (red) skills
 - **Reasoning**: Human-readable explanations from the matching algorithm
 - **Recommendations**: Dynamic improvement tips based on score thresholds
+- **Clear Explanation**: Shows how weights and scores combine
 - **Keyboard Support**: Escape key to close
 - **Body Scroll Lock**: Prevents background scrolling when open
 - **Sticky Header/Footer**: For long content
@@ -209,14 +210,21 @@ export function JobCard({
 
 ## Matching Algorithm
 
-The underlying matching algorithm uses these weights:
+The matching algorithm uses these weights to calculate the overall score:
 
-| Factor                  | Weight | Components                                       |
-| ----------------------- | ------ | ------------------------------------------------ |
-| **Semantic Similarity** | 40%    | Vector cosine similarity between job and profile |
-| **Skills Alignment**    | 35%    | Matched skills, proficiency levels, match ratio  |
-| **Experience Match**    | 15%    | Level alignment, domain relevance, recency       |
-| **Other Factors**       | 10%    | Location, employment type, salary, company fit   |
+| Factor               | Weight | Components                                                                |
+| -------------------- | ------ | ------------------------------------------------------------------------- |
+| **Skills Alignment** | 60%    | Matched skills count, proficiency levels, skill match ratio (PRIMARY)     |
+| **Experience Match** | 25%    | Level alignment, domain relevance, recency boost                          |
+| **Other Factors**    | 15%    | Location preference, employment type match, salary alignment, company fit |
+
+**Note:** Semantic similarity (vector embeddings) is currently disabled as job embeddings are not yet implemented.
+
+**How it works:**
+
+1. Each component is scored 0-100%
+2. The overall score = (Skills × 0.60) + (Experience × 0.25) + (Other × 0.15)
+3. Example: Skills=80%, Experience=60%, Other=70% → Overall = 48 + 15 + 10.5 = 73.5%
 
 **Performance Target**: <500ms per calculation
 

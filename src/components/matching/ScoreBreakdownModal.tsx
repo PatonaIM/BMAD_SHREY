@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import type { JobCandidateMatch } from '../../shared/types/matching';
 
 export interface ScoreBreakdownModalProps {
@@ -15,10 +16,13 @@ export interface ScoreBreakdownModalProps {
  *
  * Displays detailed breakdown of job-candidate match score including:
  * - Overall score with visual progress bar
- * - Component scores (semantic, skills, experience, other)
+ * - Component scores (skills, experience, other factors)
  * - Matched and missing skills
  * - Human-readable reasoning
  * - Improvement recommendations
+ *
+ * Note: Each component shows its ACTUAL SCORE (0-100%),
+ * and the weight (%) indicates its contribution to the overall score.
  *
  * @example
  * ```tsx
@@ -36,6 +40,8 @@ export function ScoreBreakdownModal({
   match,
   jobTitle,
 }: ScoreBreakdownModalProps): React.ReactElement | null {
+  const router = useRouter();
+
   // Don't render if not open or no match data
   if (!isOpen || !match) return null;
 
@@ -204,19 +210,38 @@ export function ScoreBreakdownModal({
           {/* Component Scores */}
           <div className="space-y-4">
             <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-              Component Scores
+              Score Components
             </h3>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
+              Each bar shows the actual score (0-100%). The percentage in
+              parentheses is how much it contributes to your overall score.
+            </p>
             <div className="space-y-3">
               <ScoreBar
-                label="Semantic Similarity (40%)"
-                value={score.semantic}
+                label="Skills Alignment (60% weight)"
+                value={score.skills}
               />
-              <ScoreBar label="Skills Alignment (35%)" value={score.skills} />
               <ScoreBar
-                label="Experience Match (15%)"
+                label="Experience Match (25% weight)"
                 value={score.experience}
               />
-              <ScoreBar label="Other Factors (10%)" value={score.other} />
+              <ScoreBar
+                label="Other Factors (15% weight)"
+                value={score.other}
+              />
+            </div>
+            <div className="mt-3 p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                <strong>Example:</strong> If Skills = 80% and Experience = 60%:
+                <br />
+                Overall = (80 × 0.60) + (60 × 0.25) + (other × 0.15) ={' '}
+                {Math.round(
+                  score.skills * 0.6 +
+                    score.experience * 0.25 +
+                    score.other * 0.15
+                )}
+                %
+              </p>
             </div>
           </div>
           {/* Skills Analysis */}
@@ -333,7 +358,7 @@ export function ScoreBreakdownModal({
             <button
               onClick={() => {
                 onClose();
-                // Navigate to profile edit - implement in parent
+                router.push('/profile/edit');
               }}
               className="btn-primary flex-1 px-4 py-2 text-sm"
             >

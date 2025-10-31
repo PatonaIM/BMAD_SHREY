@@ -1,17 +1,17 @@
 export interface MatchScore {
   overall: number; // 0-100 overall match score
-  semantic: number; // 0-100 semantic similarity score
-  skills: number; // 0-100 skills alignment score
-  experience: number; // 0-100 experience match score
-  other: number; // 0-100 other factors score
+  semantic: number; // 0-100 semantic similarity score (currently disabled/unused)
+  skills: number; // 0-100 skills alignment score (PRIMARY - 60% weight)
+  experience: number; // 0-100 experience match score (25% weight)
+  other: number; // 0-100 other factors score (15% weight)
   confidence: number; // 0-1 confidence in the match
 }
 
 export interface MatchFactors {
-  // Semantic matching (40% weight)
-  semanticSimilarity: number; // Cosine similarity from vectors
+  // Semantic matching (currently disabled - 0% weight)
+  semanticSimilarity: number; // Cosine similarity from vectors (not used)
 
-  // Skills matching (35% weight)
+  // Skills matching (60% weight - PRIMARY FACTOR)
   skillsAlignment: {
     matchedSkills: string[];
     missingSkills: string[];
@@ -19,14 +19,14 @@ export interface MatchFactors {
     proficiencyScore: number; // 0-1 based on skill levels
   };
 
-  // Experience matching (15% weight)
+  // Experience matching (25% weight)
   experienceMatch: {
     levelAlignment: number; // 0-1 how well experience levels match
     domainRelevance: number; // 0-1 industry/domain relevance
     recencyBoost: number; // 0-1 boost for recent experience
   };
 
-  // Other factors (10% weight)
+  // Other factors (15% weight)
   otherFactors: {
     locationMatch: number; // 0-1 location preference match
     employmentTypeMatch: number; // 0-1 employment type preference
@@ -53,10 +53,10 @@ export interface MatchingOptions {
 }
 
 export interface MatchWeights {
-  semantic: number; // Default: 0.4 (40%)
-  skills: number; // Default: 0.35 (35%)
-  experience: number; // Default: 0.15 (15%)
-  other: number; // Default: 0.10 (10%)
+  semantic: number; // Default: 0.0 (disabled - job embeddings not implemented)
+  skills: number; // Default: 0.60 (60% - PRIMARY FACTOR)
+  experience: number; // Default: 0.25 (25%)
+  other: number; // Default: 0.15 (15%)
 }
 
 export interface CandidateProfile {

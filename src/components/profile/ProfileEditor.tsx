@@ -420,6 +420,286 @@ export function ProfileEditor({
           </button>
         </div>
       </div>
+
+      <div className="pt-4 border-t border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Achievements</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Highlight your key accomplishments from each role
+        </p>
+        <div className="space-y-4">
+          {(localProfile.experience || []).map((exp, expIdx) =>
+            exp.achievements && exp.achievements.length > 0 ? (
+              <div
+                key={expIdx}
+                className="p-4 border border-gray-200 rounded-lg space-y-3"
+              >
+                <h4 className="font-medium text-gray-800">
+                  {exp.position} at {exp.company}
+                </h4>
+                {exp.achievements.map((achievement, achIdx) => (
+                  <div key={achIdx} className="flex items-start gap-3">
+                    <textarea
+                      value={achievement}
+                      onChange={e => {
+                        const updatedExp = [...(localProfile.experience || [])];
+                        const currentExp = updatedExp[expIdx];
+                        if (currentExp) {
+                          const updatedAchievements = [
+                            ...(currentExp.achievements || []),
+                          ];
+                          updatedAchievements[achIdx] = e.target.value;
+                          updatedExp[expIdx] = {
+                            ...currentExp,
+                            achievements: updatedAchievements,
+                          };
+                          handleChange('experience', updatedExp);
+                        }
+                      }}
+                      rows={2}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Describe a specific achievement..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedExp = [...(localProfile.experience || [])];
+                        const currentExp = updatedExp[expIdx];
+                        if (currentExp) {
+                          const updatedAchievements = (
+                            currentExp.achievements || []
+                          ).filter((_, i) => i !== achIdx);
+                          updatedExp[expIdx] = {
+                            ...currentExp,
+                            achievements: updatedAchievements,
+                          };
+                          handleChange('experience', updatedExp);
+                        }
+                      }}
+                      className="px-3 py-2 text-red-600 hover:text-red-800 border border-red-300 rounded-md hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updatedExp = [...(localProfile.experience || [])];
+                    const currentExp = updatedExp[expIdx];
+                    if (currentExp) {
+                      updatedExp[expIdx] = {
+                        ...currentExp,
+                        achievements: [...(currentExp.achievements || []), ''],
+                      };
+                      handleChange('experience', updatedExp);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+                >
+                  + Add Achievement to This Role
+                </button>
+              </div>
+            ) : null
+          )}
+          <div className="text-sm text-gray-500 italic">
+            To add achievements, first add them within the Experience section
+            above, or add achievements to existing roles here:
+          </div>
+          {(localProfile.experience || []).map((exp, expIdx) =>
+            !exp.achievements || exp.achievements.length === 0 ? (
+              <div
+                key={expIdx}
+                className="p-3 border border-gray-200 rounded-lg flex items-center justify-between"
+              >
+                <span className="text-sm text-gray-700">
+                  {exp.position} at {exp.company}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updatedExp = [...(localProfile.experience || [])];
+                    const currentExp = updatedExp[expIdx];
+                    if (currentExp) {
+                      updatedExp[expIdx] = {
+                        ...currentExp,
+                        achievements: [''],
+                      };
+                      handleChange('experience', updatedExp);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+                >
+                  + Add Achievement
+                </button>
+              </div>
+            ) : null
+          )}
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Certifications
+        </h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Add professional certifications and credentials
+        </p>
+        <div className="space-y-4">
+          {(localProfile.certifications || []).map((cert, idx) => (
+            <div
+              key={idx}
+              className="p-4 border border-gray-200 rounded-lg space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Certification Name
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.name}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = { ...cert, name: e.target.value };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="AWS Solutions Architect"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Issuing Organization
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.issuer}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = { ...cert, issuer: e.target.value };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Amazon Web Services"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Issue Date
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.issueDate || ''}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = {
+                        ...cert,
+                        issueDate: e.target.value,
+                      };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="2023-01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Expiry Date (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.expiryDate || ''}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = {
+                        ...cert,
+                        expiryDate: e.target.value || undefined,
+                      };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="2026-01 or leave empty"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Credential ID (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.credentialId || ''}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = {
+                        ...cert,
+                        credentialId: e.target.value,
+                      };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="ABC123XYZ"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Verification URL (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cert.url || ''}
+                    onChange={e => {
+                      const updated = [...(localProfile.certifications || [])];
+                      updated[idx] = {
+                        ...cert,
+                        url: e.target.value,
+                      };
+                      handleChange('certifications', updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = (localProfile.certifications || []).filter(
+                    (_, i) => i !== idx
+                  );
+                  handleChange('certifications', updated);
+                }}
+                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded-md hover:bg-red-50"
+              >
+                Remove Certification
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              const updated = [
+                ...(localProfile.certifications || []),
+                {
+                  name: '',
+                  issuer: '',
+                  issueDate: '',
+                  expiryDate: '',
+                  credentialId: '',
+                  url: '',
+                },
+              ];
+              handleChange('certifications', updated);
+            }}
+            className="px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+          >
+            + Add Certification
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
