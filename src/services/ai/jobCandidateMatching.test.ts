@@ -11,16 +11,19 @@ import type { CandidateProfile } from '../../shared/types/matching';
 vi.mock('../../monitoring/logger');
 vi.mock('./skillNormalization');
 
-// Mock skill normalization service
-const mockSkillNormalizationService = {
-  normalizeSkill: vi.fn(),
-};
-
-vi.mocked(await import('./skillNormalization')).skillNormalizationService =
-  mockSkillNormalizationService as any;
-
 describe('JobCandidateMatchingService', () => {
   let service: JobCandidateMatchingService;
+
+  // Mock skill normalization service
+  const mockSkillNormalizationService = {
+    normalizeSkill: vi.fn(),
+  };
+
+  beforeEach(async () => {
+    const skillNormModule = await import('./skillNormalization.js');
+    vi.mocked(skillNormModule).skillNormalizationService =
+      mockSkillNormalizationService as any;
+  });
 
   const mockJob: Job = {
     _id: 'job123',

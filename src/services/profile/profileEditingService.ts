@@ -254,12 +254,12 @@ function estimateImpact(
     (current.summaryOverride || current.summary || '') + (current.about || '')
   );
   const skills = listDifferenceRatio(
-    previous.skills.map(s => s.name),
-    current.skills.map(s => s.name)
+    (previous.skills || []).map(s => s.name),
+    (current.skills || []).map(s => s.name)
   );
   const experience = listDifferenceRatio(
-    previous.experience.map(e => e.company + e.position),
-    current.experience.map(e => e.company + e.position)
+    (previous.experience || []).map(e => e.company + e.position),
+    (current.experience || []).map(e => e.company + e.position)
   );
   return { semantics: 1 - semantics, skills, experience };
 }

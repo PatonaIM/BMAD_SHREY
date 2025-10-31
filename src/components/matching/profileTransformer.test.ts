@@ -64,7 +64,13 @@ describe('profileTransformer', () => {
     ],
     extractedAt: '2024-01-15T10:00:00Z',
     extractionStatus: 'completed',
-    costEstimate: 250,
+    costEstimate: {
+      model: 'gpt-4o-mini',
+      promptTokens: 500,
+      completionTokens: 300,
+      totalTokens: 800,
+      estimatedCostUSD: 2.5,
+    },
   };
 
   describe('extractedProfileToCandidateProfile', () => {
@@ -101,9 +107,9 @@ describe('profileTransformer', () => {
         mockExtractedProfile
       );
 
-      expect(result.experience[0]).not.toHaveProperty('achievements');
-      expect(result.experience[0].company).toBe('Google');
-      expect(result.experience[0].location).toBe('Mountain View, CA');
+      expect(result.experience?.[0]).not.toHaveProperty('achievements');
+      expect(result.experience?.[0]?.company).toBe('Google');
+      expect(result.experience?.[0]?.location).toBe('Mountain View, CA');
     });
 
     it('removes grade and description from education entries', () => {
@@ -112,9 +118,9 @@ describe('profileTransformer', () => {
         mockExtractedProfile
       );
 
-      expect(result.education[0]).not.toHaveProperty('grade');
-      expect(result.education[0]).not.toHaveProperty('description');
-      expect(result.education[0].institution).toBe('Stanford University');
+      expect(result.education?.[0]).not.toHaveProperty('grade');
+      expect(result.education?.[0]).not.toHaveProperty('description');
+      expect(result.education?.[0]?.institution).toBe('Stanford University');
     });
 
     it('includes vector embeddings when provided', () => {
@@ -237,7 +243,9 @@ describe('profileTransformer', () => {
     it('scales skills score based on count', () => {
       const profile: ExtractedProfile = {
         ...mockExtractedProfile,
-        skills: [mockExtractedProfile.skills[0]],
+        skills: mockExtractedProfile.skills
+          ? [mockExtractedProfile.skills[0]!]
+          : [],
       };
       const fullScore = calculateProfileCompleteness(mockExtractedProfile);
       const partialScore = calculateProfileCompleteness(profile);
@@ -250,7 +258,7 @@ describe('profileTransformer', () => {
 
       const withoutProficiency: ExtractedProfile = {
         ...mockExtractedProfile,
-        skills: mockExtractedProfile.skills.map(s => ({
+        skills: mockExtractedProfile.skills?.map(s => ({
           ...s,
           proficiency: undefined,
         })),
@@ -264,7 +272,9 @@ describe('profileTransformer', () => {
     it('scales experience score based on count', () => {
       const profile: ExtractedProfile = {
         ...mockExtractedProfile,
-        experience: [mockExtractedProfile.experience[0]],
+        experience: mockExtractedProfile.experience
+          ? [mockExtractedProfile.experience[0]!]
+          : [],
       };
       const fullScore = calculateProfileCompleteness(mockExtractedProfile);
       const partialScore = calculateProfileCompleteness(profile);
@@ -276,7 +286,7 @@ describe('profileTransformer', () => {
 
       const withoutDetails: ExtractedProfile = {
         ...mockExtractedProfile,
-        experience: mockExtractedProfile.experience.map(exp => ({
+        experience: mockExtractedProfile.experience?.map(exp => ({
           ...exp,
           description: 'Short',
         })),

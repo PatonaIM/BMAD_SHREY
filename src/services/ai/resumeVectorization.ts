@@ -191,13 +191,13 @@ export class ResumeVectorizationService {
     }
 
     // Add skills
-    if (profile.skills?.length > 0) {
+    if (profile.skills && profile.skills.length > 0) {
       const skillNames = profile.skills.map(skill => skill.name).join(', ');
       sections.push(`Skills: ${skillNames}`);
     }
 
     // Add experience
-    if (profile.experience?.length > 0) {
+    if (profile.experience && profile.experience.length > 0) {
       const experienceText = profile.experience
         .map(exp => {
           const parts = [exp.company, exp.position];
@@ -209,7 +209,7 @@ export class ResumeVectorizationService {
     }
 
     // Add education
-    if (profile.education?.length > 0) {
+    if (profile.education && profile.education.length > 0) {
       const educationText = profile.education
         .map(edu => {
           const parts = [edu.institution];
