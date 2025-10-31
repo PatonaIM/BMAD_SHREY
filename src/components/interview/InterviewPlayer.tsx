@@ -22,6 +22,28 @@ export function InterviewPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Debug: Log video URL on mount
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log('Video URL:', videoUrl);
+      // Test if URL is accessible
+      fetch(videoUrl, { method: 'HEAD' })
+        .then(response => {
+          // eslint-disable-next-line no-console
+          console.log(
+            'Video HEAD response:',
+            response.status,
+            response.headers.get('content-type')
+          );
+        })
+        .catch(err => {
+          // eslint-disable-next-line no-console
+          console.error('Video HEAD request failed:', err);
+        });
+    }
+  }, [videoUrl]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -33,8 +55,33 @@ export function InterviewPlayer({
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleLoadedData = () => setIsLoading(false);
-    const handleError = () => {
-      setError('Failed to load video. The recording may still be processing.');
+    const handleError = (e: Event) => {
+      const videoElement = e.target as HTMLVideoElement;
+      const errorCode = videoElement.error?.code;
+      const errorMessage = videoElement.error?.message;
+
+      let errorText = 'Failed to load video.';
+
+      switch (errorCode) {
+        case 1: // MEDIA_ERR_ABORTED
+          errorText = 'Video loading aborted.';
+          break;
+        case 2: // MEDIA_ERR_NETWORK
+          errorText = 'Network error while loading video.';
+          break;
+        case 3: // MEDIA_ERR_DECODE
+          errorText = 'Video decoding error. The file may be corrupted.';
+          break;
+        case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+          errorText = 'Video format not supported by your browser.';
+          break;
+      }
+
+      if (errorMessage) {
+        errorText += ` (${errorMessage})`;
+      }
+
+      setError(errorText);
       setIsLoading(false);
     };
 
@@ -168,6 +215,8 @@ export function InterviewPlayer({
           src={videoUrl}
           className="w-full h-full"
           preload="metadata"
+          crossOrigin="anonymous"
+          controls={false}
         />
       </div>
 

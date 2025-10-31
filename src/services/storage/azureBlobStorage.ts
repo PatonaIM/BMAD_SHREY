@@ -173,10 +173,29 @@ export class AzureBlobInterviewStorage {
   }
 
   /**
-   * Initialize container (create if doesn't exist)
+   * Initialize container (create if doesn't exist) and configure CORS
    */
   async initialize(): Promise<void> {
     await this.containerClient.createIfNotExists();
+
+    // Configure CORS for video playback from browsers
+    try {
+      const serviceClient = this.blobServiceClient;
+      await serviceClient.setProperties({
+        cors: [
+          {
+            allowedOrigins: '*', // In production, specify your domain
+            allowedMethods: 'GET,HEAD,OPTIONS',
+            allowedHeaders: '*',
+            exposedHeaders: '*',
+            maxAgeInSeconds: 3600,
+          },
+        ],
+      });
+    } catch {
+      // CORS configuration might fail if already set or insufficient permissions
+      // Silently continue - not critical for operation
+    }
     // Note: Container is private by default, access only via SAS tokens
   }
 
@@ -236,6 +255,75 @@ export class AzureBlobInterviewStorage {
   }
 
   /**
+   * Upload a chunk (block) of video data
+   * Used for streaming uploads during recording
+   */
+  async uploadChunk(
+    blobName: string,
+    chunk: Blob,
+    blockId: string
+  ): Promise<void> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+
+    // Convert Blob to Buffer
+    const arrayBuffer = await chunk.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload block (stage it, don't commit yet)
+    await blockBlobClient.stageBlock(blockId, buffer, buffer.length);
+  }
+
+  /**
+   * Commit all uploaded blocks into a single blob
+   * Call this after all chunks have been uploaded
+   */
+  async commitBlocks(
+    blobName: string,
+    blockIds: string[],
+    metadata?: {
+      sessionId?: string;
+      userId?: string;
+      applicationId?: string;
+      duration?: number;
+      fileSize?: number;
+    }
+  ): Promise<string> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(blobName);
+
+    // Prepare metadata for the blob
+    const blobMetadata: Record<string, string> = {
+      uploadedAt: new Date().toISOString(),
+    };
+
+    if (metadata) {
+      if (metadata.sessionId) blobMetadata.sessionId = metadata.sessionId;
+      if (metadata.userId) blobMetadata.userId = metadata.userId;
+      if (metadata.applicationId)
+        blobMetadata.applicationId = metadata.applicationId;
+      if (metadata.duration)
+        blobMetadata.duration = metadata.duration.toString();
+      if (metadata.fileSize)
+        blobMetadata.fileSize = metadata.fileSize.toString();
+    }
+
+    // Commit the blocks in order with proper headers and metadata
+    await blockBlobClient.commitBlockList(blockIds, {
+      blobHTTPHeaders: {
+        blobContentType: 'video/webm',
+        blobCacheControl: 'public, max-age=31536000', // 1 year cache
+        // Add content disposition for inline display
+        blobContentDisposition: 'inline',
+      },
+      metadata: blobMetadata,
+    });
+
+    // Generate signed URL (valid for 7 days)
+    const url = await this.getSignedUrl(blobName, 7 * 24 * 60);
+
+    return url;
+  }
+
+  /**
    * Get signed URL for recording playback
    */
   async getSignedUrl(storageKey: string, expiryMinutes = 60): Promise<string> {
@@ -243,7 +331,17 @@ export class AzureBlobInterviewStorage {
 
     // Check if blob exists by trying to get properties (uses auth from connection string)
     try {
-      await blockBlobClient.getProperties();
+      const properties = await blockBlobClient.getProperties();
+
+      // Verify content type is set correctly
+      if (properties.contentType !== 'video/webm') {
+        // Try to fix content type if it's wrong
+        await blockBlobClient.setHTTPHeaders({
+          blobContentType: 'video/webm',
+          blobCacheControl: 'public, max-age=31536000',
+          blobContentDisposition: 'inline',
+        });
+      }
     } catch (error) {
       const err = error as Error;
       if (err.message.includes('BlobNotFound') || err.message.includes('404')) {
@@ -252,7 +350,7 @@ export class AzureBlobInterviewStorage {
       throw error;
     }
 
-    // Create SAS token
+    // Create SAS token with read permissions
     const startsOn = new Date();
     const expiresOn = new Date(startsOn.getTime() + expiryMinutes * 60 * 1000);
 
@@ -269,6 +367,7 @@ export class AzureBlobInterviewStorage {
         permissions,
         startsOn,
         expiresOn,
+        contentType: 'video/webm', // Specify content type in SAS
       },
       sharedKeyCredential
     ).toString();

@@ -56,6 +56,7 @@ export interface RecordingCallbacks {
   onRecordingComplete?: (_blob: Blob, _metadata: RecordingMetadata) => void;
   onError?: (_error: Error) => void;
   onDurationUpdate?: (_durationMs: number) => void;
+  onChunkReady?: (_chunk: Blob, _chunkIndex: number) => Promise<void>; // New callback for streaming
 }
 
 export class VideoRecordingManager {
@@ -73,6 +74,7 @@ export class VideoRecordingManager {
   private durationInterval: NodeJS.Timeout | null = null;
   private pausedDuration: number = 0;
   private pauseStartTime: number = 0;
+  private chunkIndex: number = 0; // Track chunk order for streaming
 
   constructor(
     config?: Partial<VideoRecordingConfig>,
@@ -286,6 +288,7 @@ export class VideoRecordingManager {
       this.recordedChunks = [];
       this.startTime = Date.now();
       this.pausedDuration = 0;
+      this.chunkIndex = 0; // Reset chunk counter
 
       // Create combined stream with mixed audio
       this.combinedStream = this.createCombinedStream();
@@ -300,10 +303,21 @@ export class VideoRecordingManager {
       this.mediaRecorder = new MediaRecorder(this.combinedStream, options);
 
       // Setup event handlers
-      this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
+      this.mediaRecorder.ondataavailable = async (event: BlobEvent) => {
         if (event.data && event.data.size > 0) {
           this.recordedChunks.push(event.data);
           this.callbacks.onDataAvailable?.(event.data);
+
+          // If onChunkReady callback is provided, stream the chunk
+          if (this.callbacks.onChunkReady) {
+            try {
+              await this.callbacks.onChunkReady(event.data, this.chunkIndex);
+              this.chunkIndex++;
+            } catch {
+              // Continue recording even if chunk upload fails
+              // Error will be logged by the callback handler
+            }
+          }
         }
       };
 
@@ -317,8 +331,9 @@ export class VideoRecordingManager {
         );
       };
 
-      // Start recording with 1-second chunks for reliability
-      this.mediaRecorder.start(1000);
+      // Start recording with 5-second chunks for streaming
+      // Smaller chunks = more frequent uploads, less memory usage
+      this.mediaRecorder.start(5000);
       this.setState('recording');
 
       // Start duration tracking
@@ -400,6 +415,20 @@ export class VideoRecordingManager {
     return new Blob(this.recordedChunks, {
       type: this.config.mimeType || 'video/webm',
     });
+  }
+
+  /**
+   * Get the chunk index (useful for streaming uploads)
+   */
+  getChunkIndex(): number {
+    return this.chunkIndex;
+  }
+
+  /**
+   * Get total number of chunks recorded
+   */
+  getTotalChunks(): number {
+    return this.recordedChunks.length;
   }
 
   /**

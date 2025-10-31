@@ -82,6 +82,10 @@ export function InterviewInterface({
   const silenceWarningIssuedRef = useRef<boolean>(false);
   const inactivityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Streaming upload refs
+  const uploadedBlockIds = useRef<string[]>([]);
+  const totalFileSize = useRef<number>(0);
+
   // Initialize managers when permissions are granted
   const handlePermissionsGranted = useCallback(
     async (stream: MediaStream) => {
@@ -96,7 +100,7 @@ export function InterviewInterface({
         aiAudioDestinationRef.current =
           audioContextRef.current.createMediaStreamDestination();
 
-        // Initialize video recording manager
+        // Initialize video recording manager with streaming upload
         videoManagerRef.current = new VideoRecordingManager(
           {
             video: { width: 1280, height: 720, frameRate: 30 },
@@ -112,6 +116,38 @@ export function InterviewInterface({
               }
             },
             onError: err => setError(err.message),
+            onChunkReady: async (chunk: Blob, chunkIndex: number) => {
+              // Upload chunk immediately to Azure
+              try {
+                // Create base64 encoded block ID (must be same length for all blocks)
+                const blockId = btoa(
+                  `block-${chunkIndex.toString().padStart(10, '0')}`
+                );
+
+                const formData = new FormData();
+                formData.append('chunk', chunk);
+                formData.append('sessionId', sessionId);
+                formData.append('blockId', blockId);
+                formData.append('isFirst', chunkIndex === 0 ? 'true' : 'false');
+
+                const response = await fetch('/api/interview/upload-chunk', {
+                  method: 'POST',
+                  body: formData,
+                });
+
+                if (!response.ok) {
+                  throw new Error('Failed to upload chunk');
+                }
+
+                // Track uploaded block IDs in order
+                uploadedBlockIds.current.push(blockId);
+                totalFileSize.current += chunk.size;
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : 'Chunk upload failed';
+                setError(`Upload error: ${message}`);
+              }
+            },
           }
         );
 
@@ -161,15 +197,14 @@ export function InterviewInterface({
         // Initialize WebSocket manager
         websocketManagerRef.current = new RealtimeWebSocketManager(token, {
           onAudioDelta: (audioData: ArrayBuffer) => {
-            // Queue audio for playback (debug logging removed after validation)
+            // Queue audio for playback (animation sync handled in playAudioQueue)
             audioQueueRef.current.push(audioData);
             playAudioQueue();
             setAIAudioLevel(0.8);
-            setAISpeaking(true);
           },
           onAudioDone: () => {
             setAIAudioLevel(0);
-            setAISpeaking(false);
+            // Animation stop is handled by playAudioQueue timing
           },
           onInputAudioBufferSpeechStarted: () => {
             // User started speaking - update timestamp
@@ -181,6 +216,13 @@ export function InterviewInterface({
             // User stopped speaking - update timestamp
             lastSpeechTimestampRef.current = Date.now();
           },
+          onFunctionCall: (functionName: string) => {
+            // Handle function calls from AI
+            if (functionName === 'end_interview') {
+              // User requested to end interview
+              endInterview();
+            }
+          },
           onError: (err: Error) => {
             setError(err.message);
             setConnectionStatus('disconnected');
@@ -191,38 +233,50 @@ export function InterviewInterface({
 
         // Configure session with greeting and dynamic question generation
         await websocketManagerRef.current.updateSession({
-          instructions: `You are conducting a professional job interview. 
+          instructions: `You are a concise, professional AI interviewer. Keep ALL responses under 20 words.
 
-GREETING (First Message):
-Start by warmly greeting the candidate. Introduce yourself as their AI interviewer and briefly explain that you'll be conducting an interactive interview to learn about their skills and experience. Keep this greeting brief (under 25 words).
+GREETING: "Hi! I'm your AI interviewer. Let's discuss your skills and experience. Ready to begin?"
 
-INTERVIEW APPROACH:
-- Ask questions one at a time, adapting based on the candidate's responses
-- Mix technical and behavioral questions throughout the interview
-- Listen carefully to their answers and ask natural follow-up questions
-- Keep each question concise (under 25 words)
-- Be conversational and encouraging
-- If the candidate seems nervous, be supportive
+STYLE:
+- One brief question at a time (max 15 words)
+- Listen more, talk less
+- No repetition - never ask same question twice
+- Be direct and specific
+- Skip pleasantries after greeting
 
-QUESTION TYPES TO MIX:
-- Technical: Assess their technical skills, problem-solving abilities, and domain knowledge
-- Behavioral: Understand how they handle challenges, work with teams, and approach situations
-- Experience: Learn about their past projects, achievements, and career progression
+QUESTION MIX:
+- Technical skills
+- Problem-solving approach
+- Past projects
+- Team collaboration
 
-TIMING:
-- After 5-7 minutes of conversation, begin wrapping up
-- Thank them for their time and end positively
+AFTER 5-7 MIN: "Thanks for your time today. That's all I need. Great talking with you!"
 
-Start now with your greeting.`,
+CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", immediately respond: "Understood. Ending interview now. Thank you!" then call the end_interview function.
+
+Start with greeting only.`,
           voice: 'alloy',
           inputAudioFormat: 'pcm16',
           outputAudioFormat: 'pcm16',
           turnDetection: {
             type: 'server_vad',
             threshold: 0.5,
-            silence_duration_ms: 500,
-            prefix_padding_ms: 400,
+            silence_duration_ms: 700,
+            prefix_padding_ms: 300,
           },
+          tools: [
+            {
+              type: 'function',
+              name: 'end_interview',
+              description:
+                'Call this function when the candidate explicitly requests to end the interview by saying phrases like "end interview", "stop", "finish", "I\'m done", or similar',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
+            },
+          ],
         });
 
         setConnectionStatus('connected');
@@ -253,6 +307,9 @@ Start now with your greeting.`,
     const now = ctx.currentTime;
     if (cursor < now) cursor = now;
 
+    let isFirstChunk = cursor === now; // First chunk in sequence
+    let lastEndTime = cursor;
+
     while (audioQueueRef.current.length > 0) {
       const chunk = audioQueueRef.current.shift();
       if (!chunk) break;
@@ -272,10 +329,29 @@ Start now with your greeting.`,
         src.connect(aiAudioDestinationRef.current);
       }
 
+      // Start animation when first chunk starts playing
+      if (isFirstChunk) {
+        const startDelay = (cursor - now) * 1000; // Convert to milliseconds
+        setTimeout(() => {
+          setAISpeaking(true);
+        }, startDelay);
+        isFirstChunk = false;
+      }
+
       src.start(cursor);
-      // Initial scheduling debug removed
       cursor += buffer.duration;
+      lastEndTime = cursor;
     }
+
+    // Stop animation when all audio finishes
+    const totalDuration = (lastEndTime - now) * 1000; // Convert to milliseconds
+    setTimeout(() => {
+      // Only stop if no new audio has been scheduled
+      if (audioQueueRef.current.length === 0) {
+        setAISpeaking(false);
+        setAIAudioLevel(0);
+      }
+    }, totalDuration);
 
     playbackCursorRef.current = cursor;
     schedulingRef.current = false;
@@ -287,6 +363,10 @@ Start now with your greeting.`,
       if (!videoManagerRef.current) {
         throw new Error('Video recorder not initialized');
       }
+
+      // Reset upload tracking
+      uploadedBlockIds.current = [];
+      totalFileSize.current = 0;
 
       await videoManagerRef.current.startRecording();
       setPhase('interviewing');
@@ -363,29 +443,29 @@ Start now with your greeting.`,
 
       setLocalScores(scores);
 
-      // Stop recording
+      // Stop recording (all chunks already uploaded)
       if (videoManagerRef.current) {
         videoManagerRef.current.stopRecording();
-        const blob = videoManagerRef.current.getRecordedBlob();
         const recordingDuration = videoManagerRef.current.getDuration();
 
-        if (blob) {
-          // Upload recording using FormData (binary upload, no base64 conversion)
-          const formData = new FormData();
-          formData.append('recording', blob, 'interview-recording.webm');
-          formData.append('sessionId', sessionId);
-          formData.append('duration', recordingDuration.toString());
-          formData.append('videoFormat', 'video/webm');
-          formData.append('videoResolution', '1280x720');
-          formData.append('frameRate', '30');
-
-          const response = await fetch('/api/interview/end-session', {
+        // Finalize the chunked upload by committing all blocks
+        if (uploadedBlockIds.current.length > 0) {
+          const response = await fetch('/api/interview/finalize-upload', {
             method: 'POST',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              blockIds: uploadedBlockIds.current,
+              duration: recordingDuration,
+              fileSize: totalFileSize.current,
+              videoFormat: 'video/webm',
+              videoResolution: '1280x720',
+              frameRate: 30,
+            }),
           });
 
           if (!response.ok) {
-            throw new Error('Failed to upload recording');
+            throw new Error('Failed to finalize recording');
           }
 
           // Update scores in database
@@ -621,7 +701,7 @@ Start now with your greeting.`,
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex flex-col">
       {/* Error Banner */}
       {error && (
         <div className="bg-red-500/90 backdrop-blur-sm border-b border-red-400 px-4 py-3 animate-in slide-in-from-top duration-300">
@@ -638,21 +718,58 @@ Start now with your greeting.`,
         </div>
       )}
 
-      {/* Status Bar */}
-      <div className="px-6 py-3 bg-white/5 backdrop-blur-lg border-b border-white/10">
-        <InterviewStatus
-          status={connectionStatus}
-          currentQuestion={1}
-          totalQuestions={1}
-          elapsedSeconds={elapsedSeconds}
-        />
+      {/* Enhanced Header with Controls */}
+      <div className="px-6 py-4 bg-white/5 backdrop-blur-lg border-b border-white/10 flex items-center justify-between">
+        <div className="flex items-center gap-4 flex-1">
+          <InterviewStatus
+            status={connectionStatus}
+            currentQuestion={1}
+            totalQuestions={1}
+            elapsedSeconds={elapsedSeconds}
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {phase === 'ready' && (
+            <button
+              onClick={startInterview}
+              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-green-500/50 hover:scale-105 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Start Interview
+            </button>
+          )}
+
+          {phase === 'interviewing' && (
+            <button
+              onClick={endInterview}
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 shadow-lg hover:shadow-red-500/50 hover:scale-105 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              End Interview
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Interview Interface - Equal Split with Enhanced Styling */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6 p-6 overflow-hidden">
         {/* Candidate Video (Left/Top - 50%) */}
-        <div className="flex-1 flex flex-col gap-4 animate-in fade-in slide-in-from-left duration-500">
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl">
+        <div className="flex-1 flex flex-col gap-3 animate-in fade-in slide-in-from-left duration-500 min-h-0">
+          <div className="flex-1 relative rounded-2xl overflow-hidden shadow-2xl ring-2 ring-white/20 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl">
             <VideoPreview
               stream={mediaStream}
               isReady={phase === 'ready' || phase === 'interviewing'}
@@ -663,28 +780,30 @@ Start now with your greeting.`,
             />
           </div>
 
-          {/* Audio Visualizer with Enhanced Styling */}
-          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-xl p-4 shadow-lg ring-1 ring-white/10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50" />
-              <span className="text-sm font-medium text-white/90">
+          {/* Compact Audio Visualizer */}
+          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-lg px-4 py-2.5 shadow-lg ring-1 ring-white/10 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50" />
+              <span className="text-xs font-medium text-white/90">
                 Your Audio
               </span>
             </div>
-            <AudioVisualizer
-              audioLevel={userAudioLevel}
-              isActive={microphoneEnabled && isRecording}
-              height={50}
-            />
+            <div className="flex-1">
+              <AudioVisualizer
+                audioLevel={userAudioLevel}
+                isActive={microphoneEnabled && isRecording}
+                height={32}
+              />
+            </div>
           </div>
         </div>
 
         {/* AI Interviewer (Right/Bottom - 50%) */}
-        <div className="flex-1 flex flex-col gap-4 animate-in fade-in slide-in-from-right duration-500">
+        <div className="flex-1 flex flex-col gap-4 animate-in fade-in slide-in-from-right duration-500 min-h-0">
           {/* AI Animation with Enhanced Container */}
           <div className="flex-1 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-blue-600/20 backdrop-blur-xl rounded-2xl shadow-2xl ring-2 ring-white/20 flex flex-col items-center justify-center p-8 relative overflow-hidden">
             {/* Background animated gradient orbs */}
-            <div className="absolute inset-0 overflow-hidden opacity-30">
+            <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
               <div className="absolute -top-20 -right-20 w-60 h-60 bg-blue-500 rounded-full blur-3xl animate-pulse" />
               <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-purple-500 rounded-full blur-3xl animate-pulse animation-delay-1000" />
             </div>
@@ -705,53 +824,10 @@ Start now with your greeting.`,
                 {phase === 'ready'
                   ? "Click start when you're ready"
                   : aiSpeaking
-                    ? 'Listening to you...'
-                    : 'Waiting for your response'}
+                    ? '🎤 AI is speaking...'
+                    : '👂 Listening...'}
               </p>
             </div>
-          </div>
-
-          {/* Controls with Enhanced Styling */}
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl shadow-2xl ring-2 ring-white/20 p-6">
-            {phase === 'ready' && (
-              <button
-                onClick={startInterview}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-4 rounded-xl text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-blue-500/50 hover:scale-105 flex items-center justify-center gap-3 group"
-              >
-                <svg
-                  className="w-6 h-6 group-hover:scale-110 transition-transform"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Start Interview
-              </button>
-            )}
-
-            {phase === 'interviewing' && (
-              <button
-                onClick={endInterview}
-                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white py-4 rounded-xl text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-red-500/50 hover:scale-105 flex items-center justify-center gap-3 group"
-              >
-                <svg
-                  className="w-6 h-6 group-hover:scale-110 transition-transform"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                End Interview
-              </button>
-            )}
           </div>
         </div>
       </div>

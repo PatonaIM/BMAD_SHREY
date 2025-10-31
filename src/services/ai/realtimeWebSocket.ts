@@ -36,6 +36,12 @@ export interface RealtimeSessionConfig {
   };
   temperature?: number;
   maxOutputTokens?: number;
+  tools?: Array<{
+    type: 'function';
+    name: string;
+    description: string;
+    parameters?: Record<string, unknown>;
+  }>;
 }
 
 export interface RealtimeEvent {
@@ -69,6 +75,9 @@ export interface RealtimeEventHandlers {
   onInputAudioBufferSpeechStarted?: () => void;
   onInputAudioBufferSpeechStopped?: () => void;
   onInputAudioBufferCommitted?: () => void;
+
+  // Function call events
+  onFunctionCall?: (_functionName: string, _arguments: string) => void;
 
   // Generic message handler (all events)
   onMessage?: (_event: RealtimeEvent) => void;
@@ -438,6 +447,17 @@ export class RealtimeWebSocketManager {
 
       case 'input_audio_buffer.committed':
         this.handlers.onInputAudioBufferCommitted?.();
+        break;
+
+      case 'response.function_call_arguments.done':
+        // Handle function call completion
+        if (event.name && typeof event.name === 'string') {
+          const args = event.arguments || '{}';
+          this.handlers.onFunctionCall?.(
+            event.name,
+            typeof args === 'string' ? args : JSON.stringify(args)
+          );
+        }
         break;
 
       case 'error':
