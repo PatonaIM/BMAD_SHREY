@@ -168,33 +168,33 @@ const audioStream = stream.getAudioTracks()[0];
 **Core Services:**
 
 - [x] OpenAI Realtime API client wrapper (`src/services/ai/realtimeInterview.ts`)
-- [ ] Interview question generator service (`src/services/ai/interviewQuestions.ts`)
-- [ ] Video recording manager with WebRTC (`src/services/media/videoRecordingManager.ts`)
-- [ ] Audio extraction and format conversion (`src/services/media/audioProcessor.ts`)
-- [ ] Azure storage service for recordings (extend existing `azureBlobStorage.ts`)
-- [ ] Interview session repository (`src/data-access/repositories/interviewSessionRepo.ts`)
-- [ ] WebSocket manager for OpenAI Realtime connection (`src/services/ai/realtimeWebSocket.ts`)
+- [x] Interview question generator service (`src/services/ai/interviewQuestions.ts`)
+- [x] Video recording manager with WebRTC (`src/services/media/videoRecordingManager.ts`)
+- [x] Audio extraction and format conversion (`src/services/media/audioProcessor.ts`)
+- [x] Azure storage service for recordings (extend existing `azureBlobStorage.ts`)
+- [x] Interview session repository (`src/data-access/repositories/interviewSessionRepo.ts`)
+- [x] WebSocket manager for OpenAI Realtime connection (`src/services/ai/realtimeWebSocket.ts`)
 
 **API Routes:**
 
-- [ ] `POST /api/interview/generate-questions` (job + candidate context)
-- [ ] `POST /api/interview/start-session` (create session record)
-- [ ] `POST /api/interview/realtime-token` (get OpenAI session token)
-- [ ] `POST /api/interview/end-session` (save recording, finalize)
-- [ ] `GET /api/interview/[sessionId]` (retrieve session details)
-- [ ] `GET /api/interview/recording/[sessionId]` (get signed URL)
+- [x] `POST /api/interview/generate-questions` (job + candidate context)
+- [x] `POST /api/interview/start-session` (create session record)
+- [x] `POST /api/interview/realtime-token` (get OpenAI session token)
+- [x] `POST /api/interview/end-session` (save recording, finalize)
+- [x] `GET /api/interview/[sessionId]` (retrieve session details)
+- [x] `GET /api/interview/recording/[sessionId]` (get signed URL)
 
 **UI Components:**
 
-- [ ] `InterviewLauncher` - Entry point button on application page
-- [ ] `InterviewInterface` - Main interview screen with video preview
-- [ ] `VideoPreview` - Webcam preview with camera toggle
-- [ ] `AudioVisualizer` - Real-time audio level display (candidate)
-- [ ] `AISpeakingAnimation` - Animated visual when AI is speaking
-- [ ] `InterviewPlayer` - Video playback component with timeline
-- [ ] `InterviewQuestionList` - Display questions during/after interview
-- [ ] `InterviewStatus` - Connection, timer, progress indicators
-- [ ] `CameraPermissionCheck` - Request and verify camera/mic permissions
+- [x] `InterviewLauncher` - Entry point button on application page
+- [x] `InterviewInterface` - Main interview screen with video preview
+- [x] `VideoPreview` - Webcam preview with camera toggle
+- [x] `AudioVisualizer` - Real-time audio level display (candidate)
+- [x] `AISpeakingAnimation` - Animated visual when AI is speaking
+- [x] `InterviewPlayer` - Video playback component with timeline
+- [x] `InterviewQuestionList` - Display questions during/after interview
+- [x] `InterviewStatus` - Connection, timer, progress indicators
+- [x] `CameraPermissionCheck` - Request and verify camera/mic permissions
 
 **Database Schema:**
 
