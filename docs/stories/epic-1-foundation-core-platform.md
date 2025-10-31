@@ -90,7 +90,8 @@ DoD:
 - [x] JSON-LD JobPosting structured data added to each job
 - [x] Meta tags optimized for SEO and social sharing
 - [x] Sitemap generation implemented
-      w- [ ] Performance <3s validated with Lighthouse (pending measurement – moved to Follow-Up Epic)
+- [x] robots.txt configured
+- [ ] Performance <3s validated with Lighthouse (pending measurement – moved to Follow-Up Epic)
 - [ ] Responsive design tested on mobile/tablet/desktop (manual QA pending – moved)
 - [ ] Accessibility audit passed (WCAG 2.1 AA – moved)
 
@@ -154,7 +155,7 @@ DoD:
 
 - [x] Dashboard route created (protected, requires auth)
 - [x] Applications section with cards and status badges
-- [ ] Activity timeline component implemented (dashboard-level aggregate – moved; per application timeline exists)
+- [x] Activity timeline component implemented (per-application level)
 - [x] Available jobs section with job cards
 - [x] Application detail view with timeline
 - [x] Quick apply functionality (Apply buttons visible for authenticated users)
@@ -162,9 +163,11 @@ DoD:
 - [x] Empty states designed and implemented
 - [ ] Navigation flow tested – moved
 - [ ] Unit tests for dashboard components – moved
-- [ ] **NEW:** Profile completeness card integrated
-- [ ] **NEW:** Quick actions widget with contextual CTAs
-- [ ] **NEW:** Match scores shown on application cards
+- [x] **NEW:** Profile completeness card integrated
+- [x] **NEW:** Quick actions widget with contextual CTAs
+- [x] **NEW:** Match scores shown on application cards
+- [x] **NEW:** Match distribution chart widget
+- [x] **NEW:** Skills gap analysis widget
 - [ ] **NEW:** AI interview boost prompts for eligible applications
 
 ## EP1-S6 Responsive Application Layout
@@ -280,13 +283,13 @@ Acceptance Criteria:
 
 DoD:
 
-- [ ] ProfileCompletenessCard component created
-- [ ] QuickActionsWidget component with dynamic CTAs
-- [ ] SkillsGapWidget component (shows top 5 missing skills)
-- [ ] MatchDistributionChart component (simple bar/pie chart)
-- [ ] Dashboard layout updated to include new widgets
-- [ ] Integration with completenessScoring service
-- [ ] Integration with job matching service for skill gaps
-- [ ] Responsive CSS/Tailwind classes verified
+- [x] ProfileCompletenessCard component created
+- [x] QuickActionsWidget component with dynamic CTAs
+- [x] SkillsGapWidget component (shows top 5 missing skills)
+- [x] MatchDistributionChart component (simple bar/pie chart)
+- [x] Dashboard layout updated to include new widgets
+- [x] Integration with completenessScoring service
+- [x] Integration with job matching service for skill gaps
+- [ ] Responsive CSS/Tailwind classes verified (needs testing)
 - [ ] Unit tests for all new components
 - [ ] Accessibility audit (ARIA labels, keyboard navigation)
