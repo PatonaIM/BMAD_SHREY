@@ -37,8 +37,16 @@ export interface Application {
   };
 
   // AI Interview
+  interviewSessionId?: string; // Link to InterviewSession
+  interviewStatus?: 'not_started' | 'in_progress' | 'completed';
+  interviewScore?: number; // Boost from AI interview (5-15 points)
+  interviewCompletedAt?: Date;
+  scoreBeforeInterview?: number; // Original match score
+  scoreAfterInterview?: number; // Score after interview boost
+
+  // Legacy fields (deprecated - use interviewSessionId instead)
   aiInterviewId?: string;
-  aiInterviewScore?: number; // Boost from AI interview (5-15 points)
+  aiInterviewScore?: number;
   aiInterviewCompletedAt?: Date;
 
   // Application Data

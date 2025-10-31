@@ -1,0 +1,480 @@
+/**
+ * Video Recording Manager
+ *
+ * Handles WebRTC video+audio capture using MediaRecorder API
+ * for interview recording and playback.
+ *
+ * Features:
+ * - WebRTC getUserMedia for camera/mic access
+ * - MediaRecorder for video+audio recording
+ * - Configurable quality settings
+ * - Chunk-based recording for reliability
+ * - Recording lifecycle management
+ */
+
+export type RecordingState =
+  | 'idle'
+  | 'requesting-permissions'
+  | 'ready'
+  | 'recording'
+  | 'paused'
+  | 'stopped'
+  | 'error';
+
+export interface VideoRecordingConfig {
+  video: {
+    width?: number;
+    height?: number;
+    frameRate?: number;
+    facingMode?: 'user' | 'environment';
+  };
+  audio: {
+    echoCancellation?: boolean;
+    noiseSuppression?: boolean;
+    autoGainControl?: boolean;
+    sampleRate?: number;
+  };
+  mimeType?: string; // 'video/webm;codecs=vp9' or 'video/webm;codecs=vp8'
+  videoBitsPerSecond?: number;
+  audioBitsPerSecond?: number;
+}
+
+export interface RecordingMetadata {
+  duration: number; // milliseconds
+  fileSize: number; // bytes
+  mimeType: string;
+  videoResolution: string; // '1280x720'
+  frameRate: number;
+  videoBitrate: number;
+  audioBitrate: number;
+  recordedAt: Date;
+}
+
+export interface RecordingCallbacks {
+  onStateChange?: (_state: RecordingState) => void;
+  onDataAvailable?: (_chunk: Blob) => void;
+  onRecordingComplete?: (_blob: Blob, _metadata: RecordingMetadata) => void;
+  onError?: (_error: Error) => void;
+  onDurationUpdate?: (_durationMs: number) => void;
+}
+
+export class VideoRecordingManager {
+  private mediaStream: MediaStream | null = null;
+  private mediaRecorder: MediaRecorder | null = null;
+  private recordedChunks: Blob[] = [];
+  private state: RecordingState = 'idle';
+  private config: VideoRecordingConfig;
+  private callbacks: RecordingCallbacks;
+  private startTime: number = 0;
+  private durationInterval: NodeJS.Timeout | null = null;
+  private pausedDuration: number = 0;
+  private pauseStartTime: number = 0;
+
+  constructor(
+    config?: Partial<VideoRecordingConfig>,
+    callbacks?: RecordingCallbacks
+  ) {
+    this.config = {
+      video: {
+        width: 1280,
+        height: 720,
+        frameRate: 30,
+        facingMode: 'user',
+        ...config?.video,
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 48000,
+        ...config?.audio,
+      },
+      mimeType: this.getSupportedMimeType(),
+      videoBitsPerSecond: 2500000, // 2.5 Mbps
+      audioBitsPerSecond: 128000, // 128 Kbps
+      ...config,
+    };
+
+    this.callbacks = callbacks || {};
+  }
+
+  /**
+   * Get current recording state
+   */
+  getState(): RecordingState {
+    return this.state;
+  }
+
+  /**
+   * Check if currently recording
+   */
+  isRecording(): boolean {
+    return this.state === 'recording';
+  }
+
+  /**
+   * Get current media stream
+   */
+  getMediaStream(): MediaStream | null {
+    return this.mediaStream;
+  }
+
+  /**
+   * Request camera and microphone permissions and initialize stream
+   */
+  async requestPermissions(): Promise<void> {
+    this.setState('requesting-permissions');
+
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: {
+          width: { ideal: this.config.video.width },
+          height: { ideal: this.config.video.height },
+          frameRate: { ideal: this.config.video.frameRate },
+          facingMode: this.config.video.facingMode,
+        },
+        audio: {
+          echoCancellation: this.config.audio.echoCancellation,
+          noiseSuppression: this.config.audio.noiseSuppression,
+          autoGainControl: this.config.audio.autoGainControl,
+          sampleRate: this.config.audio.sampleRate,
+        },
+      };
+
+      this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      this.setState('ready');
+    } catch (error) {
+      this.handleError(error as Error);
+      throw new Error(
+        `Failed to get media permissions: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Start recording
+   */
+  async startRecording(): Promise<void> {
+    if (!this.mediaStream) {
+      throw new Error(
+        'Media stream not initialized. Call requestPermissions() first.'
+      );
+    }
+
+    if (this.state === 'recording') {
+      throw new Error('Already recording');
+    }
+
+    try {
+      // Reset recorded chunks
+      this.recordedChunks = [];
+      this.startTime = Date.now();
+      this.pausedDuration = 0;
+
+      // Create MediaRecorder
+      const options: MediaRecorderOptions = {
+        mimeType: this.config.mimeType,
+        videoBitsPerSecond: this.config.videoBitsPerSecond,
+        audioBitsPerSecond: this.config.audioBitsPerSecond,
+      };
+
+      this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
+
+      // Setup event handlers
+      this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          this.recordedChunks.push(event.data);
+          this.callbacks.onDataAvailable?.(event.data);
+        }
+      };
+
+      this.mediaRecorder.onstop = () => {
+        this.handleRecordingStop();
+      };
+
+      this.mediaRecorder.onerror = (event: Event) => {
+        this.handleError(
+          new Error(`MediaRecorder error: ${(event as ErrorEvent).message}`)
+        );
+      };
+
+      // Start recording with 1-second chunks for reliability
+      this.mediaRecorder.start(1000);
+      this.setState('recording');
+
+      // Start duration tracking
+      this.startDurationTracking();
+    } catch (error) {
+      this.handleError(error as Error);
+      throw new Error(`Failed to start recording: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Pause recording
+   */
+  pauseRecording(): void {
+    if (this.state !== 'recording' || !this.mediaRecorder) {
+      throw new Error('Not currently recording');
+    }
+
+    this.mediaRecorder.pause();
+    this.pauseStartTime = Date.now();
+    this.setState('paused');
+    this.stopDurationTracking();
+  }
+
+  /**
+   * Resume recording
+   */
+  resumeRecording(): void {
+    if (this.state !== 'paused' || !this.mediaRecorder) {
+      throw new Error('Recording not paused');
+    }
+
+    this.pausedDuration += Date.now() - this.pauseStartTime;
+    this.mediaRecorder.resume();
+    this.setState('recording');
+    this.startDurationTracking();
+  }
+
+  /**
+   * Stop recording
+   */
+  stopRecording(): void {
+    if (
+      !this.mediaRecorder ||
+      (this.state !== 'recording' && this.state !== 'paused')
+    ) {
+      throw new Error('Not currently recording');
+    }
+
+    this.mediaRecorder.stop();
+    this.stopDurationTracking();
+    this.setState('stopped');
+  }
+
+  /**
+   * Get recording duration in milliseconds
+   */
+  getDuration(): number {
+    if (this.state === 'recording') {
+      return Date.now() - this.startTime - this.pausedDuration;
+    } else if (this.state === 'paused') {
+      return this.pauseStartTime - this.startTime - this.pausedDuration;
+    } else if (this.state === 'stopped') {
+      return this.startTime > 0
+        ? Date.now() - this.startTime - this.pausedDuration
+        : 0;
+    }
+    return 0;
+  }
+
+  /**
+   * Get recorded blob
+   */
+  getRecordedBlob(): Blob | null {
+    if (this.recordedChunks.length === 0) {
+      return null;
+    }
+
+    return new Blob(this.recordedChunks, {
+      type: this.config.mimeType || 'video/webm',
+    });
+  }
+
+  /**
+   * Release all resources
+   */
+  release(): void {
+    // Stop duration tracking
+    this.stopDurationTracking();
+
+    // Stop recording if active
+    if (this.mediaRecorder && this.state === 'recording') {
+      this.mediaRecorder.stop();
+    }
+
+    // Release media stream
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+
+    // Clear state
+    this.mediaRecorder = null;
+    this.recordedChunks = [];
+    this.setState('idle');
+  }
+
+  /**
+   * Check browser support for video recording
+   */
+  static isSupported(): boolean {
+    return !!(navigator.mediaDevices && typeof MediaRecorder !== 'undefined');
+  }
+
+  /**
+   * Get supported MIME types
+   */
+  static getSupportedMimeTypes(): string[] {
+    const types = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=h264,opus',
+      'video/webm',
+      'video/mp4',
+    ];
+
+    return types.filter(type => MediaRecorder.isTypeSupported(type));
+  }
+
+  /**
+   * Get best supported MIME type
+   */
+  private getSupportedMimeType(): string {
+    const types = VideoRecordingManager.getSupportedMimeTypes();
+    return types[0] || 'video/webm';
+  }
+
+  /**
+   * Handle recording stop
+   */
+  private handleRecordingStop(): void {
+    const blob = this.getRecordedBlob();
+    if (!blob) {
+      this.handleError(new Error('No recording data available'));
+      return;
+    }
+
+    const duration = this.getDuration();
+    const metadata: RecordingMetadata = {
+      duration,
+      fileSize: blob.size,
+      mimeType: this.config.mimeType || 'video/webm',
+      videoResolution: `${this.config.video.width}x${this.config.video.height}`,
+      frameRate: this.config.video.frameRate || 30,
+      videoBitrate: this.config.videoBitsPerSecond || 2500000,
+      audioBitrate: this.config.audioBitsPerSecond || 128000,
+      recordedAt: new Date(this.startTime),
+    };
+
+    this.callbacks.onRecordingComplete?.(blob, metadata);
+  }
+
+  /**
+   * Start tracking duration
+   */
+  private startDurationTracking(): void {
+    this.stopDurationTracking(); // Clear any existing interval
+
+    this.durationInterval = setInterval(() => {
+      const duration = this.getDuration();
+      this.callbacks.onDurationUpdate?.(duration);
+    }, 1000); // Update every second
+  }
+
+  /**
+   * Stop tracking duration
+   */
+  private stopDurationTracking(): void {
+    if (this.durationInterval) {
+      clearInterval(this.durationInterval);
+      this.durationInterval = null;
+    }
+  }
+
+  /**
+   * Set recording state
+   */
+  private setState(state: RecordingState): void {
+    this.state = state;
+    this.callbacks.onStateChange?.(state);
+  }
+
+  /**
+   * Handle errors
+   */
+  private handleError(error: Error): void {
+    this.setState('error');
+    this.callbacks.onError?.(error);
+  }
+
+  /**
+   * Create object URL for preview
+   */
+  static createPreviewUrl(blob: Blob): string {
+    return URL.createObjectURL(blob);
+  }
+
+  /**
+   * Revoke object URL
+   */
+  static revokePreviewUrl(url: string): void {
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Download recording as file
+   */
+  static downloadRecording(
+    blob: Blob,
+    filename = 'interview-recording.webm'
+  ): void {
+    const url = VideoRecordingManager.createPreviewUrl(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    VideoRecordingManager.revokePreviewUrl(url);
+  }
+
+  /**
+   * Get media devices (cameras and microphones)
+   */
+  static async getDevices(): Promise<{
+    cameras: MediaDeviceInfo[];
+    microphones: MediaDeviceInfo[];
+  }> {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return {
+      cameras: devices.filter(d => d.kind === 'videoinput'),
+      microphones: devices.filter(d => d.kind === 'audioinput'),
+    };
+  }
+
+  /**
+   * Test audio level (for microphone check)
+   */
+  static async testAudioLevel(
+    stream: MediaStream,
+    callback: (_level: number) => void,
+    durationMs = 5000
+  ): Promise<void> {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(stream);
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    analyser.fftSize = 256;
+    microphone.connect(analyser);
+
+    const checkLevel = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const average =
+        dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+      const normalized = average / 255; // 0-1 range
+      callback(normalized);
+    };
+
+    const interval = setInterval(checkLevel, 100);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      microphone.disconnect();
+      audioContext.close();
+    }, durationMs);
+  }
+}

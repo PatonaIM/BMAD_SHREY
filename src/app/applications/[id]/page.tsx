@@ -6,7 +6,12 @@ import { applicationRepo } from '../../../data-access/repositories/applicationRe
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
 import { getResume } from '../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../data-access/repositories/userRepo';
+import { getExtractedProfile } from '../../../data-access/repositories/extractedProfileRepo';
+import { jobCandidateMatchingService } from '../../../services/ai/jobCandidateMatching';
+import { extractedProfileToCandidateProfile } from '../../../components/matching/profileTransformer';
+import { logger } from '../../../monitoring/logger';
 import Link from 'next/link';
+import { InterviewLauncher } from '../../../components/interview/InterviewLauncher';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -36,6 +41,66 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   if (!app) return notFound();
   if (app.candidateEmail !== userSession.email) return notFound();
   const job = await jobRepo.findById(app.jobId);
+
+  // Get user ID for fetching profile
+  let userId: string = app.userId;
+  if (userSession.id) {
+    userId = userSession.id;
+  } else {
+    const user = await findUserByEmail(userSession.email);
+    if (user) {
+      userId = user._id;
+    }
+  }
+
+  // Calculate match score if not available
+  let matchScore = app.matchScore;
+  let scoreBreakdown = app.scoreBreakdown;
+
+  if (!matchScore || !scoreBreakdown) {
+    // Fetch candidate profile
+    const profile = await getExtractedProfile(userId);
+
+    if (profile && job) {
+      // Convert to CandidateProfile format
+      const candidateProfile = extractedProfileToCandidateProfile(
+        userId,
+        profile
+      );
+
+      // Calculate match score
+      const matchResult = await jobCandidateMatchingService.calculateMatch(
+        job,
+        candidateProfile
+      );
+
+      if (matchResult.ok) {
+        const match = matchResult.value;
+        matchScore = match.score.overall;
+        scoreBreakdown = {
+          semanticSimilarity: match.score.semantic,
+          skillsAlignment: match.score.skills,
+          experienceLevel: match.score.experience,
+          otherFactors: match.score.other,
+        };
+
+        // Update application with calculated score
+        try {
+          await applicationRepo.updateMatchScore(
+            app._id.toString(),
+            matchScore,
+            scoreBreakdown
+          );
+        } catch (error) {
+          // Log error but continue - score is still available for display
+          logger.error('Failed to update application with match score', {
+            error,
+            applicationId: app._id.toString(),
+          });
+        }
+      }
+    }
+  }
 
   // Fetch resume details if resumeVersionId exists
   let resumeInfo = null;
@@ -103,57 +168,57 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         </div>
 
         {/* Match Score Section */}
-        {typeof app.matchScore === 'number' && (
+        {matchScore !== undefined && matchScore !== null && (
           <div className="border-t pt-4 mt-4">
             <h3 className="text-sm font-semibold mb-3">Match Score</h3>
             <div className="flex items-center gap-4 mb-3">
               <div className="text-3xl font-bold text-brand-primary">
-                {app.matchScore}%
+                {matchScore}%
               </div>
               <div className="flex-1">
                 <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
                   <div
                     className="h-3 bg-gradient-to-r from-brand-primary to-brand-secondary transition-all"
-                    style={{ width: `${app.matchScore}%` }}
+                    style={{ width: `${matchScore}%` }}
                   />
                 </div>
               </div>
             </div>
-            {app.scoreBreakdown && (
+            {scoreBreakdown && (
               <div className="grid grid-cols-2 gap-3 text-xs">
-                {app.scoreBreakdown.semanticSimilarity !== undefined && (
+                {scoreBreakdown.semanticSimilarity !== undefined && (
                   <div>
                     <span className="text-muted-foreground">
                       Semantic Match:
                     </span>{' '}
                     <span className="font-medium">
-                      {app.scoreBreakdown.semanticSimilarity}%
+                      {scoreBreakdown.semanticSimilarity}%
                     </span>
                   </div>
                 )}
-                {app.scoreBreakdown.skillsAlignment !== undefined && (
+                {scoreBreakdown.skillsAlignment !== undefined && (
                   <div>
                     <span className="text-muted-foreground">Skills:</span>{' '}
                     <span className="font-medium">
-                      {app.scoreBreakdown.skillsAlignment}%
+                      {scoreBreakdown.skillsAlignment}%
                     </span>
                   </div>
                 )}
-                {app.scoreBreakdown.experienceLevel !== undefined && (
+                {scoreBreakdown.experienceLevel !== undefined && (
                   <div>
                     <span className="text-muted-foreground">Experience:</span>{' '}
                     <span className="font-medium">
-                      {app.scoreBreakdown.experienceLevel}%
+                      {scoreBreakdown.experienceLevel}%
                     </span>
                   </div>
                 )}
-                {app.scoreBreakdown.otherFactors !== undefined && (
+                {scoreBreakdown.otherFactors !== undefined && (
                   <div>
                     <span className="text-muted-foreground">
                       Other Factors:
                     </span>{' '}
                     <span className="font-medium">
-                      {app.scoreBreakdown.otherFactors}%
+                      {scoreBreakdown.otherFactors}%
                     </span>
                   </div>
                 )}
@@ -161,6 +226,27 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             )}
           </div>
         )}
+
+        {/* AI Interview Section - Available for all applications */}
+        <div className="border-t pt-4 mt-4">
+          <h3 className="text-sm font-semibold mb-3">AI Interview</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Take an AI-powered interview to showcase your skills and improve
+            your application match score.
+            {matchScore !== undefined &&
+              matchScore !== null &&
+              matchScore < 70 && (
+                <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                  💡 Your match score is below 70%. An interview can help boost
+                  your score!
+                </span>
+              )}
+          </p>
+          <InterviewLauncher
+            jobId={app.jobId}
+            applicationId={app._id.toString()}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

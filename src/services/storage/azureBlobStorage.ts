@@ -1,4 +1,10 @@
-import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import {
+  BlobServiceClient,
+  ContainerClient,
+  BlobSASPermissions,
+  generateBlobSASQueryParameters,
+  StorageSharedKeyCredential,
+} from '@azure/storage-blob';
 import { createHash } from 'crypto';
 import type { StoredFileInfo, ResumeStorage } from './resumeStorage';
 
@@ -105,5 +111,288 @@ export class AzureBlobResumeStorage implements ResumeStorage {
     }
 
     return storageKeys;
+  }
+}
+
+/**
+ * Interview Recording Metadata
+ */
+export interface InterviewRecordingMetadata {
+  sessionId: string;
+  userId: string;
+  applicationId: string;
+  duration: number; // milliseconds
+  fileSize: number; // bytes
+  mimeType: string;
+  videoResolution: string;
+  frameRate: number;
+  videoBitrate: number;
+  audioBitrate: number;
+  uploadedAt: string; // ISO timestamp
+  sha256?: string; // optional hash for integrity
+}
+
+/**
+ * Azure Blob Storage for Interview Recordings
+ *
+ * Handles upload, retrieval, and management of interview video recordings
+ */
+export class AzureBlobInterviewStorage {
+  private containerClient: ContainerClient;
+  private blobServiceClient: BlobServiceClient;
+  private accountName: string;
+  private accountKey: string;
+
+  constructor(
+    connectionString: string,
+    containerName = 'interview-recordings'
+  ) {
+    this.blobServiceClient =
+      BlobServiceClient.fromConnectionString(connectionString);
+    this.containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+
+    // Parse account name and key from connection string for SAS generation
+    const connStringMatch = connectionString.match(
+      /AccountName=([^;]+).*AccountKey=([^;]+)/
+    );
+    if (!connStringMatch) {
+      throw new Error('Invalid Azure Storage connection string');
+    }
+    this.accountName = connStringMatch[1] || '';
+    this.accountKey = connStringMatch[2] || '';
+  }
+
+  /**
+   * Initialize container (create if doesn't exist)
+   */
+  async initialize(): Promise<void> {
+    await this.containerClient.createIfNotExists({
+      access: 'blob', // Allow blob-level access with SAS tokens
+    });
+  }
+
+  /**
+   * Upload interview recording
+   */
+  async uploadRecording(
+    sessionId: string,
+    userId: string,
+    applicationId: string,
+    recordingBlob: Blob,
+    metadata: Omit<
+      InterviewRecordingMetadata,
+      'sessionId' | 'userId' | 'applicationId' | 'uploadedAt' | 'sha256'
+    >
+  ): Promise<{ storageKey: string; url: string }> {
+    // Convert Blob to Buffer
+    const arrayBuffer = await recordingBlob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Calculate SHA256 hash for integrity
+    const hash = createHash('sha256').update(buffer).digest('hex');
+
+    // Create storage key: userId/applicationId/sessionId/recording.webm
+    const extension = this.getExtensionFromMimeType(metadata.mimeType);
+    const storageKey = `${userId}/${applicationId}/${sessionId}/recording${extension}`;
+
+    // Get block blob client
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+
+    // Upload with metadata
+    await blockBlobClient.upload(buffer, buffer.length, {
+      blobHTTPHeaders: {
+        blobContentType: metadata.mimeType,
+        blobCacheControl: 'public, max-age=31536000', // 1 year cache
+      },
+      metadata: {
+        sessionId,
+        userId,
+        applicationId,
+        duration: metadata.duration.toString(),
+        fileSize: metadata.fileSize.toString(),
+        mimeType: metadata.mimeType,
+        videoResolution: metadata.videoResolution,
+        frameRate: metadata.frameRate.toString(),
+        videoBitrate: metadata.videoBitrate.toString(),
+        audioBitrate: metadata.audioBitrate.toString(),
+        uploadedAt: new Date().toISOString(),
+        sha256: hash,
+      },
+    });
+
+    // Generate signed URL (valid for 7 days)
+    const url = await this.getSignedUrl(storageKey, 7 * 24 * 60);
+
+    return { storageKey, url };
+  }
+
+  /**
+   * Get signed URL for recording playback
+   */
+  async getSignedUrl(storageKey: string, expiryMinutes = 60): Promise<string> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+
+    // Check if blob exists
+    const exists = await blockBlobClient.exists();
+    if (!exists) {
+      throw new Error(`Recording not found: ${storageKey}`);
+    }
+
+    // Create SAS token
+    const startsOn = new Date();
+    const expiresOn = new Date(startsOn.getTime() + expiryMinutes * 60 * 1000);
+
+    const permissions = BlobSASPermissions.parse('r'); // Read-only
+    const sharedKeyCredential = new StorageSharedKeyCredential(
+      this.accountName,
+      this.accountKey
+    );
+
+    const sasToken = generateBlobSASQueryParameters(
+      {
+        containerName: this.containerClient.containerName,
+        blobName: storageKey,
+        permissions,
+        startsOn,
+        expiresOn,
+      },
+      sharedKeyCredential
+    ).toString();
+
+    return `${blockBlobClient.url}?${sasToken}`;
+  }
+
+  /**
+   * Get recording metadata
+   */
+  async getMetadata(
+    storageKey: string
+  ): Promise<InterviewRecordingMetadata | null> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+
+    const exists = await blockBlobClient.exists();
+    if (!exists) {
+      return null;
+    }
+
+    const properties = await blockBlobClient.getProperties();
+    const metadata = properties.metadata;
+
+    if (!metadata) {
+      return null;
+    }
+
+    return {
+      sessionId: metadata.sessionId || '',
+      userId: metadata.userId || '',
+      applicationId: metadata.applicationId || '',
+      duration: parseInt(metadata.duration || '0', 10),
+      fileSize: parseInt(metadata.fileSize || '0', 10),
+      mimeType: metadata.mimeType || '',
+      videoResolution: metadata.videoResolution || '',
+      frameRate: parseInt(metadata.frameRate || '0', 10),
+      videoBitrate: parseInt(metadata.videoBitrate || '0', 10),
+      audioBitrate: parseInt(metadata.audioBitrate || '0', 10),
+      uploadedAt: metadata.uploadedAt || '',
+      sha256: metadata.sha256,
+    };
+  }
+
+  /**
+   * Delete recording
+   */
+  async deleteRecording(storageKey: string): Promise<void> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+    await blockBlobClient.deleteIfExists();
+  }
+
+  /**
+   * List all recordings for a user
+   */
+  async listUserRecordings(userId: string): Promise<string[]> {
+    const prefix = `${userId}/`;
+    const storageKeys: string[] = [];
+
+    for await (const blob of this.containerClient.listBlobsFlat({ prefix })) {
+      storageKeys.push(blob.name);
+    }
+
+    return storageKeys;
+  }
+
+  /**
+   * List all recordings for an application
+   */
+  async listApplicationRecordings(
+    userId: string,
+    applicationId: string
+  ): Promise<string[]> {
+    const prefix = `${userId}/${applicationId}/`;
+    const storageKeys: string[] = [];
+
+    for await (const blob of this.containerClient.listBlobsFlat({ prefix })) {
+      storageKeys.push(blob.name);
+    }
+
+    return storageKeys;
+  }
+
+  /**
+   * Get recording by session ID
+   */
+  async getRecordingBySessionId(
+    userId: string,
+    applicationId: string,
+    sessionId: string
+  ): Promise<{ storageKey: string; url: string } | null> {
+    const extension = '.webm'; // Default extension
+    const storageKey = `${userId}/${applicationId}/${sessionId}/recording${extension}`;
+
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+    const exists = await blockBlobClient.exists();
+
+    if (!exists) {
+      return null;
+    }
+
+    const url = await this.getSignedUrl(storageKey);
+    return { storageKey, url };
+  }
+
+  /**
+   * Check if recording exists
+   */
+  async exists(storageKey: string): Promise<boolean> {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
+    return await blockBlobClient.exists();
+  }
+
+  /**
+   * Get total storage used by user (in bytes)
+   */
+  async getUserStorageSize(userId: string): Promise<number> {
+    const prefix = `${userId}/`;
+    let totalSize = 0;
+
+    for await (const blob of this.containerClient.listBlobsFlat({ prefix })) {
+      totalSize += blob.properties.contentLength || 0;
+    }
+
+    return totalSize;
+  }
+
+  /**
+   * Get file extension from MIME type
+   */
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeToExt: Record<string, string> = {
+      'video/webm': '.webm',
+      'video/mp4': '.mp4',
+      'video/x-matroska': '.mkv',
+      'video/quicktime': '.mov',
+    };
+
+    return mimeToExt[mimeType] || '.webm';
   }
 }
