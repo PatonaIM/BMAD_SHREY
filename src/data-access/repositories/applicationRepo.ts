@@ -165,6 +165,42 @@ export class ApplicationRepository {
     });
   }
 
+  async linkInterviewSession(
+    applicationId: string,
+    interviewSessionId: string
+  ): Promise<UpdateResult> {
+    const collection = await this.getCollection();
+    return collection.updateOne({ _id: applicationId } as Filter<Application>, {
+      $set: {
+        interviewSessionId,
+        interviewStatus: 'in_progress',
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  async updateInterviewCompletion(
+    applicationId: string,
+    interviewScore: number,
+    originalMatchScore: number
+  ): Promise<UpdateResult> {
+    const collection = await this.getCollection();
+    const scoreBoost = Math.min(interviewScore * 0.15, 15); // Max 15 point boost
+    const newScore = Math.min(originalMatchScore + scoreBoost, 100);
+
+    return collection.updateOne({ _id: applicationId } as Filter<Application>, {
+      $set: {
+        interviewStatus: 'completed',
+        interviewCompletedAt: new Date(),
+        interviewScore,
+        scoreBeforeInterview: originalMatchScore,
+        scoreAfterInterview: newScore,
+        matchScore: newScore,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
   async listForJob(jobId: string, limit = 100): Promise<Application[]> {
     const collection = await this.getCollection();
     return collection

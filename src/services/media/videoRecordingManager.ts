@@ -60,6 +60,10 @@ export interface RecordingCallbacks {
 
 export class VideoRecordingManager {
   private mediaStream: MediaStream | null = null;
+  private additionalAudioStream: MediaStream | null = null;
+  private combinedStream: MediaStream | null = null;
+  private audioContext: AudioContext | null = null;
+  private audioDestination: MediaStreamAudioDestinationNode | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
   private state: RecordingState = 'idle';
@@ -125,6 +129,67 @@ export class VideoRecordingManager {
   setMediaStream(stream: MediaStream): void {
     this.mediaStream = stream;
     this.setState('ready');
+  }
+
+  /**
+   * Add additional audio stream (e.g., AI interviewer audio) to be mixed with candidate audio
+   * This should be called before startRecording()
+   */
+  setAdditionalAudioStream(audioStream: MediaStream): void {
+    this.additionalAudioStream = audioStream;
+  }
+
+  /**
+   * Create a combined stream with video from camera and mixed audio from both candidate and AI
+   */
+  private createCombinedStream(): MediaStream {
+    if (!this.mediaStream) {
+      throw new Error('Media stream not initialized');
+    }
+
+    // If no additional audio, just return the original stream
+    if (!this.additionalAudioStream) {
+      return this.mediaStream;
+    }
+
+    // Create audio context for mixing
+    this.audioContext = new AudioContext();
+    this.audioDestination = this.audioContext.createMediaStreamDestination();
+
+    // Mix candidate audio
+    const candidateAudioSource = this.audioContext.createMediaStreamSource(
+      this.mediaStream
+    );
+    const candidateGain = this.audioContext.createGain();
+    candidateGain.gain.value = 1.0; // Full volume for candidate
+    candidateAudioSource.connect(candidateGain);
+    candidateGain.connect(this.audioDestination);
+
+    // Mix AI audio
+    const aiAudioSource = this.audioContext.createMediaStreamSource(
+      this.additionalAudioStream
+    );
+    const aiGain = this.audioContext.createGain();
+    aiGain.gain.value = 0.8; // Slightly lower volume for AI to prioritize candidate
+    aiAudioSource.connect(aiGain);
+    aiGain.connect(this.audioDestination);
+
+    // Create combined stream with video from camera and mixed audio
+    const combinedStream = new MediaStream();
+
+    // Add video track from camera
+    const videoTrack = this.mediaStream.getVideoTracks()[0];
+    if (videoTrack) {
+      combinedStream.addTrack(videoTrack);
+    }
+
+    // Add mixed audio track
+    const mixedAudioTrack = this.audioDestination.stream.getAudioTracks()[0];
+    if (mixedAudioTrack) {
+      combinedStream.addTrack(mixedAudioTrack);
+    }
+
+    return combinedStream;
   }
 
   /**
@@ -222,6 +287,9 @@ export class VideoRecordingManager {
       this.startTime = Date.now();
       this.pausedDuration = 0;
 
+      // Create combined stream with mixed audio
+      this.combinedStream = this.createCombinedStream();
+
       // Create MediaRecorder
       const options: MediaRecorderOptions = {
         mimeType: this.config.mimeType,
@@ -229,7 +297,7 @@ export class VideoRecordingManager {
         audioBitsPerSecond: this.config.audioBitsPerSecond,
       };
 
-      this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
+      this.mediaRecorder = new MediaRecorder(this.combinedStream, options);
 
       // Setup event handlers
       this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
@@ -346,11 +414,26 @@ export class VideoRecordingManager {
       this.mediaRecorder.stop();
     }
 
-    // Release media stream
+    // Close audio context
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+      this.audioDestination = null;
+    }
+
+    // Release media streams
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
+
+    if (this.combinedStream) {
+      this.combinedStream.getTracks().forEach(track => track.stop());
+      this.combinedStream = null;
+    }
+
+    // Clear additional audio stream reference (don't stop it, as it's managed elsewhere)
+    this.additionalAudioStream = null;
 
     // Clear state
     this.mediaRecorder = null;

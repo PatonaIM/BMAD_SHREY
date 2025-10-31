@@ -40,17 +40,17 @@ export function AISpeakingAnimation({
       ctx.clearRect(0, 0, size, size);
 
       if (isSpeaking) {
-        // Draw animated waveform circles
-        const rings = 3;
+        // Draw animated waveform circles with enhanced visuals
+        const rings = 4;
         for (let i = 0; i < rings; i++) {
-          const ringPhase = phase + (i * Math.PI) / 3;
-          const amplitude = audioLevel * 15 + 5;
-          const radius = baseRadius + i * 15;
-          const opacity = 0.3 - i * 0.1;
+          const ringPhase = phase + (i * Math.PI) / 2;
+          const amplitude = audioLevel * 20 + 8;
+          const radius = baseRadius + i * 18;
+          const opacity = 0.4 - i * 0.08;
 
           ctx.beginPath();
-          for (let angle = 0; angle < Math.PI * 2; angle += 0.1) {
-            const wave = Math.sin(angle * 3 + ringPhase) * amplitude;
+          for (let angle = 0; angle < Math.PI * 2; angle += 0.08) {
+            const wave = Math.sin(angle * 4 + ringPhase) * amplitude;
             const r = radius + wave;
             const x = centerX + r * Math.cos(angle);
             const y = centerY + r * Math.sin(angle);
@@ -63,7 +63,7 @@ export function AISpeakingAnimation({
           }
           ctx.closePath();
 
-          // Gradient fill
+          // Enhanced gradient with multiple color stops
           const gradient = ctx.createRadialGradient(
             centerX,
             centerY,
@@ -72,20 +72,45 @@ export function AISpeakingAnimation({
             centerY,
             radius + amplitude
           );
-          gradient.addColorStop(0, `rgba(59, 130, 246, ${opacity})`); // blue-500
-          gradient.addColorStop(1, `rgba(147, 197, 253, ${opacity})`); // blue-300
+          gradient.addColorStop(0, `rgba(59, 130, 246, ${opacity * 1.2})`); // blue-500
+          gradient.addColorStop(0.5, `rgba(96, 165, 250, ${opacity})`); // blue-400
+          gradient.addColorStop(1, `rgba(147, 197, 253, ${opacity * 0.6})`); // blue-300
 
           ctx.fillStyle = gradient;
           ctx.fill();
 
-          // Glow effect
-          ctx.strokeStyle = `rgba(96, 165, 250, ${opacity * 0.5})`;
-          ctx.lineWidth = 2;
+          // Enhanced glow effect with multiple strokes
+          ctx.strokeStyle = `rgba(96, 165, 250, ${opacity * 0.8})`;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // Outer glow
+          ctx.strokeStyle = `rgba(147, 197, 253, ${opacity * 0.4})`;
+          ctx.lineWidth = 1;
           ctx.stroke();
         }
 
-        // Central pulsing dot
-        const pulseRadius = baseRadius * (0.5 + audioLevel * 0.3);
+        // Central pulsing orb with more detail
+        const pulseRadius = baseRadius * (0.6 + audioLevel * 0.4);
+
+        // Outer glow halo
+        const haloGradient = ctx.createRadialGradient(
+          centerX,
+          centerY,
+          pulseRadius * 0.8,
+          centerX,
+          centerY,
+          pulseRadius * 1.5
+        );
+        haloGradient.addColorStop(0, 'rgba(59, 130, 246, 0.6)');
+        haloGradient.addColorStop(1, 'rgba(96, 165, 250, 0)');
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, pulseRadius * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = haloGradient;
+        ctx.fill();
+
+        // Main orb
         const gradient = ctx.createRadialGradient(
           centerX,
           centerY,
@@ -94,24 +119,66 @@ export function AISpeakingAnimation({
           centerY,
           pulseRadius
         );
-        gradient.addColorStop(0, 'rgba(59, 130, 246, 1)'); // blue-500
-        gradient.addColorStop(1, 'rgba(96, 165, 250, 0.3)'); // blue-400
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); // white center
+        gradient.addColorStop(0.3, 'rgba(147, 197, 253, 1)'); // blue-300
+        gradient.addColorStop(0.7, 'rgba(59, 130, 246, 1)'); // blue-500
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0.8)'); // blue-600
 
         ctx.beginPath();
         ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        phase += 0.1;
-      } else {
-        // Idle state - simple static circle
+        // Highlight shine effect
+        const shineGradient = ctx.createRadialGradient(
+          centerX - pulseRadius * 0.3,
+          centerY - pulseRadius * 0.3,
+          0,
+          centerX - pulseRadius * 0.3,
+          centerY - pulseRadius * 0.3,
+          pulseRadius * 0.6
+        );
+        shineGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        shineGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
         ctx.beginPath();
-        ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(107, 114, 128, 0.3)'; // gray-500
+        ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2);
+        ctx.fillStyle = shineGradient;
+        ctx.fill();
+
+        phase += 0.08;
+      } else {
+        // Enhanced idle state - subtle pulse
+        const idlePulse = Math.sin(phase * 0.5) * 0.1 + 0.9;
+        const idleRadius = baseRadius * idlePulse;
+
+        // Outer ring
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, idleRadius * 1.3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(107, 114, 128, 0.15)'; // gray-500
+        ctx.fill();
+
+        // Main circle with gradient
+        const gradient = ctx.createRadialGradient(
+          centerX,
+          centerY,
+          0,
+          centerX,
+          centerY,
+          idleRadius
+        );
+        gradient.addColorStop(0, 'rgba(156, 163, 175, 0.5)'); // gray-400
+        gradient.addColorStop(1, 'rgba(107, 114, 128, 0.3)'); // gray-500
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, idleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
         ctx.fill();
         ctx.strokeStyle = 'rgba(107, 114, 128, 0.5)';
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        phase += 0.02;
       }
 
       animationFrameRef.current = requestAnimationFrame(draw);

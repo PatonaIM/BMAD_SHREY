@@ -9,6 +9,7 @@ import { findUserByEmail } from '../../../data-access/repositories/userRepo';
 import { getExtractedProfile } from '../../../data-access/repositories/extractedProfileRepo';
 import { jobCandidateMatchingService } from '../../../services/ai/jobCandidateMatching';
 import { extractedProfileToCandidateProfile } from '../../../components/matching/profileTransformer';
+import { interviewSessionRepo } from '../../../data-access/repositories/interviewSessionRepo';
 import { logger } from '../../../monitoring/logger';
 import Link from 'next/link';
 import { InterviewLauncher } from '../../../components/interview/InterviewLauncher';
@@ -125,6 +126,15 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       );
     }
   }
+
+  // Fetch interview session if exists
+  let interviewSession = null;
+  if (app.interviewSessionId) {
+    interviewSession = await interviewSessionRepo.findBySessionId(
+      app.interviewSessionId
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <div className="mb-6">
@@ -227,25 +237,179 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* AI Interview Section - Available for all applications */}
+        {/* AI Interview Section */}
         <div className="border-t pt-4 mt-4">
           <h3 className="text-sm font-semibold mb-3">AI Interview</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Take an AI-powered interview to showcase your skills and improve
-            your application match score.
-            {matchScore !== undefined &&
-              matchScore !== null &&
-              matchScore < 70 && (
-                <span className="block mt-2 text-amber-600 dark:text-amber-400">
-                  💡 Your match score is below 70%. An interview can help boost
-                  your score!
-                </span>
+
+          {/* Show interview results if completed */}
+          {app.interviewStatus === 'completed' && interviewSession ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mb-2">
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span className="font-medium">Interview Completed</span>
+              </div>
+
+              {/* Interview Score Display */}
+              {interviewSession.scores && (
+                <div className="bg-gradient-to-br from-brand-primary/10 to-brand-secondary/10 rounded-lg p-4 border border-brand-primary/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Overall Score</span>
+                    <span className="text-2xl font-bold text-brand-primary">
+                      {interviewSession.scores.overall}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                    <div>
+                      <span className="text-muted-foreground block mb-1">
+                        Technical
+                      </span>
+                      <span className="font-semibold text-sm">
+                        {interviewSession.scores.technical}%
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">
+                        Communication
+                      </span>
+                      <span className="font-semibold text-sm">
+                        {interviewSession.scores.communication}%
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">
+                        Experience
+                      </span>
+                      <span className="font-semibold text-sm">
+                        {interviewSession.scores.experience}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Score Boost Display */}
+                  {app.scoreBeforeInterview && app.scoreAfterInterview && (
+                    <div className="text-xs text-muted-foreground pt-2 border-t border-brand-primary/10">
+                      Match score improved from {app.scoreBeforeInterview}% to{' '}
+                      {app.scoreAfterInterview}%{' '}
+                      <span className="text-green-600 dark:text-green-400 font-medium">
+                        (+
+                        {(
+                          app.scoreAfterInterview - app.scoreBeforeInterview
+                        ).toFixed(1)}
+                        %)
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
-          </p>
-          <InterviewLauncher
-            jobId={app.jobId}
-            applicationId={app._id.toString()}
-          />
+
+              {/* Interview Details */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Duration:</span>{' '}
+                  <span className="font-medium">
+                    {interviewSession.duration
+                      ? `${Math.floor(interviewSession.duration / 60)}m ${interviewSession.duration % 60}s`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Completed:</span>{' '}
+                  <span className="font-medium">
+                    {interviewSession.endedAt
+                      ? new Date(interviewSession.endedAt).toLocaleDateString()
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* View Recording Button */}
+              {interviewSession.videoRecordingUrl && (
+                <div className="pt-2">
+                  <a
+                    href={interviewSession.videoRecordingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-outline px-4 py-2 text-sm inline-flex items-center gap-2"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    View Recording
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : app.interviewStatus === 'in_progress' ? (
+            <div className="space-y-3">
+              <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 animate-pulse"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Interview in progress...
+              </p>
+              {app.interviewSessionId && (
+                <Link
+                  href={`/interview/${app.interviewSessionId}`}
+                  className="btn-primary px-4 py-2 text-sm inline-flex items-center gap-2"
+                >
+                  Continue Interview →
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Take an AI-powered interview to showcase your skills and improve
+                your application match score.
+                {matchScore !== undefined &&
+                  matchScore !== null &&
+                  matchScore < 70 && (
+                    <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                      💡 Your match score is below 70%. An interview can help
+                      boost your score!
+                    </span>
+                  )}
+              </p>
+              <InterviewLauncher
+                jobId={app.jobId}
+                applicationId={app._id.toString()}
+              />
+            </div>
+          )}
         </div>
       </div>
 

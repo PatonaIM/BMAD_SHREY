@@ -38,34 +38,17 @@ export function InterviewLauncher({
         return;
       }
 
-      // Generate questions
-      const questionsResponse = await fetch(
-        '/api/interview/generate-questions',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId }),
-        }
-      );
+      // No longer pre-generating questions - AI will generate them dynamically
+      // during the interview based on session instructions
 
-      if (!questionsResponse.ok) {
-        const errorData = await questionsResponse.json();
-        throw new Error(
-          errorData.error?.message || 'Failed to generate questions'
-        );
-      }
-
-      const questionsData = await questionsResponse.json();
-      const questions = questionsData.value.questions;
-
-      // Start session
+      // Start session with empty questions array (AI generates dynamically)
       const sessionResponse = await fetch('/api/interview/start-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId,
           applicationId,
-          questions,
+          questions: [], // Empty - AI generates questions during interview
         }),
       });
 

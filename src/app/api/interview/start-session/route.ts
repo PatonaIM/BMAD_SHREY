@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../auth/options';
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { interviewSessionRepo } from '../../../../data-access/repositories/interviewSessionRepo';
+import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { logger } from '../../../../monitoring/logger';
 import type { InterviewQuestion } from '../../../../shared/types/interview';
 
@@ -60,60 +61,59 @@ export async function POST(req: NextRequest) {
     const { jobId, applicationId, questions } = body;
 
     // Validate required fields
-    if (!jobId || !applicationId || !questions || !Array.isArray(questions)) {
+    if (!jobId || !applicationId) {
       return json(
         {
           ok: false,
           error: {
             code: 'INVALID_REQUEST',
-            message: 'jobId, applicationId, and questions array are required',
+            message: 'jobId and applicationId are required',
           },
         },
         400
       );
     }
 
-    if (questions.length === 0) {
-      return json(
-        {
-          ok: false,
-          error: {
-            code: 'INVALID_REQUEST',
-            message: 'At least one question is required',
-          },
-        },
-        400
-      );
-    }
+    // Questions are now optional - AI generates them dynamically during interview
+    const questionsList = Array.isArray(questions) ? questions : [];
 
     logger.info({
       event: 'start_session_creating',
       userId: user._id,
       jobId,
       applicationId,
-      questionCount: questions.length,
+      questionCount: questionsList.length,
     });
 
-    // Calculate estimated duration from questions
-    const estimatedDuration = (questions as InterviewQuestion[]).reduce(
-      (sum, q) => sum + (q.expectedDuration || 120),
-      0
-    );
+    // Calculate estimated duration from questions (or default if no questions)
+    const estimatedDuration =
+      questionsList.length > 0
+        ? (questionsList as InterviewQuestion[]).reduce(
+            (sum, q) => sum + (q.expectedDuration || 120),
+            0
+          )
+        : 600; // Default 10 minutes for dynamic interviews
 
     // Create interview session
     const session = await interviewSessionRepo.create({
       userId: user._id,
       jobId,
       applicationId,
-      questions: questions as InterviewQuestion[],
+      questions: questionsList as InterviewQuestion[],
       estimatedDuration,
     });
+
+    // Link interview session to application
+    await applicationRepo.linkInterviewSession(
+      applicationId,
+      session.sessionId
+    );
 
     logger.info({
       event: 'start_session_success',
       userId: user._id,
       sessionId: session.sessionId,
-      questionCount: questions.length,
+      questionCount: questionsList.length,
     });
 
     return json({

@@ -29,11 +29,13 @@ async function getSessionUserEmail(): Promise<string | null> {
  *
  * Finalize interview session and upload recording
  *
- * Body:
- * - sessionId: string (interview session ID)
- * - duration: number (actual duration in milliseconds)
- * - recording: base64 encoded video blob
- * - metadata: InterviewSessionMetadata
+ * Body (FormData):
+ * - recording: Blob (video file)
+ * - sessionId: string
+ * - duration: number (milliseconds)
+ * - videoFormat: string
+ * - videoResolution: string
+ * - frameRate: string
  */
 export async function POST(req: NextRequest) {
   try {
@@ -58,28 +60,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { sessionId, duration, recording, metadata } = body;
+    // Parse FormData
+    const formData = await req.formData();
+    const recordingFile = formData.get('recording') as Blob | null;
+    const sessionId = formData.get('sessionId') as string | null;
+    const durationStr = formData.get('duration') as string | null;
+    const videoFormat = formData.get('videoFormat') as string | null;
+    const videoResolution = formData.get('videoResolution') as string | null;
+    const frameRateStr = formData.get('frameRate') as string | null;
 
     // Validate required fields
-    if (!sessionId || duration === undefined || !recording) {
+    if (!sessionId || !durationStr || !recordingFile) {
       return json(
         {
           ok: false,
           error: {
             code: 'INVALID_REQUEST',
-            message: 'sessionId, duration, and recording are required',
+            message: 'sessionId, duration, and recording file are required',
           },
         },
         400
       );
     }
 
+    const duration = parseInt(durationStr, 10);
+    const frameRate = frameRateStr ? parseInt(frameRateStr, 10) : 30;
+
     logger.info({
       event: 'end_session_processing',
       userId: user._id,
       sessionId,
       duration,
+      fileSize: recordingFile.size,
     });
 
     // Fetch the interview session to get job and application IDs
@@ -114,13 +126,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert base64 recording to Blob
-    const recordingData = recording.split(',')[1] || recording;
-    const buffer = Buffer.from(recordingData, 'base64');
-    const blob = new Blob([buffer], {
-      type: metadata?.videoFormat || 'video/webm',
-    });
-
     // Initialize Azure storage
     const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
     if (!connectionString) {
@@ -140,18 +145,18 @@ export async function POST(req: NextRequest) {
     const storage = new AzureBlobInterviewStorage(connectionString);
     await storage.initialize();
 
-    // Upload recording
+    // Upload recording (Blob directly, no conversion needed)
     const uploadResult = await storage.uploadRecording(
       sessionId,
       user._id,
       session.applicationId,
-      blob,
+      recordingFile,
       {
         duration,
-        fileSize: blob.size,
-        mimeType: metadata?.videoFormat || 'video/webm',
-        videoResolution: metadata?.videoResolution || '1280x720',
-        frameRate: metadata?.frameRate || 30,
+        fileSize: recordingFile.size,
+        mimeType: videoFormat || 'video/webm',
+        videoResolution: videoResolution || '1280x720',
+        frameRate,
         videoBitrate: 2500000,
         audioBitrate: 128000,
       }
@@ -161,15 +166,25 @@ export async function POST(req: NextRequest) {
       event: 'end_session_video_uploaded',
       sessionId,
       storageKey: uploadResult.storageKey,
-      fileSize: blob.size,
+      fileSize: recordingFile.size,
     });
 
     // Update session with completion status
+    const metadata: InterviewSessionMetadata = {
+      videoFormat: videoFormat || 'video/webm',
+      audioFormat: 'audio/webm',
+      videoResolution: videoResolution || '1280x720',
+      fileSize: recordingFile.size,
+      transcriptAvailable: false,
+      hasWebcam: true,
+      hasScreenShare: false,
+    };
+
     const updateSuccess = await interviewSessionRepo.markCompleted(
       sessionId,
       uploadResult.url,
       duration,
-      metadata as InterviewSessionMetadata
+      metadata
     );
 
     if (!updateSuccess) {
