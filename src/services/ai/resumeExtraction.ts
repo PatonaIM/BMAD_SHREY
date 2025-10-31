@@ -52,13 +52,20 @@ export class ResumeExtractionService {
       }
 
       // Extract structured data using OpenAI
-      const extractedData = await this.performAIExtraction(resumeText);
+      const { profile: extractedData, usage } =
+        await this.performAIExtraction(resumeText);
 
       const profile: ExtractedProfile = {
         ...extractedData,
         extractedAt: new Date().toISOString(),
         extractionStatus: 'completed',
-        costEstimate: estimatedCostCents,
+        costEstimate: {
+          model: usage.model,
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.totalTokens,
+          estimatedCostUSD: estimatedCostCents / 100,
+        },
       };
 
       const duration = Date.now() - startTime;
@@ -67,8 +74,8 @@ export class ResumeExtractionService {
         userId: userId.slice(0, 8),
         resumeVersionId,
         durationMs: duration,
-        skillCount: profile.skills.length,
-        experienceCount: profile.experience.length,
+        skillCount: profile.skills?.length || 0,
+        experienceCount: profile.experience?.length || 0,
         costCents: estimatedCostCents,
       });
 
@@ -144,14 +151,18 @@ export class ResumeExtractionService {
     return Math.ceil((inputCost + outputCost) * 100); // Convert to cents
   }
 
-  private async performAIExtraction(
-    resumeText: string
-  ): Promise<
-    Omit<
+  private async performAIExtraction(resumeText: string): Promise<{
+    profile: Omit<
       ExtractedProfile,
       'extractedAt' | 'extractionStatus' | 'extractionError' | 'costEstimate'
-    >
-  > {
+    >;
+    usage: {
+      model: string;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+  }> {
     const openai = await getOpenAI();
 
     const prompt = this.buildExtractionPrompt(resumeText);
@@ -182,7 +193,17 @@ export class ResumeExtractionService {
       // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
       const cleanedContent = this.stripMarkdownCodeBlocks(content);
       const parsed = JSON.parse(cleanedContent);
-      return this.validateAndNormalizeExtraction(parsed);
+      const profile = this.validateAndNormalizeExtraction(parsed);
+
+      return {
+        profile,
+        usage: {
+          model: response.model,
+          promptTokens: response.usage?.prompt_tokens || 0,
+          completionTokens: response.usage?.completion_tokens || 0,
+          totalTokens: response.usage?.total_tokens || 0,
+        },
+      };
     } catch (error) {
       logger.error({
         event: 'ai_extraction_parse_error',
