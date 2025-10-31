@@ -1323,3 +1323,148 @@ DoD:
 ---
 
 Epic 3 stories complete when all DoD items verified and AI interview flow tested end-to-end.
+
+## EP3-S11: Real-Time Interview Experience Enhancements (NEW)
+
+As a job seeker,
+I want a polished, reliable, and transparent real-time AI interview experience,
+So that I can focus on answering naturally while trusting system stability and quality.
+
+**Purpose:** Build on the POC foundation (EP3-S0 / EP3-S4) by adding the essential UX, reliability, observability, and configurability improvements identified during initial testing (gibberish audio fix, sequential scheduling, permissions stability). This story consolidates post-POC enhancement backlog items into one cohesive delivery.
+
+### Enhancement Areas & Acceptance Criteria
+
+**1. Live Transcript Rendering**
+
+- Stream partial transcript (`response.audio_transcript.delta`) in near real-time
+- Replace with final segment on `response.audio_transcript.done`
+- Scroll behavior: auto-scroll only when user not manually viewing older lines
+- Accessibility: transcript container marked `aria-live="polite"`
+- Toggle to hide/show transcript
+
+**2. Voice Selection & Session Prefs**
+
+- Pre-interview selection of voice: alloy | echo | shimmer
+- Persist chosen voice via initial `session.update`
+- Display selected voice during interview
+- Defaults to alloy if user makes no choice
+
+**3. Turn-Taking Indicators**
+
+- Distinct UI states: AI Speaking, Listening, User Speaking
+- User speaking state triggered by `input_audio_buffer.speech_started`
+- AI speaking state triggered by first `response.audio.delta` until `response.audio.done`
+- Visual indicator + textual label updated within <150ms of event receipt
+
+**4. Error & Reconnect UX**
+
+- Non-disruptive toast for transient disconnect with auto-retry countdown
+- Manual "Retry Now" button if auto-retries exhausted (>=3 failed attempts)
+- Clear messaging for token expiration vs network failure
+- Post-reconnect: interview state (question index, transcript) preserved
+
+**5. Latency Metrics Visibility**
+
+- Measure and log per-response latency: `response.created` → first audio delta arrival
+- Display rolling average + last response latency in hidden dev panel (toggle key: e.g., Ctrl+Alt+L)
+- Store metrics for final session summary (not persisted yet)
+
+**6. Ephemeral Token Lifecycle Management**
+
+- Detect token age & proactively refresh before expiry (T-60s)
+- Seamless WebSocket handoff without user intervention (pause input capture <2s)
+- Retry refresh once on failure; surface error if second attempt fails
+
+**7. Audio Quality Smoothing (Jitter Buffer & Crossfade)**
+
+- Buffer small set (2–3) of incoming PCM16 chunks before scheduling
+- Apply 10–15ms crossfade between adjacent chunks to reduce clicks
+- No perceptible added latency (>50ms budget)
+- Provide feature flag to disable if issues encountered
+
+**8. Playback Cursor Management**
+
+- Reset playback cursor to `audioContext.currentTime` on `response.audio.done` if drift >250ms
+- Log drift corrections to latency panel (dev only)
+
+**9. Foundational Automated Tests**
+
+- Unit: session config key transform (camelCase → snake_case)
+- Unit: reconnection attempt logic (max attempts honored)
+- Unit: transcript buffer assembly (delta + done replacement)
+- Unit: latency calculator (edge cases: missing timestamps)
+- Mock WebSocket event dispatch test for handler routing
+
+**10. Structured Logging & Observability**
+
+- Introduce lightweight logger with levels (info|warn|error|debug) and context (sessionId, eventType)
+- Replace ad-hoc `console.debug` usages (retain debug in dev only)
+- Export final session summary JSON (latency stats, response count, average chunk size)
+
+**11. Basic Analytics Hooks**
+
+- Track counts: responsesGenerated, userTurns, avgUserTurnDuration, interruptions
+- Provide `window.__interviewAnalytics` read-only snapshot for later EP3-S5 scoring integration
+
+**12. Graceful Cleanup & Page Unload Handling**
+
+- `beforeunload` listener flushes pending audio queue & marks session as `abandoned` if mid-interview
+- Avoid blocking dialog unless recording upload in-flight
+
+**13. Microphone & Backpressure Safeguards**
+
+- Monitor outbound audio queue length; if > threshold (e.g., 50 chunks) temporarily stop capture & display warning
+- Resume automatically when queue drains below threshold
+
+### Non-Goals (Explicit for Scope Control)
+
+- Full scoring pipeline (EP3-S5)
+- Recruiter access features (EP3-S8)
+- Application score recalculation integration (EP3-S7)
+- Avatar lip-sync or advanced AI persona configuration
+
+### DoD Checklist
+
+- [ ] Transcript component renders real-time & final text replacements
+- [ ] Voice selector integrated & persists chosen voice
+- [ ] Turn-taking UI states tested with simulated events
+- [ ] Reconnect UX covers token expiry & network failure
+- [ ] Latency metrics collected & visible in dev panel
+- [ ] Token refresh occurs before expiry without user disruption
+- [ ] Jitter buffer + crossfade implemented behind feature flag
+- [ ] Playback cursor drift correction functioning
+- [ ] Core unit tests passing (≥5 new tests)
+- [ ] Structured logger replaces previous direct console usage (except critical error fallback)
+- [ ] Analytics snapshot object populated at end of interview
+- [ ] Unload handler safely cleans resources
+- [ ] Backpressure logic pauses & resumes mic capture as specified
+- [ ] Documentation section added to Epic or separate markdown summarizing enhancements & toggles
+
+### Success Metrics
+
+- Transcript latency: <800ms from speech end to final segment render
+- Response audio start latency mean: <1.2s (stretch <900ms)
+- Token refresh success rate: 100% during >15 min test sessions
+- Audio artifact (click/pop) occurrences: <1 per response (observational)
+- Reconnect recovery time (network drop): <5s without user action
+- Zero overlapping AI audio sources during test runs
+- All new unit tests green in CI
+
+### Implementation Notes
+
+- Feature flags stored in a simple in-memory config for now (`src/config/interviewFeatures.ts`) with future migration path to user preferences.
+- Crossfade implemented via overlapping two `AudioBufferSourceNode`s with gain envelopes (linear fade in/out) inside scheduling loop.
+- Latency measurement uses high-resolution timestamps captured at event dispatch; falls back to `Date.now()` if Performance API unavailable.
+- Token refresh endpoint reuses existing `/api/interview/realtime-token` with `previousSessionId` param for audit.
+
+### Risks & Mitigations
+
+- Added buffering could impact latency → keep buffer depth minimal & allow quick disable.
+- Token refresh race conditions → serialize refresh with mutex & ignore stale completions.
+- Transcript flicker with rapid deltas → batch updates using a 100ms micro-buffer before DOM paint.
+
+### Future Story Links
+
+- Scoring integration will consume `window.__interviewAnalytics` aggregates (EP3-S5)
+- Recruiter transcript view depends on stable transcript (EP3-S8)
+- Application score boost UI benefits from latency & reliability metrics (EP3-S7)
