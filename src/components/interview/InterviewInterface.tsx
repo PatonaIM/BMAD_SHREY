@@ -85,6 +85,9 @@ export function InterviewInterface({
   // Streaming upload refs
   const uploadedBlockIds = useRef<string[]>([]);
   const totalFileSize = useRef<number>(0);
+  const collectedChunks = useRef<Blob[]>([]);
+  const uploadQueue = useRef<Blob[]>([]);
+  const isUploadingRef = useRef<boolean>(false);
 
   // Initialize managers when permissions are granted
   const handlePermissionsGranted = useCallback(
@@ -100,7 +103,60 @@ export function InterviewInterface({
         aiAudioDestinationRef.current =
           audioContextRef.current.createMediaStreamDestination();
 
-        // Initialize video recording manager with streaming upload
+        // Sequential upload queue processor
+        const processUploadQueue = async () => {
+          if (isUploadingRef.current || uploadQueue.current.length === 0) {
+            return;
+          }
+
+          isUploadingRef.current = true;
+
+          while (uploadQueue.current.length > 0) {
+            const chunkToUpload = uploadQueue.current.shift();
+            if (!chunkToUpload) break;
+
+            try {
+              // Create block ID
+              const blockIndex = uploadedBlockIds.current.length;
+              const blockId = btoa(
+                `block-${blockIndex.toString().padStart(10, '0')}`
+              );
+
+              const formData = new FormData();
+              formData.append('chunk', chunkToUpload);
+              formData.append('sessionId', sessionId);
+              formData.append('blockId', blockId);
+              formData.append('isFirst', blockIndex === 0 ? 'true' : 'false');
+
+              const response = await fetch('/api/interview/upload-chunk', {
+                method: 'POST',
+                body: formData,
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to upload chunk');
+              }
+
+              uploadedBlockIds.current.push(blockId);
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : 'Chunk upload failed';
+              setError(`Upload error: ${message}`);
+              // Re-queue for retry
+              uploadQueue.current.unshift(chunkToUpload);
+              break;
+            }
+          }
+
+          isUploadingRef.current = false;
+
+          // Check if there are more chunks to process
+          if (uploadQueue.current.length > 0) {
+            setTimeout(() => processUploadQueue(), 100);
+          }
+        };
+
+        // Initialize video recording manager with chunk collection
         videoManagerRef.current = new VideoRecordingManager(
           {
             video: { width: 1280, height: 720, frameRate: 30 },
@@ -116,37 +172,26 @@ export function InterviewInterface({
               }
             },
             onError: err => setError(err.message),
-            onChunkReady: async (chunk: Blob, chunkIndex: number) => {
-              // Upload chunk immediately to Azure
-              try {
-                // Create base64 encoded block ID (must be same length for all blocks)
-                const blockId = btoa(
-                  `block-${chunkIndex.toString().padStart(10, '0')}`
+            onDataAvailable: chunk => {
+              // Collect chunk locally for final blob creation
+              collectedChunks.current.push(chunk);
+              totalFileSize.current += chunk.size;
+
+              // Split chunk into 2MB pieces for upload
+              const chunkSize = 2 * 1024 * 1024;
+              let offset = 0;
+
+              while (offset < chunk.size) {
+                const piece = chunk.slice(
+                  offset,
+                  Math.min(offset + chunkSize, chunk.size)
                 );
-
-                const formData = new FormData();
-                formData.append('chunk', chunk);
-                formData.append('sessionId', sessionId);
-                formData.append('blockId', blockId);
-                formData.append('isFirst', chunkIndex === 0 ? 'true' : 'false');
-
-                const response = await fetch('/api/interview/upload-chunk', {
-                  method: 'POST',
-                  body: formData,
-                });
-
-                if (!response.ok) {
-                  throw new Error('Failed to upload chunk');
-                }
-
-                // Track uploaded block IDs in order
-                uploadedBlockIds.current.push(blockId);
-                totalFileSize.current += chunk.size;
-              } catch (err) {
-                const message =
-                  err instanceof Error ? err.message : 'Chunk upload failed';
-                setError(`Upload error: ${message}`);
+                uploadQueue.current.push(piece);
+                offset += chunkSize;
               }
+
+              // Trigger queue processing
+              processUploadQueue();
             },
           }
         );
@@ -364,9 +409,12 @@ Start with greeting only.`,
         throw new Error('Video recorder not initialized');
       }
 
-      // Reset upload tracking
+      // Reset tracking
       uploadedBlockIds.current = [];
       totalFileSize.current = 0;
+      collectedChunks.current = [];
+      uploadQueue.current = [];
+      isUploadingRef.current = false;
 
       await videoManagerRef.current.startRecording();
       setPhase('interviewing');
@@ -443,12 +491,30 @@ Start with greeting only.`,
 
       setLocalScores(scores);
 
-      // Stop recording (all chunks already uploaded)
+      // Stop recording
       if (videoManagerRef.current) {
         videoManagerRef.current.stopRecording();
         const recordingDuration = videoManagerRef.current.getDuration();
 
-        // Finalize the chunked upload by committing all blocks
+        // Wait for any pending uploads to complete
+        if (uploadQueue.current.length > 0) {
+          setError('Finishing upload... Please wait.');
+
+          // Wait for upload queue to empty
+          let attempts = 0;
+          while (uploadQueue.current.length > 0 && attempts < 60) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+          }
+
+          if (uploadQueue.current.length > 0) {
+            throw new Error(
+              'Upload timeout - some chunks may not have uploaded'
+            );
+          }
+        }
+
+        // Finalize upload with already uploaded blocks
         if (uploadedBlockIds.current.length > 0) {
           const response = await fetch('/api/interview/finalize-upload', {
             method: 'POST',
@@ -474,6 +540,8 @@ Start with greeting only.`,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId, scores }),
           });
+
+          setError(null);
         }
       }
 
