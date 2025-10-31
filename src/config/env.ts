@@ -69,6 +69,17 @@ const EnvSchema = z
       .optional()
       .transform(v => (v && v.length > 0 ? parseInt(v, 10) : 1536))
       .pipe(z.number().int().min(384).max(3072)),
+    // Azure Blob Storage configuration
+    USE_AZURE_STORAGE: z
+      .string()
+      .optional()
+      .transform(v => v === 'true')
+      .pipe(z.boolean().default(false)),
+    AZURE_STORAGE_CONNECTION_STRING: z
+      .string()
+      .optional()
+      .transform(v => (v && v.length > 0 ? v : undefined)),
+    AZURE_STORAGE_CONTAINER_NAME: z.string().optional().default('resumes'),
   })
   .superRefine((data, ctx) => {
     // Require NEXTAUTH_SECRET strictly in production
@@ -91,6 +102,14 @@ const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['WORKABLE_API_KEY'],
         message: 'WORKABLE_API_KEY required when WORKABLE_SUBDOMAIN is set',
+      });
+    }
+    if (data.USE_AZURE_STORAGE && !data.AZURE_STORAGE_CONNECTION_STRING) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AZURE_STORAGE_CONNECTION_STRING'],
+        message:
+          'AZURE_STORAGE_CONNECTION_STRING required when USE_AZURE_STORAGE=true',
       });
     }
   });

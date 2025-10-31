@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../auth/options';
 import { getSessionUserId } from '../../../../../auth/sessionHelpers';
 import { validateResume } from '../../../../../services/profile/resumeValidation';
-import { getResumeStorage } from '../../../../../services/storage/resumeStorage';
+import { getResumeStorageAsync } from '../../../../../services/storage/resumeStorage';
 import { upsertResumeVersion } from '../../../../../data-access/repositories/resumeRepo';
 import { ErrorCodes } from '../../../../../shared/errors';
 
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (!validation.ok) {
       return Response.json(validation, { status: 400 });
     }
-    const storage = getResumeStorage();
+    const storage = await getResumeStorageAsync();
     const stored = await storage.store(userId, file.name, file.type, buffer);
     const doc = await upsertResumeVersion(userId, {
       fileName: file.name,

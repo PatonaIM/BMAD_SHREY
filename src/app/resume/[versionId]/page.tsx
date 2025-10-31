@@ -4,7 +4,7 @@ import { authOptions } from '../../../auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { getResume } from '../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../data-access/repositories/userRepo';
-import { getResumeStorage } from '../../../services/storage/resumeStorage';
+import { getResumeStorageAsync } from '../../../services/storage/resumeStorage';
 import { ResumeViewerActions } from '../../../components/ResumeViewerActions';
 import { BackButton } from '../../../components/BackButton';
 
@@ -53,7 +53,7 @@ export default async function ResumeViewerPage({ params }: PageProps) {
     return notFound();
   }
 
-  const storage = getResumeStorage();
+  const storage = await getResumeStorageAsync();
   let resumeUrl: string;
   try {
     resumeUrl = await storage.getViewUrl(resumeVersion.storageKey);

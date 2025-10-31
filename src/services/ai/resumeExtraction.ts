@@ -6,7 +6,7 @@ import type {
   EducationEntry,
 } from '../../shared/types/profile';
 import { logger } from '../../monitoring/logger';
-import { getResumeStorage } from '../storage/resumeStorage';
+import { getResumeStorageAsync } from '../storage/resumeStorage';
 import { skillNormalizationService } from './skillNormalization';
 
 // pdf-parse-fork (v1) works better server-side without workers
@@ -39,7 +39,7 @@ export class ResumeExtractionService {
       });
 
       // Get the resume content
-      const storage = getResumeStorage();
+      const storage = await getResumeStorageAsync();
       const resumeBuffer = await storage.get(storageKey);
       const resumeText = await this.extractTextFromBuffer(resumeBuffer);
 

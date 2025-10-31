@@ -36,6 +36,7 @@
   "author": "BMAD Team",
   "license": "MIT",
   "dependencies": {
+    "@azure/storage-blob": "^12.29.1",
     "@sentry/nextjs": "^8.23.0",
     "@tailwindcss/forms": "^0.5.7",
     "@tailwindcss/typography": "^0.5.13",
