@@ -120,12 +120,31 @@ export class VideoRecordingManager {
   }
 
   /**
+   * Set media stream from an existing stream (e.g., from permission check)
+   */
+  setMediaStream(stream: MediaStream): void {
+    this.mediaStream = stream;
+    this.setState('ready');
+  }
+
+  /**
    * Request camera and microphone permissions and initialize stream
    */
   async requestPermissions(): Promise<void> {
     this.setState('requesting-permissions');
 
     try {
+      // Check if running on HTTPS (required for getUserMedia)
+      if (
+        window.location.protocol !== 'https:' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1'
+      ) {
+        throw new Error(
+          'Camera/microphone access requires HTTPS connection (except on localhost)'
+        );
+      }
+
       const constraints: MediaStreamConstraints = {
         video: {
           width: { ideal: this.config.video.width },
@@ -142,12 +161,44 @@ export class VideoRecordingManager {
       };
 
       this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
       this.setState('ready');
     } catch (error) {
-      this.handleError(error as Error);
-      throw new Error(
-        `Failed to get media permissions: ${(error as Error).message}`
-      );
+      const err = error as Error;
+
+      // Provide more specific error messages
+      let userMessage = err.message;
+      if (
+        err.name === 'NotAllowedError' ||
+        err.name === 'PermissionDeniedError'
+      ) {
+        userMessage =
+          'Permission denied. Please allow camera and microphone access in your browser settings.';
+      } else if (
+        err.name === 'NotFoundError' ||
+        err.name === 'DevicesNotFoundError'
+      ) {
+        userMessage =
+          'No camera or microphone found. Please connect a device and try again.';
+      } else if (
+        err.name === 'NotReadableError' ||
+        err.name === 'TrackStartError'
+      ) {
+        userMessage =
+          'Camera or microphone is already in use by another application. Please close other applications and try again.';
+      } else if (err.name === 'OverconstrainedError') {
+        userMessage =
+          'Camera or microphone does not meet the required specifications. Try using a different device.';
+      } else if (err.name === 'SecurityError') {
+        userMessage =
+          'Security error: Permissions blocked by browser policy or iframe settings.';
+      } else if (err.name === 'TypeError') {
+        userMessage =
+          'Browser compatibility issue. Please use a modern browser like Chrome, Firefox, or Edge.';
+      }
+
+      this.handleError(new Error(userMessage));
+      throw new Error(userMessage);
     }
   }
 

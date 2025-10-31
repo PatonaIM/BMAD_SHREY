@@ -29,22 +29,44 @@ export function VideoPreview({
     const video = videoRef.current;
     if (!video || !stream) return;
 
-    try {
-      video.srcObject = stream;
-      video.play().catch(err => {
-        setVideoError(`Failed to play video: ${err.message}`);
-      });
+    let isMounted = true;
 
-      // Get video resolution
-      video.onloadedmetadata = () => {
-        setResolution(`${video.videoWidth}x${video.videoHeight}`);
-      };
-    } catch (err) {
-      setVideoError(`Failed to set video stream: ${(err as Error).message}`);
-    }
+    const setupVideo = async () => {
+      try {
+        // Clear any previous playback state
+        video.pause();
+        video.srcObject = stream;
+
+        // Get video resolution
+        video.onloadedmetadata = () => {
+          if (isMounted) {
+            setResolution(`${video.videoWidth}x${video.videoHeight}`);
+          }
+        };
+
+        // Wait a bit before playing to avoid interruption errors
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (isMounted) {
+          await video.play();
+        }
+      } catch (err) {
+        if (isMounted) {
+          const error = err as Error;
+          // Only show error if it's not an interruption error
+          if (!error.message.includes('interrupted')) {
+            setVideoError(`Failed to play video: ${error.message}`);
+          }
+        }
+      }
+    };
+
+    setupVideo();
 
     return () => {
+      isMounted = false;
       if (video.srcObject) {
+        video.pause();
         video.srcObject = null;
       }
     };

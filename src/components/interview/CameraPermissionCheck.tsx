@@ -19,8 +19,8 @@ export function CameraPermissionCheck({
   >('checking');
   const [error, setError] = useState<string | null>(null);
   const [browserSupported, setBrowserSupported] = useState(true);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [devices, setDevices] = useState<{
+  const [audioLevel] = useState(0);
+  const [devices] = useState<{
     cameras: MediaDeviceInfo[];
     microphones: MediaDeviceInfo[];
   }>({ cameras: [], microphones: [] });
@@ -49,38 +49,32 @@ export function CameraPermissionCheck({
 
     try {
       const manager = new VideoRecordingManager();
+
       await manager.requestPermissions();
 
       const stream = manager.getMediaStream();
+
       if (!stream) {
-        throw new Error('Failed to get media stream');
+        throw new Error('No media stream available after permissions granted');
       }
 
-      setStatus('testing');
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
 
-      // Test audio for 3 seconds
-      await VideoRecordingManager.testAudioLevel(
-        stream,
-        level => {
-          setAudioLevel(level);
-        },
-        3000
-      );
-
-      // Get available devices
-      const devicesInfo = await VideoRecordingManager.getDevices();
-      setDevices(devicesInfo);
+      if (!videoTrack || !audioTrack) {
+        throw new Error('Missing video or audio track in media stream');
+      }
 
       setStatus('granted');
       onPermissionsGranted(stream);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Failed to access camera/microphone';
-      setError(errorMessage);
+      const error = err as Error;
       setStatus('denied');
-      onPermissionsDenied(err instanceof Error ? err : new Error(errorMessage));
+      setError(error.message);
+
+      if (onPermissionsDenied) {
+        onPermissionsDenied(error);
+      }
     }
   };
 

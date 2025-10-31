@@ -137,6 +137,7 @@ export async function generateMetadata({
   return {
     title: 'AI Interview - TeamMatch',
     description: 'Complete your AI-powered interview',
+
     other: {
       'Permissions-Policy':
         'camera=(self), microphone=(self), display-capture=(self)',

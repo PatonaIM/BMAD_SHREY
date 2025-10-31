@@ -120,29 +120,53 @@ export class RealtimeWebSocketManager {
 
     this.setConnectionState('connecting');
 
-    try {
-      const url = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01`;
+    return new Promise((resolve, reject) => {
+      try {
+        // OpenAI Realtime API uses ephemeral token in URL for browser clients
+        const url = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01`;
 
-      this.ws = new WebSocket(url, {
-        headers: {
-          Authorization: `Bearer ${this.sessionToken}`,
-          'OpenAI-Beta': 'realtime=v1',
-        },
-      } as unknown as string);
+        // Browser WebSocket doesn't support headers, so we pass protocols array
+        // with the authorization token and OpenAI-Beta header as protocols
+        this.ws = new WebSocket(url, [
+          'realtime',
+          `openai-insecure-api-key.${this.sessionToken}`,
+          'openai-beta.realtime-v1',
+        ]);
 
-      this.setupWebSocketHandlers();
+        // Store resolve/reject for use in handlers
+        const connectionTimeout = setTimeout(() => {
+          if (this.connectionState === 'connecting') {
+            const error = new Error('Connection timeout');
+            this.handleError(error);
+            this.disconnect();
+            reject(error);
+          }
+        }, 10000);
 
-      // Connection timeout
-      setTimeout(() => {
-        if (this.connectionState === 'connecting') {
-          this.handleError(new Error('Connection timeout'));
-          this.disconnect();
-        }
-      }, 10000);
-    } catch (error) {
-      this.handleError(error as Error);
-      throw error;
-    }
+        // Set up temporary handlers for connection
+        this.ws.onopen = () => {
+          clearTimeout(connectionTimeout);
+          this.setConnectionState('connected');
+          this.reconnectAttempts = 0;
+          this.handlers.onConnected?.();
+          this.startHeartbeat();
+          resolve();
+        };
+
+        this.ws.onerror = _event => {
+          clearTimeout(connectionTimeout);
+          const error = new Error('WebSocket connection failed');
+          this.handleError(error);
+          reject(error);
+        };
+
+        // Set up the rest of the handlers
+        this.setupWebSocketHandlers();
+      } catch (error) {
+        this.handleError(error as Error);
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -228,6 +252,15 @@ export class RealtimeWebSocketManager {
   }
 
   /**
+   * Trigger AI to generate a response (e.g., ask a question)
+   */
+  createResponse(): void {
+    this.sendEvent({
+      type: 'response.create',
+    });
+  }
+
+  /**
    * Send a text message (for debugging or text fallback)
    */
   sendTextMessage(text: string): void {
@@ -297,12 +330,8 @@ export class RealtimeWebSocketManager {
   private setupWebSocketHandlers(): void {
     if (!this.ws) return;
 
-    this.ws.onopen = () => {
-      this.setConnectionState('connected');
-      this.reconnectAttempts = 0;
-      this.handlers.onConnected?.();
-      this.startHeartbeat();
-    };
+    // Note: onopen is set in connect() to handle the Promise resolve
+    // Only set up the other handlers here
 
     this.ws.onmessage = (event: MessageEvent) => {
       try {
@@ -311,10 +340,6 @@ export class RealtimeWebSocketManager {
       } catch {
         // Silent fail on parse error
       }
-    };
-
-    this.ws.onerror = () => {
-      this.handleError(new Error('WebSocket connection error'));
     };
 
     this.ws.onclose = (event: CloseEvent) => {

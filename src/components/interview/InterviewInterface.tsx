@@ -61,6 +61,8 @@ export function InterviewInterface({
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const websocketManagerRef = useRef<RealtimeWebSocketManager | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
 
   // Initialize managers when permissions are granted
   const handlePermissionsGranted = useCallback(
@@ -69,7 +71,10 @@ export function InterviewInterface({
         setMediaStream(stream);
         setConnectionStatus('connecting');
 
-        // Initialize video recording manager
+        // Initialize audio context for playing AI responses
+        audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+
+        // Initialize video recording manager with existing stream
         videoManagerRef.current = new VideoRecordingManager(
           {
             video: { width: 1280, height: 720, frameRate: 30 },
@@ -88,12 +93,24 @@ export function InterviewInterface({
           }
         );
 
+        // Set the stream we already have from permissions
+        videoManagerRef.current.setMediaStream(stream);
+
         // Initialize audio processor
         audioProcessorRef.current = await AudioProcessor.createFromStream(
           stream,
           { sampleRate: 24000, channels: 1 },
           {
             onAudioLevel: level => setUserAudioLevel(level),
+            onAudioData: audioData => {
+              // Send audio to WebSocket when interviewing
+              if (
+                websocketManagerRef.current &&
+                websocketManagerRef.current.isConnected()
+              ) {
+                websocketManagerRef.current.sendAudio(audioData);
+              }
+            },
             onError: err => setError(err.message),
           }
         );
@@ -114,13 +131,24 @@ export function InterviewInterface({
 
         // Initialize WebSocket manager
         websocketManagerRef.current = new RealtimeWebSocketManager(token, {
-          onAudioDelta: (_audioData: ArrayBuffer) => {
-            // Handle AI audio response
-            setAIAudioLevel(0.5); // Simplified - actual level would be calculated
+          onAudioDelta: (audioData: ArrayBuffer) => {
+            // Queue audio for playback
+            audioQueueRef.current.push(audioData);
+            playAudioQueue();
+            setAIAudioLevel(0.8);
+            setAISpeaking(true);
           },
-          onInputAudioBufferSpeechStarted: () => setAISpeaking(false),
-          onInputAudioBufferSpeechStopped: () => {},
-          onAudioTranscriptDelta: () => setAISpeaking(true),
+          onAudioDone: () => {
+            setAIAudioLevel(0);
+            setAISpeaking(false);
+          },
+          onInputAudioBufferSpeechStarted: () => {
+            // User started speaking
+            setAISpeaking(false);
+          },
+          onInputAudioBufferSpeechStopped: () => {
+            // User stopped speaking
+          },
           onError: (err: Error) => {
             setError(err.message);
             setConnectionStatus('disconnected');
@@ -150,6 +178,49 @@ export function InterviewInterface({
     setConnectionStatus('disconnected');
   }, []);
 
+  // Play audio queue from OpenAI
+  const playAudioQueue = useCallback(async () => {
+    if (!audioContextRef.current || audioQueueRef.current.length === 0) {
+      return;
+    }
+
+    const audioData = audioQueueRef.current.shift();
+    if (!audioData) return;
+
+    try {
+      // Convert PCM16 to AudioBuffer
+      const pcm16Data = new Int16Array(audioData);
+      const floatData = new Float32Array(pcm16Data.length);
+
+      // Convert Int16 to Float32 (-1 to 1 range)
+      for (let i = 0; i < pcm16Data.length; i++) {
+        floatData[i] = (pcm16Data[i] || 0) / 32768.0;
+      }
+
+      // Create audio buffer
+      const audioBuffer = audioContextRef.current.createBuffer(
+        1, // mono
+        floatData.length,
+        24000 // sample rate
+      );
+
+      audioBuffer.getChannelData(0).set(floatData);
+
+      // Create and play buffer source
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.start();
+
+      // Schedule next chunk
+      if (audioQueueRef.current.length > 0) {
+        setTimeout(() => playAudioQueue(), 50);
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+    }
+  }, []);
+
   // Start interview
   const startInterview = async () => {
     try {
@@ -160,6 +231,11 @@ export function InterviewInterface({
       await videoManagerRef.current.startRecording();
       setPhase('interviewing');
       setIsRecording(true);
+
+      // Trigger AI to ask the first question
+      if (websocketManagerRef.current) {
+        websocketManagerRef.current.createResponse();
+      }
 
       // Start timer
       timerRef.current = setInterval(() => {
@@ -275,6 +351,7 @@ export function InterviewInterface({
       if (audioProcessorRef.current) audioProcessorRef.current.stop();
       if (websocketManagerRef.current) websocketManagerRef.current.disconnect();
       if (videoManagerRef.current) videoManagerRef.current.release();
+      if (audioContextRef.current) audioContextRef.current.close();
     };
   }, []);
 

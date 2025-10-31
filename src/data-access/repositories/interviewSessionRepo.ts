@@ -136,7 +136,7 @@ export class InterviewSessionRepository {
   /**
    * Update session (partial update)
    */
-  async update(
+  private async update(
     sessionId: string,
     updates: UpdateInterviewSessionParams
   ): Promise<boolean> {
@@ -150,7 +150,7 @@ export class InterviewSessionRepository {
 
     // If updating metadata, merge with existing
     if (updates.metadata) {
-      const existing = await this.findById(sessionId);
+      const existing = await this.findBySessionId(sessionId);
       if (existing) {
         updateDoc.metadata = {
           ...existing.metadata,
@@ -160,7 +160,7 @@ export class InterviewSessionRepository {
     }
 
     const result = await collection.updateOne(
-      { _id: sessionId } as Filter<InterviewSession>,
+      { sessionId } as Filter<InterviewSession>,
       { $set: updateDoc }
     );
 
@@ -172,7 +172,7 @@ export class InterviewSessionRepository {
       modified: result.modifiedCount,
     });
 
-    return result.modifiedCount > 0;
+    return result.matchedCount > 0;
   }
 
   /**

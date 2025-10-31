@@ -7,7 +7,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Allow camera and microphone for interview pages
+        // Allow camera and microphone for interview pages ONLY
         source: '/interview/:path*',
         headers: [
           {
@@ -33,8 +33,8 @@ const nextConfig = {
         ],
       },
       {
-        // Default security headers for all other pages
-        source: '/:path*',
+        // Restrict camera/microphone for all non-interview pages
+        source: '/((?!interview).*)',
         headers: [
           {
             key: 'X-Frame-Options',

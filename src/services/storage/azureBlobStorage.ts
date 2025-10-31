@@ -153,23 +153,31 @@ export class AzureBlobInterviewStorage {
       this.blobServiceClient.getContainerClient(containerName);
 
     // Parse account name and key from connection string for SAS generation
-    const connStringMatch = connectionString.match(
-      /AccountName=([^;]+).*AccountKey=([^;]+)/
-    );
-    if (!connStringMatch) {
-      throw new Error('Invalid Azure Storage connection string');
+    const accountNameMatch = connectionString.match(/AccountName=([^;]+)/);
+    const accountKeyMatch = connectionString.match(/AccountKey=([^;]+)/);
+
+    if (!accountNameMatch || !accountKeyMatch) {
+      throw new Error(
+        'Invalid Azure Storage connection string: Missing AccountName or AccountKey'
+      );
     }
-    this.accountName = connStringMatch[1] || '';
-    this.accountKey = connStringMatch[2] || '';
+
+    this.accountName = accountNameMatch[1] || '';
+    this.accountKey = accountKeyMatch[1] || '';
+
+    if (!this.accountName || !this.accountKey) {
+      throw new Error(
+        'Failed to parse account credentials from connection string'
+      );
+    }
   }
 
   /**
    * Initialize container (create if doesn't exist)
    */
   async initialize(): Promise<void> {
-    await this.containerClient.createIfNotExists({
-      access: 'blob', // Allow blob-level access with SAS tokens
-    });
+    await this.containerClient.createIfNotExists();
+    // Note: Container is private by default, access only via SAS tokens
   }
 
   /**
@@ -233,10 +241,15 @@ export class AzureBlobInterviewStorage {
   async getSignedUrl(storageKey: string, expiryMinutes = 60): Promise<string> {
     const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
 
-    // Check if blob exists
-    const exists = await blockBlobClient.exists();
-    if (!exists) {
-      throw new Error(`Recording not found: ${storageKey}`);
+    // Check if blob exists by trying to get properties (uses auth from connection string)
+    try {
+      await blockBlobClient.getProperties();
+    } catch (error) {
+      const err = error as Error;
+      if (err.message.includes('BlobNotFound') || err.message.includes('404')) {
+        throw new Error(`Recording not found: ${storageKey}`);
+      }
+      throw error;
     }
 
     // Create SAS token
@@ -271,32 +284,35 @@ export class AzureBlobInterviewStorage {
   ): Promise<InterviewRecordingMetadata | null> {
     const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
 
-    const exists = await blockBlobClient.exists();
-    if (!exists) {
-      return null;
+    try {
+      const properties = await blockBlobClient.getProperties();
+      const metadata = properties.metadata;
+
+      if (!metadata) {
+        return null;
+      }
+
+      return {
+        sessionId: metadata.sessionId || '',
+        userId: metadata.userId || '',
+        applicationId: metadata.applicationId || '',
+        duration: parseInt(metadata.duration || '0', 10),
+        fileSize: parseInt(metadata.fileSize || '0', 10),
+        mimeType: metadata.mimeType || '',
+        videoResolution: metadata.videoResolution || '',
+        frameRate: parseInt(metadata.frameRate || '0', 10),
+        videoBitrate: parseInt(metadata.videoBitrate || '0', 10),
+        audioBitrate: parseInt(metadata.audioBitrate || '0', 10),
+        uploadedAt: metadata.uploadedAt || '',
+        sha256: metadata.sha256,
+      };
+    } catch (error) {
+      const err = error as Error;
+      if (err.message.includes('BlobNotFound') || err.message.includes('404')) {
+        return null;
+      }
+      throw error;
     }
-
-    const properties = await blockBlobClient.getProperties();
-    const metadata = properties.metadata;
-
-    if (!metadata) {
-      return null;
-    }
-
-    return {
-      sessionId: metadata.sessionId || '',
-      userId: metadata.userId || '',
-      applicationId: metadata.applicationId || '',
-      duration: parseInt(metadata.duration || '0', 10),
-      fileSize: parseInt(metadata.fileSize || '0', 10),
-      mimeType: metadata.mimeType || '',
-      videoResolution: metadata.videoResolution || '',
-      frameRate: parseInt(metadata.frameRate || '0', 10),
-      videoBitrate: parseInt(metadata.videoBitrate || '0', 10),
-      audioBitrate: parseInt(metadata.audioBitrate || '0', 10),
-      uploadedAt: metadata.uploadedAt || '',
-      sha256: metadata.sha256,
-    };
   }
 
   /**
@@ -350,10 +366,15 @@ export class AzureBlobInterviewStorage {
     const storageKey = `${userId}/${applicationId}/${sessionId}/recording${extension}`;
 
     const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
-    const exists = await blockBlobClient.exists();
 
-    if (!exists) {
-      return null;
+    try {
+      await blockBlobClient.getProperties();
+    } catch (error) {
+      const err = error as Error;
+      if (err.message.includes('BlobNotFound') || err.message.includes('404')) {
+        return null;
+      }
+      throw error;
     }
 
     const url = await this.getSignedUrl(storageKey);
@@ -365,7 +386,16 @@ export class AzureBlobInterviewStorage {
    */
   async exists(storageKey: string): Promise<boolean> {
     const blockBlobClient = this.containerClient.getBlockBlobClient(storageKey);
-    return await blockBlobClient.exists();
+    try {
+      await blockBlobClient.getProperties();
+      return true;
+    } catch (error) {
+      const err = error as Error;
+      if (err.message.includes('BlobNotFound') || err.message.includes('404')) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**
