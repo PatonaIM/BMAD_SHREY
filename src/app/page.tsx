@@ -8,6 +8,10 @@ import type { Metadata } from 'next';
 import { Hero } from '../components/Hero';
 import { ApplyButton } from '../components/ApplyButton';
 import { ScrollReveal } from '../components/scrollReveal';
+import {
+  BatchMatchProvider,
+  BatchJobMatchScore,
+} from '../components/BatchJobMatchScore';
 
 export const metadata: Metadata = {
   title: 'Teamified | Discover Open Roles',
@@ -326,50 +330,56 @@ export default async function HomePage({
           <h2 id="job-results-heading" className="text-xl font-semibold mb-4">
             {jobs.length ? `Open Roles (${total})` : 'No roles found'}
           </h2>
-          <ul className="grid gap-4 list-none p-0 m-0">
-            {jobs.map(job => {
-              const jobIdentifier = job.workableId || job._id;
-              return (
-                <li key={job._id} className="card p-4">
-                  <h3 className="text-lg font-medium mb-1">{job.title}</h3>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-                    <span>{job.company}</span>
-                    {job.location && <> • {job.location}</>}
-                    {job.employmentType && <> • {job.employmentType}</>}
-                    {job.experienceLevel && <> • {job.experienceLevel}</>}
-                  </p>
-                  {job.salary?.min && (
-                    <p className="text-xs mb-2">
-                      Salary: {job.salary.min}
-                      {job.salary.max && ` - ${job.salary.max}`}{' '}
-                      {job.salary.currency || 'USD'}
+          <BatchMatchProvider jobIds={jobs.map(j => j.workableId || j._id)}>
+            <ul className="grid gap-4 list-none p-0 m-0">
+              {jobs.map(job => {
+                const jobIdentifier = job.workableId || job._id;
+                return (
+                  <li key={job._id} className="card p-4">
+                    <h3 className="text-lg font-medium mb-1">{job.title}</h3>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
+                      <span>{job.company}</span>
+                      {job.location && <> • {job.location}</>}
+                      {job.employmentType && <> • {job.employmentType}</>}
+                      {job.experienceLevel && <> • {job.experienceLevel}</>}
                     </p>
-                  )}
-                  <p className="text-xs leading-relaxed mb-3">
-                    {job.description.slice(0, 180)}
-                    {job.description.length > 180 ? '…' : ''}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {job.skills.slice(0, 6).map(skill => (
-                      <span key={skill} className="badge">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <ApplyButton jobId={jobIdentifier} />
-                    <Link
-                      href={`/jobs/${jobIdentifier}`}
-                      className="btn-outline px-4 py-2 text-xs"
-                      prefetch
-                    >
-                      Details
-                    </Link>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    {job.salary?.min && (
+                      <p className="text-xs mb-2">
+                        Salary: {job.salary.min}
+                        {job.salary.max && ` - ${job.salary.max}`}{' '}
+                        {job.salary.currency || 'USD'}
+                      </p>
+                    )}
+                    <p className="text-xs leading-relaxed mb-3">
+                      {job.description.slice(0, 180)}
+                      {job.description.length > 180 ? '…' : ''}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {job.skills.slice(0, 6).map(skill => (
+                        <span key={skill} className="badge">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <BatchJobMatchScore
+                        jobId={jobIdentifier}
+                        jobTitle={job.title}
+                      />
+                      <ApplyButton jobId={jobIdentifier} />
+                      <Link
+                        href={`/jobs/${jobIdentifier}`}
+                        className="btn-outline px-4 py-2 text-xs"
+                        prefetch
+                      >
+                        Details
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </BatchMatchProvider>
           <div className="mt-6 flex items-center gap-4 flex-wrap">
             <p className="text-xs">
               Page {currentPage} of {totalPages}

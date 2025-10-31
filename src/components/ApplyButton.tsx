@@ -18,7 +18,35 @@ export function ApplyButton({
 }: ApplyButtonProps) {
   const { data: session, status } = useSession();
   const [open, setOpen] = React.useState(false);
+  const [hasApplied, setHasApplied] = React.useState(false);
+  const [checkingStatus, setCheckingStatus] = React.useState(true);
   const loading = status === 'loading';
+
+  // Check application status when user is authenticated
+  React.useEffect(() => {
+    if (!session) {
+      setCheckingStatus(false);
+      return;
+    }
+
+    async function checkApplicationStatus() {
+      try {
+        const response = await fetch(
+          `/api/applications/check?jobId=${encodeURIComponent(jobId)}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setHasApplied(data.applied);
+        }
+      } catch {
+        // Silent fail - just show apply button
+      } finally {
+        setCheckingStatus(false);
+      }
+    }
+
+    checkApplicationStatus();
+  }, [session, jobId]);
 
   const handleClick = () => {
     if (loading) return;
@@ -28,6 +56,28 @@ export function ApplyButton({
   };
 
   if (session) {
+    // Show loading state while checking
+    if (checkingStatus) {
+      return (
+        <div className={className.replace('btn-primary', 'btn-outline')}>
+          <span className="opacity-50">Checking...</span>
+        </div>
+      );
+    }
+
+    // Show applied status
+    if (hasApplied) {
+      return (
+        <div
+          className={className.replace('btn-primary', 'btn-outline')}
+          title="You have already applied to this job"
+        >
+          ✓ Applied
+        </div>
+      );
+    }
+
+    // Show apply button
     return (
       <Link
         href={`/jobs/${jobId}/apply`}

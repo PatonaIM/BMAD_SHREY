@@ -5,6 +5,7 @@ import { findUserByEmail } from '../../../data-access/repositories/userRepo';
 import { getExtractedProfile } from '../../../data-access/repositories/extractedProfileRepo';
 import { ProfileEditingService } from '../../../services/profile/profileEditingService';
 import { computeCompleteness } from '../../../services/profile/completenessScoring';
+import { matchScoreCache } from '../../../services/ai/matchScoreCache';
 import type {
   ApplyProfileChangesRequest,
   EditableProfile,
@@ -143,6 +144,14 @@ export async function PUT(req: NextRequest) {
 
     const applyRes = await service.applyEdits(body);
     if (!applyRes.ok) return json(applyRes, 400);
+
+    // Invalidate match score cache when profile is updated
+    const invalidatedCount = matchScoreCache.invalidateUser(user._id);
+    logger.info({
+      event: 'profile_updated_cache_invalidated',
+      userId: user._id,
+      cacheEntriesRemoved: invalidatedCount,
+    });
 
     let diff = null;
     if (includeDiff) {
