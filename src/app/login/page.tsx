@@ -101,7 +101,10 @@ export default function LoginPage(): React.ReactElement {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
           <div className="flex justify-between mt-1 text-xs">
-            <a href="/register" className="text-brand-primary hover:underline">
+            <a
+              href={`/register${params.get('redirect') ? `?redirect=${encodeURIComponent(params.get('redirect')!)}` : ''}`}
+              className="text-brand-primary hover:underline"
+            >
               Need an account? Register
             </a>
             <a

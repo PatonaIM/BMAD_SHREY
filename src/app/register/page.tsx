@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { trpc } from '../../services/trpc/client';
 
@@ -23,6 +23,7 @@ function scorePassword(pw: string): { score: number; label: string } {
 
 export default function RegisterPage(): React.ReactElement {
   const router = useRouter();
+  const params = useSearchParams();
   const registerMutation = trpc.auth.register.useMutation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,8 +55,9 @@ export default function RegisterPage(): React.ReactElement {
         });
 
         if (signInResult?.ok) {
-          // Successful login, redirect to dashboard
-          router.push('/dashboard');
+          // Successful login, redirect to intended destination or dashboard
+          const redirectTo = params.get('redirect') || '/dashboard';
+          router.push(redirectTo);
         } else {
           // Sign in failed, redirect to login page with message
           router.push('/login?registered=1');

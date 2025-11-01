@@ -126,7 +126,7 @@ export function ApplyButton({
                 Login
               </Link>
               <Link
-                href="/register"
+                href={`/register${redirectOnAuth ? `?redirect=/jobs/${jobId}/apply` : ''}`}
                 className="btn-outline px-4 py-2 text-xs font-medium flex-1 text-center"
               >
                 Sign Up
