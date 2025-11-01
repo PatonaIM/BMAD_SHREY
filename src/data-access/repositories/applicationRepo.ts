@@ -223,6 +223,12 @@ export class ApplicationRepository {
         appliedAt: a.appliedAt,
         lastEventStatus: lastEvent?.status,
         lastEventAt: lastEvent?.timestamp,
+        interviewStatus: a.interviewStatus,
+        interviewSessionId: a.interviewSessionId,
+        interviewScore: a.interviewScore,
+        interviewCompletedAt: a.interviewCompletedAt,
+        scoreBeforeInterview: a.scoreBeforeInterview,
+        scoreAfterInterview: a.scoreAfterInterview,
       };
     });
   }

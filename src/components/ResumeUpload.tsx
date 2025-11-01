@@ -196,11 +196,19 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
     abortRef.current?.abort();
   };
 
+  const handleClick = () => {
+    const input = document.getElementById('resumeFile') as HTMLInputElement;
+    if (input) {
+      input.click();
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-lg" aria-live="polite">
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onClick={handleClick}
         className="border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-md p-6 text-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
       >
         <input
@@ -210,12 +218,27 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
           id="resumeFile"
           onChange={onInputChange}
         />
-        <label
-          htmlFor="resumeFile"
-          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer"
-        >
-          Drag & drop your resume or click to select (PDF/DOC up to 10MB)
-        </label>
+        <div className="pointer-events-none">
+          <svg
+            className="w-12 h-12 mx-auto mb-3 text-neutral-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
+          </svg>
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+            Click to upload or drag and drop
+          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            PDF or DOC (up to 10MB)
+          </p>
+        </div>
       </div>
       {state.status !== 'idle' && (
         <div className="space-y-2">

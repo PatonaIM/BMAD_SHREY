@@ -11,8 +11,8 @@ import { computeCompleteness } from '../../services/profile/completenessScoring'
 import { ProfileEditingService } from '../../services/profile/profileEditingService';
 import { ProfileCompletenessCard } from '../../components/dashboard/ProfileCompletenessCard';
 import { QuickActionsWidget } from '../../components/dashboard/QuickActionsWidget';
-import { SkillsGapWidget } from '../../components/dashboard/SkillsGapWidget';
-import { MatchDistributionChart } from '../../components/dashboard/MatchDistributionChart';
+// import { SkillsGapWidget } from '../../components/dashboard/SkillsGapWidget';
+// import { MatchDistributionChart } from '../../components/dashboard/MatchDistributionChart';
 import Link from 'next/link';
 import type { EditableProfile } from '../../shared/types/profileEditing';
 
@@ -66,17 +66,17 @@ export default async function DashboardPage() {
     : null;
 
   // Calculate match distribution (placeholder - will be enhanced)
-  const matchDistribution = {
-    excellent: enriched.filter(app => app.matchScore && app.matchScore >= 85)
-      .length,
-    good: enriched.filter(
-      app => app.matchScore && app.matchScore >= 65 && app.matchScore < 85
-    ).length,
-    fair: enriched.filter(
-      app => app.matchScore && app.matchScore >= 40 && app.matchScore < 65
-    ).length,
-    poor: enriched.filter(app => app.matchScore && app.matchScore < 40).length,
-  };
+  // const matchDistribution = {
+  //   excellent: enriched.filter(app => app.matchScore && app.matchScore >= 85)
+  //     .length,
+  //   good: enriched.filter(
+  //     app => app.matchScore && app.matchScore >= 65 && app.matchScore < 85
+  //   ).length,
+  //   fair: enriched.filter(
+  //     app => app.matchScore && app.matchScore >= 40 && app.matchScore < 65
+  //   ).length,
+  //   poor: enriched.filter(app => app.matchScore && app.matchScore < 40).length,
+  // };
 
   // Calculate eligible interview count (60-85% match, not yet interviewed)
   const eligibleInterviewCount = enriched.filter(
@@ -94,6 +94,16 @@ export default async function DashboardPage() {
       app.matchScore >= 60 &&
       app.matchScore < 85 &&
       !app.lastEventStatus?.includes('interview')
+  );
+
+  // Calculate completed interview count
+  const completedInterviewCount = enriched.filter(
+    app => app.interviewStatus === 'completed'
+  ).length;
+
+  // Get first completed interview application
+  const firstCompletedInterviewApp = enriched.find(
+    app => app.interviewStatus === 'completed'
   );
 
   // Extract skills from profile for gap analysis (placeholder)
@@ -142,6 +152,8 @@ export default async function DashboardPage() {
           eligibleInterviewCount={eligibleInterviewCount}
           hasSkillGaps={missingSkills.length > 0}
           firstEligibleApplicationId={firstEligibleApp?._id.toString()}
+          completedInterviewCount={completedInterviewCount}
+          firstCompletedInterviewApplicationId={firstCompletedInterviewApp?._id.toString()}
         />
       </div>
 
@@ -204,6 +216,22 @@ export default async function DashboardPage() {
                     Match {app.matchScore}%
                   </span>
                 )}
+                {app.interviewStatus === 'completed' && app.interviewScore && (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 ring-purple-600/20">
+                    <svg
+                      className="w-3 h-3 mr-1"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Interview: {app.interviewScore}%
+                  </span>
+                )}
               </div>
               {app.lastEventStatus && (
                 <p className="mt-2 text-[10px] text-neutral-500">
@@ -211,13 +239,82 @@ export default async function DashboardPage() {
                   {app.lastEventAt?.toLocaleDateString()}
                 </p>
               )}
-              <div className="mt-3 flex gap-3">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Link
                   href={`/applications/${app._id}`}
                   className="btn-outline px-3 py-1.5 text-xs"
                 >
                   View Details
                 </Link>
+                {app.interviewStatus === 'completed' ? (
+                  <Link
+                    href={`/applications/${app._id}#interview`}
+                    className="btn-primary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                    View Interview
+                  </Link>
+                ) : app.interviewStatus === 'in_progress' ? (
+                  <Link
+                    href={`/interview/${app.interviewSessionId}`}
+                    className="btn-primary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                  >
+                    <svg
+                      className="w-3 h-3 animate-pulse"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Continue Interview
+                  </Link>
+                ) : (
+                  app.matchScore !== undefined &&
+                  app.matchScore >= 50 &&
+                  app.matchScore < 90 && (
+                    <Link
+                      href={`/applications/${app._id}#interview`}
+                      className="btn-secondary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                        />
+                      </svg>
+                      Take AI Interview
+                    </Link>
+                  )
+                )}
               </div>
             </div>
           ))}
@@ -225,13 +322,13 @@ export default async function DashboardPage() {
       </section>
 
       {/* Bottom Widgets Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SkillsGapWidget missingSkills={missingSkills} />
         <MatchDistributionChart
           distribution={matchDistribution}
           totalJobs={enriched.length}
         />
-      </div>
+      </div> */}
 
       {/* Available Jobs Section */}
       <section

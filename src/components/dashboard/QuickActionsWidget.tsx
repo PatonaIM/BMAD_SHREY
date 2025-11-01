@@ -18,6 +18,8 @@ interface QuickActionsWidgetProps {
   eligibleInterviewCount: number;
   hasSkillGaps: boolean;
   firstEligibleApplicationId?: string;
+  completedInterviewCount: number;
+  firstCompletedInterviewApplicationId?: string;
 }
 
 export function QuickActionsWidget({
@@ -26,6 +28,8 @@ export function QuickActionsWidget({
   eligibleInterviewCount,
   hasSkillGaps,
   firstEligibleApplicationId,
+  completedInterviewCount,
+  firstCompletedInterviewApplicationId,
 }: QuickActionsWidgetProps) {
   const actions: QuickAction[] = [
     {
@@ -55,7 +59,7 @@ export function QuickActionsWidget({
       id: 'upload-resume',
       title: 'Upload Your Resume',
       description: 'Get started by uploading your resume',
-      href: '/resume',
+      href: '/profile/resume',
       icon: (
         <svg
           className="w-5 h-5"
@@ -121,6 +125,31 @@ export function QuickActionsWidget({
       ),
       variant: 'secondary',
       show: hasSkillGaps,
+    },
+    {
+      id: 'completed-interviews',
+      title: 'View Completed Interviews',
+      description: `${completedInterviewCount} ${completedInterviewCount === 1 ? 'interview' : 'interviews'} completed`,
+      href: firstCompletedInterviewApplicationId
+        ? `/applications/${firstCompletedInterviewApplicationId}`
+        : '/dashboard#applications',
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      ),
+      variant: 'secondary',
+      show: completedInterviewCount > 0,
     },
   ];
 
