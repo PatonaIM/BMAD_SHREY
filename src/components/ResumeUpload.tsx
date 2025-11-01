@@ -3,13 +3,7 @@ import React, { useCallback, useRef, useState, useEffect } from 'react';
 
 interface UploadState {
   progress: number; // 0-100
-  status:
-    | 'idle'
-    | 'uploading'
-    | 'success'
-    | 'extracting'
-    | 'extraction_complete'
-    | 'error';
+  status: 'idle' | 'uploading' | 'extracting' | 'extraction_complete' | 'error';
   error?: string;
   versionId?: string;
   extractionDetails?: {
@@ -44,7 +38,8 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
 
   const startExtractionPolling = useCallback(
     (versionId: string) => {
-      setState(prev => ({ ...prev, status: 'extracting', progress: 100 }));
+      // Already in extracting state, just start polling
+      setState(prev => ({ ...prev, progress: 100 }));
 
       // Poll for extraction status
       pollingRef.current = setInterval(async () => {
@@ -88,6 +83,13 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
   const triggerExtraction = useCallback(
     async (versionId: string) => {
       try {
+        // Immediately show extracting state
+        setState({
+          progress: 95,
+          status: 'extracting',
+          versionId,
+        });
+
         const res = await fetch('/api/profile/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -159,14 +161,13 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
           });
           return;
         }
-        setState({
-          progress: 100,
-          status: 'success',
-          versionId: json.value.currentVersionId,
-        });
 
-        // Automatically trigger extraction after upload
-        await triggerExtraction(json.value.currentVersionId);
+        // Skip the "success" state and go directly to extraction
+        // This reduces the perceived delay
+        const versionId = json.value.currentVersionId;
+
+        // Immediately trigger extraction after upload
+        await triggerExtraction(versionId);
       } catch (e) {
         if ((e as { name?: string }).name === 'AbortError') {
           setState({ progress: 0, status: 'idle', error: 'Cancelled' });
@@ -268,31 +269,6 @@ export const ResumeUpload: React.FC<ResumeUploadProps> = ({
               >
                 Cancel
               </button>
-            </div>
-          )}
-          {state.status === 'success' && (
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg
-                    className="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <p className="text-green-600 dark:text-green-400 text-sm font-medium">
-                  Resume uploaded successfully!
-                </p>
-              </div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                Starting AI extraction...
-              </p>
             </div>
           )}
           {state.status === 'extracting' && (
