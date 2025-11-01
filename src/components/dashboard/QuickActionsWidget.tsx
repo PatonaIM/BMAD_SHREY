@@ -17,6 +17,7 @@ interface QuickActionsWidgetProps {
   hasResume: boolean;
   eligibleInterviewCount: number;
   hasSkillGaps: boolean;
+  firstEligibleApplicationId?: string;
 }
 
 export function QuickActionsWidget({
@@ -24,6 +25,7 @@ export function QuickActionsWidget({
   hasResume,
   eligibleInterviewCount,
   hasSkillGaps,
+  firstEligibleApplicationId,
 }: QuickActionsWidgetProps) {
   const actions: QuickAction[] = [
     {
@@ -76,7 +78,9 @@ export function QuickActionsWidget({
       id: 'ai-interview',
       title: 'Boost Your Applications',
       description: `${eligibleInterviewCount} ${eligibleInterviewCount === 1 ? 'application' : 'applications'} can be boosted`,
-      href: '/applications?filter=eligible-interview',
+      href: firstEligibleApplicationId
+        ? `/applications/${firstEligibleApplicationId}`
+        : '/dashboard#applications',
       icon: (
         <svg
           className="w-5 h-5"

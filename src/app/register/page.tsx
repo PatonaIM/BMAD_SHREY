@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { trpc } from '../../services/trpc/client';
 
 function scorePassword(pw: string): { score: number; label: string } {
@@ -45,7 +46,20 @@ export default function RegisterPage(): React.ReactElement {
     try {
       const res = await registerMutation.mutateAsync({ email, password });
       if (res.ok) {
-        router.push('/login?registered=1');
+        // Automatically sign in the user after successful registration
+        const signInResult = await signIn('credentials', {
+          email,
+          password,
+          redirect: false,
+        });
+
+        if (signInResult?.ok) {
+          // Successful login, redirect to dashboard
+          router.push('/dashboard');
+        } else {
+          // Sign in failed, redirect to login page with message
+          router.push('/login?registered=1');
+        }
       }
     } catch {
       /* error handled via mutation state */
@@ -143,7 +157,7 @@ export default function RegisterPage(): React.ReactElement {
           )}
           {registerMutation.isSuccess && registerMutation.data.ok && (
             <div className="text-xs rounded-md border border-green-300 bg-green-50 dark:bg-green-900/20 p-3 text-green-700 dark:text-green-300">
-              Account created. Redirecting...
+              Account created successfully! Signing you in...
             </div>
           )}
           <button

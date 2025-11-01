@@ -87,6 +87,15 @@ export default async function DashboardPage() {
       !app.lastEventStatus?.includes('interview')
   ).length;
 
+  // Get first eligible application for quick action link
+  const firstEligibleApp = enriched.find(
+    app =>
+      app.matchScore &&
+      app.matchScore >= 60 &&
+      app.matchScore < 85 &&
+      !app.lastEventStatus?.includes('interview')
+  );
+
   // Extract skills from profile for gap analysis (placeholder)
   const userSkills = new Set(
     (profile?.skills || []).map(s => s.name.toLowerCase())
@@ -132,6 +141,7 @@ export default async function DashboardPage() {
           hasResume={!!resume}
           eligibleInterviewCount={eligibleInterviewCount}
           hasSkillGaps={missingSkills.length > 0}
+          firstEligibleApplicationId={firstEligibleApp?._id.toString()}
         />
       </div>
 
