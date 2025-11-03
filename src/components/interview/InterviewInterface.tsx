@@ -11,6 +11,7 @@ import { AISpeakingAnimation } from './AISpeakingAnimation';
 import { InterviewStatus } from './InterviewStatus';
 import { CameraPermissionCheck } from './CameraPermissionCheck';
 import type { InterviewQuestion } from '../../shared/types/interview';
+import type { InterviewQAPair } from '../../shared/types/interview';
 
 interface InterviewInterfaceProps {
   sessionId: string;
@@ -23,6 +24,43 @@ type InterviewPhase =
   | 'interviewing'
   | 'ending'
   | 'complete';
+
+// Helper function to categorize questions based on content
+function categorizeQuestion(
+  questionText: string
+): 'technical' | 'behavioral' | 'experience' | 'situational' {
+  const lower = questionText.toLowerCase();
+
+  // Technical indicators
+  if (
+    /\b(code|programming|algorithm|data structure|api|database|framework|technology|debug|implement|optimize)\b/i.test(
+      lower
+    )
+  ) {
+    return 'technical';
+  }
+
+  // Behavioral indicators
+  if (
+    /\b(tell me about a time|describe a situation|how do you handle|what would you do if|conflict|challenge|feedback)\b/i.test(
+      lower
+    )
+  ) {
+    return 'behavioral';
+  }
+
+  // Experience indicators
+  if (
+    /\b(experience with|worked on|project|role|responsibility|previous|past|background)\b/i.test(
+      lower
+    )
+  ) {
+    return 'experience';
+  }
+
+  // Default to situational
+  return 'situational';
+}
 
 export function InterviewInterface({
   sessionId,
@@ -64,6 +102,17 @@ export function InterviewInterface({
 
   // Error handling
   const [error, setError] = useState<string | null>(null);
+
+  // Q&A Transcript tracking (NEW - EP3-S1)
+  const [qaTranscript, setQATranscript] = useState<InterviewQAPair[]>([]);
+  const currentQuestionRef = useRef<{
+    id: string;
+    question: string;
+    category: 'technical' | 'behavioral' | 'experience' | 'situational';
+    askedAt: Date;
+  } | null>(null);
+  const currentAnswerStartRef = useRef<Date | null>(null);
+  const answerTranscriptRef = useRef<string>('');
 
   // Manager refs
   const videoManagerRef = useRef<VideoRecordingManager | null>(null);
@@ -251,20 +300,87 @@ export function InterviewInterface({
             audioQueueRef.current.push(audioData);
             playAudioQueue();
             setAIAudioLevel(0.8);
+            setAISpeaking(true);
           },
           onAudioDone: () => {
             setAIAudioLevel(0);
+            setAISpeaking(false);
             // Animation stop is handled by playAudioQueue timing
           },
+          onAudioTranscriptDelta: (delta: string) => {
+            // Accumulate AI question transcript (streaming)
+            answerTranscriptRef.current += delta;
+          },
+          onAudioTranscriptDone: (transcript: string) => {
+            // AI finished speaking - this is likely a question
+            if (transcript && transcript.trim().length > 0) {
+              const questionText = transcript.trim();
+
+              // Detect if this is a question (ends with ?, or contains question words)
+              const isQuestion =
+                questionText.endsWith('?') ||
+                /\b(what|how|why|when|where|who|tell me|describe|explain|can you)\b/i.test(
+                  questionText
+                );
+
+              if (isQuestion && !currentQuestionRef.current) {
+                // New question detected - categorize it
+                const category = categorizeQuestion(questionText);
+
+                currentQuestionRef.current = {
+                  id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  question: questionText,
+                  category,
+                  askedAt: new Date(),
+                };
+              }
+            }
+            // Reset transcript accumulator
+            answerTranscriptRef.current = '';
+          },
           onInputAudioBufferSpeechStarted: () => {
-            // User started speaking - update timestamp
+            // User started speaking - update timestamp and mark answer start
             lastSpeechTimestampRef.current = Date.now();
             silenceWarningIssuedRef.current = false;
             setAISpeaking(false);
+
+            // Mark when candidate starts answering
+            if (currentQuestionRef.current && !currentAnswerStartRef.current) {
+              currentAnswerStartRef.current = new Date();
+            }
           },
           onInputAudioBufferSpeechStopped: () => {
-            // User stopped speaking - update timestamp
+            // User stopped speaking - this might be end of answer
             lastSpeechTimestampRef.current = Date.now();
+
+            // If we have a question and answer start time, save the Q&A pair
+            if (currentQuestionRef.current && currentAnswerStartRef.current) {
+              const answerEnd = new Date();
+              const answerDuration =
+                (answerEnd.getTime() -
+                  currentAnswerStartRef.current.getTime()) /
+                1000;
+
+              // Only save if answer duration is reasonable (>1 second)
+              if (answerDuration > 1) {
+                const qaPair: InterviewQAPair = {
+                  questionId: currentQuestionRef.current.id,
+                  question: currentQuestionRef.current.question,
+                  questionCategory: currentQuestionRef.current.category,
+                  questionAskedAt: currentQuestionRef.current.askedAt,
+                  answerText: '', // Will be populated by transcript later if available
+                  answerStartedAt: currentAnswerStartRef.current,
+                  answerEndedAt: answerEnd,
+                  answerDuration,
+                };
+
+                setQATranscript(prev => [...prev, qaPair]);
+
+                // Reset for next question
+                currentQuestionRef.current = null;
+                currentAnswerStartRef.current = null;
+              }
+            }
           },
           onFunctionCall: (functionName: string) => {
             // Handle function calls from AI
@@ -566,11 +682,15 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
             throw new Error('Failed to finalize recording');
           }
 
-          // Update scores in database
+          // Update scores and Q&A transcript in database
           await fetch('/api/interview/update-scores', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, scores }),
+            body: JSON.stringify({
+              sessionId,
+              scores,
+              qaTranscript,
+            }),
           });
 
           setError(null);

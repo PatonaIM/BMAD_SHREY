@@ -389,6 +389,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
               videoUrl={interviewSession.videoRecordingUrl}
               questions={interviewSession.questions || []}
               duration={(interviewSession.duration || 0) * 1000}
+              qaTranscript={interviewSession.qaTranscript}
+              interviewSummary={interviewSession.interviewSummary}
               className="w-full"
             />
           </div>

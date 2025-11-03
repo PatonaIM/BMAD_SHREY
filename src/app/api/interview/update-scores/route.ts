@@ -26,11 +26,12 @@ async function getSessionUserEmail(): Promise<string | null> {
 /**
  * POST /api/interview/update-scores
  *
- * Update interview session scores after completion
+ * Update interview session scores and Q&A transcript after completion
  *
  * Body:
  * - sessionId: string
  * - scores: { technical, communication, experience, overall, confidence }
+ * - qaTranscript?: InterviewQAPair[] (optional)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { sessionId, scores } = body;
+    const { sessionId, scores, qaTranscript } = body;
 
     if (!sessionId || !scores) {
       return json(
@@ -94,8 +95,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update scores
-    const success = await interviewSessionRepo.updateScores(sessionId, scores);
+    // Update scores and Q&A transcript
+    const updates: {
+      scores: typeof scores;
+      qaTranscript?: typeof qaTranscript;
+      metadata?: Partial<typeof session.metadata>;
+    } = { scores };
+
+    if (
+      qaTranscript &&
+      Array.isArray(qaTranscript) &&
+      qaTranscript.length > 0
+    ) {
+      updates.qaTranscript = qaTranscript;
+      updates.metadata = {
+        ...session.metadata,
+        transcriptAvailable: true,
+      };
+    }
+
+    const success = await interviewSessionRepo.updateScores(
+      sessionId,
+      updates.scores
+    );
 
     if (!success) {
       return json(
@@ -108,6 +130,21 @@ export async function POST(req: NextRequest) {
         },
         500
       );
+    }
+
+    // Update Q&A transcript if provided
+    if (updates.qaTranscript) {
+      const transcriptSuccess = await interviewSessionRepo.updateQATranscript(
+        sessionId,
+        updates.qaTranscript
+      );
+
+      if (!transcriptSuccess) {
+        logger.warn({
+          event: 'qa_transcript_update_failed',
+          sessionId,
+        });
+      }
     }
 
     // Update application with interview completion and score boost
@@ -125,11 +162,12 @@ export async function POST(req: NextRequest) {
       sessionId,
       userId: user._id,
       overall: scores.overall,
+      qaTranscriptLength: qaTranscript?.length || 0,
     });
 
     return json({
       ok: true,
-      value: { sessionId, scores },
+      value: { sessionId, scores, transcriptSaved: !!updates.qaTranscript },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

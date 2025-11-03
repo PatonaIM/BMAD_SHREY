@@ -243,6 +243,29 @@ export class InterviewSessionRepository {
   }
 
   /**
+   * Update Q&A transcript and metadata
+   */
+  async updateQATranscript(
+    sessionId: string,
+    qaTranscript: InterviewSession['qaTranscript']
+  ): Promise<boolean> {
+    return this.update(sessionId, {
+      qaTranscript,
+      metadata: { transcriptAvailable: true },
+    });
+  }
+
+  /**
+   * Update interview summary
+   */
+  async updateSummary(sessionId: string, summary: string): Promise<boolean> {
+    return this.update(sessionId, {
+      interviewSummary: summary,
+      summaryGeneratedAt: new Date(),
+    });
+  }
+
+  /**
    * Get list view of sessions (lighter payload)
    */
   async getSessionsList(
