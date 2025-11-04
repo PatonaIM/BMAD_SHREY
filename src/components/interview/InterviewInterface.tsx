@@ -133,6 +133,13 @@ export function InterviewInterface({
 
   // Coaching signals state (EP3-S4)
   const [coachingSignals, setCoachingSignals] = useState<CoachingSignal[]>([]);
+  const [geminiLogs, setGeminiLogs] = useState<
+    Array<{
+      timestamp: Date;
+      message: string;
+      type: 'info' | 'error' | 'signal';
+    }>
+  >([]);
 
   // Latency metrics state (EP3-S11)
   const [latencyMetrics, setLatencyMetrics] = useState({
@@ -654,6 +661,15 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
 
         // Initialize Gemini Live client for coaching signals (EP3-S4)
         try {
+          setGeminiLogs(prev => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              message: 'Initializing Gemini Live client...',
+              type: 'info',
+            },
+          ]);
+
           geminiClientRef.current = new GeminiLiveClient(
             {
               apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
@@ -661,12 +677,36 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
             {
               onSignalDetected: detection => {
                 setCoachingSignals(prev => [...prev, detection.signal]);
+                setGeminiLogs(prev => [
+                  ...prev,
+                  {
+                    timestamp: new Date(),
+                    message: `Signal detected: ${detection.signal.type} - ${detection.signal.message}`,
+                    type: 'signal',
+                  },
+                ]);
               },
-              onError: () => {
-                // Gemini error - will fall back to heuristics
+              onError: err => {
+                setGeminiLogs(prev => [
+                  ...prev,
+                  {
+                    timestamp: new Date(),
+                    message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+                    type: 'error',
+                  },
+                ]);
               },
             }
           );
+
+          setGeminiLogs(prev => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              message: 'Gemini Live client initialized successfully',
+              type: 'info',
+            },
+          ]);
 
           // Track latency metrics
           const updateLatencyMetrics = () => {
@@ -794,9 +834,32 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
       // Connect Gemini Live client for coaching signals (EP3-S4)
       if (geminiClientRef.current) {
         try {
+          setGeminiLogs(prev => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              message: `Connecting Gemini Live for session ${sessionId}...`,
+              type: 'info',
+            },
+          ]);
           await geminiClientRef.current.connect(sessionId);
-        } catch {
-          // Gemini connection failed - using heuristics
+          setGeminiLogs(prev => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              message: 'Gemini Live connected successfully',
+              type: 'info',
+            },
+          ]);
+        } catch (err) {
+          setGeminiLogs(prev => [
+            ...prev,
+            {
+              timestamp: new Date(),
+              message: `Connection failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+              type: 'error',
+            },
+          ]);
         }
       }
 
@@ -1029,8 +1092,8 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
   // Keyboard shortcuts (EP3-S11)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Alt+L: Toggle latency metrics panel
-      if (e.ctrlKey && e.altKey && e.key === 'l') {
+      // Ctrl+Alt+L (Windows/Linux) or Cmd+Option+L (Mac): Toggle latency metrics panel
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === 'l') {
         e.preventDefault();
         setShowLatencyMetrics(prev => !prev);
       }
@@ -1434,7 +1497,7 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           )}
         </div>
 
-        {/* Right Column: AI Interviewer + Voice Selector */}
+        {/* Right Column: AI Interviewer + Voice Selector + Gemini Debug */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 gap-4">
           {/* Voice Selector (EP3-S11) - Only shown in ready phase */}
           {phase === 'ready' && showVoiceSelector && (
@@ -1471,6 +1534,57 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
                     ? 'Speaking...'
                     : 'Listening...'}
               </p>
+            </div>
+          </div>
+
+          {/* Gemini Debug Panel - Always Visible */}
+          <div className="h-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-white">
+                  Gemini Live Monitor
+                </h3>
+                <span className="text-xs text-white/80">
+                  ({geminiLogs.length} events)
+                </span>
+              </div>
+            </div>
+
+            {/* Logs */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {geminiLogs.length === 0 ? (
+                <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                  No Gemini events yet...
+                </div>
+              ) : (
+                geminiLogs.slice(-50).map((log, index) => (
+                  <div
+                    key={index}
+                    className={`text-xs p-2 rounded border ${
+                      log.type === 'error'
+                        ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
+                        : log.type === 'signal'
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+                          : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">
+                        {log.timestamp.toLocaleTimeString()}
+                      </span>
+                      <span className="flex-1">{log.message}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
