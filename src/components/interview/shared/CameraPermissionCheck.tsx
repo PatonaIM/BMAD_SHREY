@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { VideoRecordingManager } from '../../services/media/videoRecordingManager';
+import { VideoRecordingManager } from '../../../services/media/videoRecordingManager';
 
 interface CameraPermissionCheckProps {
   onPermissionsGranted: (_stream: MediaStream) => void;
