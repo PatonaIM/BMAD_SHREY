@@ -16,6 +16,8 @@ import { InterviewLauncher } from '../../../components/interview/InterviewLaunch
 import { InterviewPlayer } from '../../../components/interview/InterviewPlayer';
 import { ScoreComparisonCard } from '../../../components/application/ScoreComparisonCard';
 import { InterviewCompletionBadge } from '../../../components/application/InterviewCompletionBadge';
+import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
+import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -377,6 +379,23 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* AI Interview CTA/Status Section (EP3-S10) */}
+      <AIInterviewCTA
+        applicationId={app._id.toString()}
+        matchScore={matchScore || 0}
+        interviewStatus={app.interviewStatus}
+        className="mb-6"
+      />
+      <InterviewStatusCard
+        interviewStatus={app.interviewStatus || 'not_started'}
+        interviewSessionId={app.interviewSessionId}
+        interviewCompletedAt={app.interviewCompletedAt}
+        scoreBeforeInterview={app.scoreBeforeInterview}
+        scoreAfterInterview={app.scoreAfterInterview}
+        interviewScore={app.interviewScore}
+        className="mb-6"
+      />
 
       {/* Interview Recording Player */}
       {app.interviewStatus === 'completed' &&

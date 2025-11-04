@@ -232,6 +232,45 @@ export class ApplicationRepository {
       };
     });
   }
+
+  /**
+   * Get top matching applications for a user (EP3-S10)
+   * Filters for match score >50% and sorts by score descending
+   */
+  async findTopMatches(
+    userId: string,
+    limit = 5
+  ): Promise<
+    Array<{
+      _id: string;
+      jobTitle: string;
+      jobCompany: string;
+      matchScore: number;
+      appliedAt: Date;
+      status: ApplicationStatus;
+      interviewStatus?: 'not_started' | 'in_progress' | 'completed';
+    }>
+  > {
+    const collection = await this.getCollection();
+    const applications = await collection
+      .find({
+        userId,
+        matchScore: { $gt: 50, $exists: true },
+      })
+      .sort({ matchScore: -1 })
+      .limit(limit)
+      .toArray();
+
+    return applications.map(app => ({
+      _id: app._id,
+      jobTitle: app.jobTitle,
+      jobCompany: app.jobCompany,
+      matchScore: app.matchScore!,
+      appliedAt: app.appliedAt,
+      status: app.status,
+      interviewStatus: app.interviewStatus || 'not_started',
+    }));
+  }
 }
 
 export const applicationRepo = new ApplicationRepository();
