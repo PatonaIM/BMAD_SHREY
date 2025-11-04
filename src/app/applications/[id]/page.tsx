@@ -372,7 +372,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
                   )}
               </p>
               <InterviewLauncher
-                jobId={app.jobId}
+                jobId={app.jobId.toString()}
                 applicationId={app._id.toString()}
               />
             </div>
@@ -383,6 +383,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       {/* AI Interview CTA/Status Section (EP3-S10) */}
       <AIInterviewCTA
         applicationId={app._id.toString()}
+        jobId={app.jobId.toString()}
         matchScore={matchScore || 0}
         interviewStatus={app.interviewStatus}
         className="mb-6"

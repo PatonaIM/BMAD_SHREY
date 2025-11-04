@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { InterviewLauncher } from './interview/InterviewLauncher';
 
 interface AIInterviewCTAProps {
   applicationId: string;
+  jobId: string;
   matchScore: number;
   interviewStatus?: 'not_started' | 'in_progress' | 'completed';
   className?: string;
@@ -12,6 +13,7 @@ interface AIInterviewCTAProps {
 
 export const AIInterviewCTA: React.FC<AIInterviewCTAProps> = ({
   applicationId,
+  jobId,
   matchScore,
   interviewStatus = 'not_started',
   className = '',
@@ -146,31 +148,13 @@ export const AIInterviewCTA: React.FC<AIInterviewCTAProps> = ({
 
           {/* CTA Button */}
           <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/interview/start?applicationId=${applicationId}`}
-              className="btn-primary px-6 py-3 text-sm font-medium inline-flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              Start AI Interview Now
-            </Link>
+            <InterviewLauncher
+              jobId={jobId}
+              applicationId={applicationId}
+              matchScore={matchScore}
+              hasExistingInterview={false}
+              className="shadow-lg hover:shadow-xl transition-all"
+            />
             <button
               type="button"
               className="btn-outline px-6 py-3 text-sm font-medium"
