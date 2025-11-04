@@ -5,17 +5,18 @@ import { useRouter } from 'next/navigation';
 import { VideoRecordingManager } from '../../services/media/videoRecordingManager';
 import { AudioProcessor } from '../../services/media/audioProcessor';
 import { RealtimeWebSocketManager } from '../../services/ai/realtimeWebSocket';
-import { VideoPreview } from './VideoPreview';
-import { AudioVisualizer } from './AudioVisualizer';
-import { AISpeakingAnimation } from './AISpeakingAnimation';
-import { InterviewStatus } from './InterviewStatus';
-import { CameraPermissionCheck } from './CameraPermissionCheck';
+import { VideoPreview } from './shared/VideoPreview';
+import { AudioVisualizer } from './shared/AudioVisualizer';
+import { AISpeakingAnimation } from './shared/AISpeakingAnimation';
+import { InterviewStatus } from './shared/InterviewStatus';
+import { CameraPermissionCheck } from './shared/CameraPermissionCheck';
 import { InterviewResultsModal } from './InterviewResultsModal';
 import { InterviewTranscript } from './InterviewTranscript';
 import { VoiceSelector } from './VoiceSelector';
 import { TurnTakingIndicator } from './TurnTakingIndicator';
 import { LatencyMetricsPanel } from './LatencyMetricsPanel';
 import { CoachingSignalDisplay } from './CoachingSignals';
+import { categorizeQuestion } from '../../services/interview/questionCategorizer';
 import type { InterviewQuestion } from '../../shared/types/interview';
 import type { InterviewQAPair } from '../../shared/types/interview';
 import type {
@@ -42,43 +43,6 @@ type InterviewPhase =
   | 'interviewing'
   | 'ending'
   | 'complete';
-
-// Helper function to categorize questions based on content
-function categorizeQuestion(
-  questionText: string
-): 'technical' | 'behavioral' | 'experience' | 'situational' {
-  const lower = questionText.toLowerCase();
-
-  // Technical indicators
-  if (
-    /\b(code|programming|algorithm|data structure|api|database|framework|technology|debug|implement|optimize)\b/i.test(
-      lower
-    )
-  ) {
-    return 'technical';
-  }
-
-  // Behavioral indicators
-  if (
-    /\b(tell me about a time|describe a situation|how do you handle|what would you do if|conflict|challenge|feedback)\b/i.test(
-      lower
-    )
-  ) {
-    return 'behavioral';
-  }
-
-  // Experience indicators
-  if (
-    /\b(experience with|worked on|project|role|responsibility|previous|past|background)\b/i.test(
-      lower
-    )
-  ) {
-    return 'experience';
-  }
-
-  // Default to situational
-  return 'situational';
-}
 
 export function InterviewInterface({
   sessionId,

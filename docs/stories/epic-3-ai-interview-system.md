@@ -1551,3 +1551,86 @@ So that I can focus on answering naturally while trusting system stability and q
 - Scoring integration will consume `window.__interviewAnalytics` aggregates (EP3-S5)
 - Recruiter transcript view depends on stable transcript (EP3-S8)
 - Application score boost UI benefits from latency & reliability metrics (EP3-S7)
+
+---
+
+## EP3-S12: Split-Panel Interview Interface Refactor (NEW - Major Refactoring)
+
+**Status:** 📋 Planned  
+**Story File:** [ep3-s12-split-panel-interview-refactor.md](./ep3-s12-split-panel-interview-refactor.md)  
+**Effort:** 8 Story Points  
+**Dependencies:** EP3-S15 (Component Extraction - should be done first)
+
+As a developer maintaining the interview system,
+I want a clean split-panel architecture separating AI interview from helper coaching,
+So that the codebase is maintainabile, debuggable, and extensible for future enhancements.
+
+### Key Changes
+
+**Problem:** Current `InterviewInterface.tsx` is 1730 lines mixing multiple concerns
+
+**Solution:** Split into clean architecture:
+
+- **Left Panel (60%):** AI Interview (ChatGPT Realtime) - conversation interface
+- **Right Panel (40%):** Interview Helper (Gemini 2.0 Live) - silent text coaching
+- **Orchestrator:** `InterviewContainer` coordinates shared state
+
+**Removed Features (Scope Reduction):**
+
+- ❌ Live transcript rendering (still captured for post-interview)
+- ❌ Voice selector UI (default to 'alloy', backend configurable)
+- ❌ Turn-taking indicator (simplified to AI speaking animation only)
+- ❌ Latency metrics panel (moved to dev tools)
+
+---
+
+## EP3-S13: Canvas Recording Implementation (NEW - Recording Enhancement)
+
+**Status:** 📋 Planned  
+**Story File:** [ep3-s13-canvas-recording-implementation.md](./ep3-s13-canvas-recording-implementation.md)  
+**Effort:** 5 Story Points  
+**Dependencies:** EP3-S12 (Split Panel Architecture)
+
+As a recruiter reviewing interview recordings,
+I want to see the entire interview interface including questions, coaching signals, and candidate video,
+So that I get complete context of the interview session beyond just the candidate's camera feed.
+
+---
+
+## EP3-S14: Gemini 2.0 Live Text-Only Coaching Integration (NEW - Coaching Enhancement)
+
+**Status:** 📋 Planned  
+**Story File:** [ep3-s14-gemini-text-only-coach.md](./ep3-s14-gemini-text-only-coach.md)  
+**Effort:** 5 Story Points  
+**Dependencies:** EP3-S12 (Split Panel Architecture)
+
+As a job candidate taking an AI interview,
+I want real-time coaching guidance displayed as text suggestions,
+So that I can improve my responses without disrupting the conversation flow.
+
+---
+
+## EP3-S15: Extract & Refactor Reusable Interview Components (NEW - Foundation)
+
+**Status:** 📋 Planned (Should be done FIRST)  
+**Story File:** [ep3-s15-extract-reusable-components.md](./ep3-s15-extract-reusable-components.md)  
+**Effort:** 3 Story Points  
+**Dependencies:** None (foundational work)
+
+As a developer working on the interview refactor,
+I want key components extracted and made reusable,
+So that I can build the new split-panel architecture on a solid foundation without duplicating code.
+
+---
+
+## Epic 3 Refactoring Roadmap
+
+### Recommended Sequence
+
+**Phase 1: Foundation (Week 1)**
+
+1. **EP3-S15** - Extract reusable components
+
+**Phase 2: Architecture Refactor (Week 2-3)** 2. **EP3-S12** - Split-panel interface refactor
+
+**Phase 3: Enhanced Features (Week 4-5)** 3. **EP3-S14** - Gemini text-only coaching (parallel track) 4. **EP3-S13** - Canvas recording (parallel track)
