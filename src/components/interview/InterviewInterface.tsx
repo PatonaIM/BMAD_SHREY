@@ -10,8 +10,13 @@ import { AudioVisualizer } from './AudioVisualizer';
 import { AISpeakingAnimation } from './AISpeakingAnimation';
 import { InterviewStatus } from './InterviewStatus';
 import { CameraPermissionCheck } from './CameraPermissionCheck';
+import { InterviewResultsModal } from './InterviewResultsModal';
 import type { InterviewQuestion } from '../../shared/types/interview';
 import type { InterviewQAPair } from '../../shared/types/interview';
+import type {
+  InterviewScores,
+  ScoringFeedback,
+} from '../../services/ai/interviewScoring';
 
 interface InterviewInterfaceProps {
   sessionId: string;
@@ -99,6 +104,24 @@ export function InterviewInterface({
     overall: number;
     confidence: number;
   } | null>(null);
+
+  // Results modal state (NEW - EP3-S5)
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [calculatedScores, setCalculatedScores] =
+    useState<InterviewScores | null>(null);
+  const [scoringFeedback, setScoringFeedback] =
+    useState<ScoringFeedback | null>(null);
+  const [scoreBoost, setScoreBoost] = useState<number | undefined>(undefined);
+  const [scoreBeforeInterview, setScoreBeforeInterview] = useState<
+    number | undefined
+  >(undefined);
+  const [scoreAfterInterview, setScoreAfterInterview] = useState<
+    number | undefined
+  >(undefined);
+  const [applicationId, setApplicationId] = useState<string | undefined>(
+    undefined
+  );
+  const [isCalculatingScores, setIsCalculatingScores] = useState(false);
 
   // Error handling
   const [error, setError] = useState<string | null>(null);
@@ -694,6 +717,39 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           });
 
           setError(null);
+
+          // Calculate AI-powered interview scores (NEW - EP3-S5)
+          setIsCalculatingScores(true);
+          setError('Analyzing your interview performance...');
+
+          try {
+            const scoringResponse = await fetch(
+              `/api/interview/calculate-scores?sessionId=${sessionId}&applyBoost=true`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              }
+            );
+
+            if (scoringResponse.ok) {
+              const scoringData = await scoringResponse.json();
+              setCalculatedScores(scoringData.scores);
+              setScoringFeedback(scoringData.feedback);
+              setScoreBoost(scoringData.scoreBoost);
+              setScoreBeforeInterview(scoringData.scoreBeforeInterview);
+              setScoreAfterInterview(scoringData.scoreAfterInterview);
+              setApplicationId(scoringData.applicationId);
+              setError(null);
+            } else {
+              // Failed to calculate scores, log error but don't block UI
+              setError(null);
+            }
+          } catch {
+            // Error calculating scores, log error but don't block UI
+            setError(null);
+          } finally {
+            setIsCalculatingScores(false);
+          }
         }
       }
 
@@ -713,10 +769,15 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
 
       setPhase('complete');
 
-      // Redirect after short delay
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 3000);
+      // Show results modal if we have calculated scores
+      if (calculatedScores && scoringFeedback) {
+        setShowResultsModal(true);
+      } else {
+        // Redirect after short delay if no scores
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 3000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to end interview');
     }
@@ -769,6 +830,50 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
   }
 
   if (phase === 'complete') {
+    // Show analyzing message while calculating scores
+    if (isCalculatingScores) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
+          <div className="text-center max-w-md animate-in fade-in zoom-in duration-700">
+            {/* Animated Loading Icon */}
+            <div className="relative mb-8 inline-block">
+              <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-2xl animate-pulse" />
+              <svg
+                className="h-28 w-28 text-blue-400 mx-auto relative z-10 drop-shadow-2xl animate-spin"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-4xl font-bold text-white mb-4 animate-in slide-in-from-bottom duration-500">
+              Analyzing Interview 🤖
+            </h2>
+            <p className="text-xl text-blue-200 mb-8 animate-in slide-in-from-bottom duration-500 delay-100">
+              Our AI is evaluating your performance...
+            </p>
+            <p className="text-sm text-blue-300 animate-pulse">
+              This may take a moment
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-green-900 to-gray-900 flex items-center justify-center p-4">
         <div className="text-center max-w-md animate-in fade-in zoom-in duration-700">
@@ -1068,6 +1173,30 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           </div>
         </div>
       </div>
+
+      {/* Interview Results Modal (NEW - EP3-S5) */}
+      {calculatedScores && scoringFeedback && (
+        <InterviewResultsModal
+          open={showResultsModal}
+          onClose={() => {
+            setShowResultsModal(false);
+            router.push('/dashboard');
+          }}
+          scores={calculatedScores}
+          feedback={scoringFeedback}
+          scoreBoost={scoreBoost}
+          scoreBeforeInterview={scoreBeforeInterview}
+          scoreAfterInterview={scoreAfterInterview}
+          applicationId={applicationId}
+          onViewApplication={() => {
+            if (applicationId) {
+              router.push(`/applications/${applicationId}`);
+            } else {
+              router.push('/dashboard');
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
