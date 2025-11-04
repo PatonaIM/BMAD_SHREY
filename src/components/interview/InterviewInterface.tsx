@@ -11,12 +11,25 @@ import { AISpeakingAnimation } from './AISpeakingAnimation';
 import { InterviewStatus } from './InterviewStatus';
 import { CameraPermissionCheck } from './CameraPermissionCheck';
 import { InterviewResultsModal } from './InterviewResultsModal';
+import { InterviewTranscript } from './InterviewTranscript';
+import { VoiceSelector } from './VoiceSelector';
+import { TurnTakingIndicator } from './TurnTakingIndicator';
+import { LatencyMetricsPanel } from './LatencyMetricsPanel';
+import { CoachingSignalDisplay } from './CoachingSignals';
 import type { InterviewQuestion } from '../../shared/types/interview';
 import type { InterviewQAPair } from '../../shared/types/interview';
 import type {
   InterviewScores,
   ScoringFeedback,
 } from '../../services/ai/interviewScoring';
+import type { CoachingSignal } from './CoachingSignals';
+import { GeminiLiveClient } from '../../services/ai/geminiLiveClient';
+import {
+  evaluateResponse,
+  adjustDifficultyTier,
+  type DifficultyTierState,
+} from '../../services/interview/difficultyTierEngine';
+import { ProviderMaskingMonitor } from '../../services/interview/providerMaskingFilter';
 
 interface InterviewInterfaceProps {
   sessionId: string;
@@ -76,6 +89,12 @@ export function InterviewInterface({
   // Phase management
   const [phase, setPhase] = useState<InterviewPhase>('setup');
 
+  // Voice selection (EP3-S11)
+  const [selectedVoice, setSelectedVoice] = useState<
+    'alloy' | 'echo' | 'shimmer'
+  >('alloy');
+  const [showVoiceSelector, setShowVoiceSelector] = useState(true);
+
   // Media state
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [cameraEnabled, setCameraEnabled] = useState(true);
@@ -95,6 +114,42 @@ export function InterviewInterface({
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'disconnected' | 'recording' | 'paused'
   >('connecting');
+
+  // Turn-taking state (EP3-S11)
+  const [turnState, setTurnState] = useState<
+    'ai-speaking' | 'listening' | 'user-speaking'
+  >('listening');
+
+  // Transcript state (EP3-S11)
+  const [transcriptItems, setTranscriptItems] = useState<
+    Array<{
+      id: string;
+      speaker: 'ai' | 'user';
+      text: string;
+      timestamp: Date;
+      isFinal: boolean;
+    }>
+  >([]);
+
+  // Coaching signals state (EP3-S4)
+  const [coachingSignals, setCoachingSignals] = useState<CoachingSignal[]>([]);
+
+  // Latency metrics state (EP3-S11)
+  const [latencyMetrics, setLatencyMetrics] = useState({
+    openai: { average: 0, current: 0, reconnects: 0 },
+    gemini: { average: 0, current: 0, reconnects: 0 },
+  });
+  const [showLatencyMetrics, setShowLatencyMetrics] = useState(false);
+
+  // Adaptive interview state (EP3-S4)
+  const [difficultyState, setDifficultyState] = useState<DifficultyTierState>({
+    currentTier: 1,
+    recentEvaluations: [],
+    tierHistory: [],
+    totalEscalations: 0,
+    totalDowngrades: 0,
+  });
+  const [providerMaskingMonitor] = useState(() => new ProviderMaskingMonitor());
 
   // Scoring state
   const [localScores, setLocalScores] = useState<{
@@ -141,6 +196,7 @@ export function InterviewInterface({
   const videoManagerRef = useRef<VideoRecordingManager | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const websocketManagerRef = useRef<RealtimeWebSocketManager | null>(null);
+  const geminiClientRef = useRef<GeminiLiveClient | null>(null); // EP3-S4
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const aiAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(
@@ -157,6 +213,12 @@ export function InterviewInterface({
 
   // Interview state ref for callbacks
   const isInterviewingRef = useRef<boolean>(false);
+
+  // Transcript streaming refs (EP3-S11)
+  const currentAITranscriptIdRef = useRef<string | null>(null);
+  const currentUserTranscriptIdRef = useRef<string | null>(null);
+  const aiTranscriptBufferRef = useRef<string>('');
+  const userTranscriptBufferRef = useRef<string>('');
 
   // Streaming upload refs
   const uploadedBlockIds = useRef<string[]>([]);
@@ -324,14 +386,62 @@ export function InterviewInterface({
             playAudioQueue();
             setAIAudioLevel(0.8);
             setAISpeaking(true);
+
+            // Update turn-taking state (EP3-S11)
+            setTurnState('ai-speaking');
           },
           onAudioDone: () => {
             setAIAudioLevel(0);
             setAISpeaking(false);
-            // Animation stop is handled by playAudioQueue timing
+
+            // Update turn-taking state (EP3-S11)
+            setTurnState('listening');
+
+            // Finalize AI transcript item (EP3-S11)
+            if (
+              currentAITranscriptIdRef.current &&
+              aiTranscriptBufferRef.current
+            ) {
+              setTranscriptItems(prev =>
+                prev.map(item =>
+                  item.id === currentAITranscriptIdRef.current
+                    ? { ...item, isFinal: true }
+                    : item
+                )
+              );
+              currentAITranscriptIdRef.current = null;
+              aiTranscriptBufferRef.current = '';
+            }
           },
           onAudioTranscriptDelta: (delta: string) => {
-            // Accumulate AI question transcript (streaming)
+            // Accumulate AI transcript (streaming) - EP3-S11
+            aiTranscriptBufferRef.current += delta;
+
+            // Create or update streaming transcript item
+            if (!currentAITranscriptIdRef.current) {
+              const id = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              currentAITranscriptIdRef.current = id;
+              setTranscriptItems(prev => [
+                ...prev,
+                {
+                  id,
+                  speaker: 'ai',
+                  text: aiTranscriptBufferRef.current,
+                  timestamp: new Date(),
+                  isFinal: false,
+                },
+              ]);
+            } else {
+              setTranscriptItems(prev =>
+                prev.map(item =>
+                  item.id === currentAITranscriptIdRef.current
+                    ? { ...item, text: aiTranscriptBufferRef.current }
+                    : item
+                )
+              );
+            }
+
+            // Also accumulate for Q&A tracking (legacy)
             answerTranscriptRef.current += delta;
           },
           onAudioTranscriptDone: (transcript: string) => {
@@ -357,6 +467,16 @@ export function InterviewInterface({
                   askedAt: new Date(),
                 };
               }
+
+              // Apply provider masking (EP3-S4)
+              const maskingResult =
+                providerMaskingMonitor.checkResponse(questionText);
+              if (!maskingResult.passed && maskingResult.violation) {
+                // Violation detected - could be logged to monitoring service
+                setError(
+                  `Provider mention detected: ${maskingResult.violation.violationType}`
+                );
+              }
             }
             // Reset transcript accumulator
             answerTranscriptRef.current = '';
@@ -367,6 +487,24 @@ export function InterviewInterface({
             silenceWarningIssuedRef.current = false;
             setAISpeaking(false);
 
+            // Update turn-taking state (EP3-S11)
+            setTurnState('user-speaking');
+
+            // Create new user transcript item (EP3-S11)
+            const id = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            currentUserTranscriptIdRef.current = id;
+            userTranscriptBufferRef.current = '';
+            setTranscriptItems(prev => [
+              ...prev,
+              {
+                id,
+                speaker: 'user',
+                text: '',
+                timestamp: new Date(),
+                isFinal: false,
+              },
+            ]);
+
             // Mark when candidate starts answering
             if (currentQuestionRef.current && !currentAnswerStartRef.current) {
               currentAnswerStartRef.current = new Date();
@@ -375,6 +513,51 @@ export function InterviewInterface({
           onInputAudioBufferSpeechStopped: () => {
             // User stopped speaking - this might be end of answer
             lastSpeechTimestampRef.current = Date.now();
+
+            // Update turn-taking state (EP3-S11)
+            setTurnState('listening');
+
+            // Finalize user transcript item (EP3-S11)
+            if (currentUserTranscriptIdRef.current) {
+              setTranscriptItems(prev =>
+                prev.map(item =>
+                  item.id === currentUserTranscriptIdRef.current
+                    ? { ...item, isFinal: true }
+                    : item
+                )
+              );
+
+              // Evaluate response for difficulty adjustment (EP3-S4)
+              // TODO: Integrate transcript analysis for accurate clarity/correctness/confidence metrics
+              if (userTranscriptBufferRef.current.trim()) {
+                // Placeholder values - in production, analyze transcript for real metrics
+                const wordCount =
+                  userTranscriptBufferRef.current.split(/\s+/).length;
+                const clarity = wordCount > 20 && wordCount < 300 ? 0.7 : 0.5; // Well-sized answer
+                const correctness = 0.7; // Would need domain-specific analysis
+                const confidence = 0.7; // Would need speech pattern analysis
+
+                const evaluation = evaluateResponse(
+                  clarity,
+                  correctness,
+                  confidence
+                );
+                const newDifficultyState = adjustDifficultyTier(
+                  difficultyState,
+                  evaluation
+                );
+
+                if (
+                  newDifficultyState.currentTier !== difficultyState.currentTier
+                ) {
+                  setDifficultyState(newDifficultyState);
+                  // Difficulty tier changed - could log to analytics
+                }
+              }
+
+              currentUserTranscriptIdRef.current = null;
+              userTranscriptBufferRef.current = '';
+            }
 
             // If we have a question and answer start time, save the Q&A pair
             if (currentQuestionRef.current && currentAnswerStartRef.current) {
@@ -391,7 +574,7 @@ export function InterviewInterface({
                   question: currentQuestionRef.current.question,
                   questionCategory: currentQuestionRef.current.category,
                   questionAskedAt: currentQuestionRef.current.askedAt,
-                  answerText: '', // Will be populated by transcript later if available
+                  answerText: userTranscriptBufferRef.current, // Use accumulated transcript
                   answerStartedAt: currentAnswerStartRef.current,
                   answerEndedAt: answerEnd,
                   answerDuration,
@@ -445,7 +628,7 @@ QUESTION MIX:
 AFTER 5-7 MIN: "Thanks for your time today. That's all I need. Great talking with you!"
 
 CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", immediately respond: "Understood. Ending interview now. Thank you!" then call the end_interview function.`,
-          voice: 'alloy',
+          voice: selectedVoice,
           inputAudioFormat: 'pcm16',
           outputAudioFormat: 'pcm16',
           turnDetection: {
@@ -468,6 +651,43 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
             },
           ],
         });
+
+        // Initialize Gemini Live client for coaching signals (EP3-S4)
+        try {
+          geminiClientRef.current = new GeminiLiveClient(
+            {
+              apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
+            },
+            {
+              onSignalDetected: detection => {
+                setCoachingSignals(prev => [...prev, detection.signal]);
+              },
+              onError: () => {
+                // Gemini error - will fall back to heuristics
+              },
+            }
+          );
+
+          // Track latency metrics
+          const updateLatencyMetrics = () => {
+            if (geminiClientRef.current && websocketManagerRef.current) {
+              const geminiMetrics = geminiClientRef.current.getLatencyMetrics();
+              setLatencyMetrics(prev => ({
+                openai: prev.openai, // TODO: Get from websocketManager
+                gemini: {
+                  average: geminiMetrics.averageLatencyMs,
+                  current: geminiMetrics.maxLatencyMs,
+                  reconnects: 0,
+                },
+              }));
+            }
+          };
+
+          // Update metrics every 2 seconds during interview
+          setInterval(updateLatencyMetrics, 2000);
+        } catch {
+          // Failed to initialize Gemini Live - will use heuristics
+        }
 
         setConnectionStatus('connected');
         setPhase('ready');
@@ -570,6 +790,15 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
 
       // Initialize speech timestamp
       lastSpeechTimestampRef.current = Date.now();
+
+      // Connect Gemini Live client for coaching signals (EP3-S4)
+      if (geminiClientRef.current) {
+        try {
+          await geminiClientRef.current.connect(sessionId);
+        } catch {
+          // Gemini connection failed - using heuristics
+        }
+      }
 
       // Trigger AI to start with greeting
       if (websocketManagerRef.current) {
@@ -791,9 +1020,24 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
         clearInterval(inactivityCheckIntervalRef.current);
       if (audioProcessorRef.current) audioProcessorRef.current.stop();
       if (websocketManagerRef.current) websocketManagerRef.current.disconnect();
+      if (geminiClientRef.current) geminiClientRef.current.disconnect();
       if (videoManagerRef.current) videoManagerRef.current.release();
       if (audioContextRef.current) audioContextRef.current.close();
     };
+  }, []);
+
+  // Keyboard shortcuts (EP3-S11)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Alt+L: Toggle latency metrics panel
+      if (e.ctrlKey && e.altKey && e.key === 'l') {
+        e.preventDefault();
+        setShowLatencyMetrics(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Toggle camera
@@ -1125,32 +1369,90 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
 
       {/* Main Interview Interface */}
       <div className="flex-1 flex flex-col md:flex-row gap-6 p-6 overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900">
-        {/* Candidate Video */}
-        <div className="flex-1 relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 bg-black min-h-0 min-w-0">
-          <VideoPreview
-            stream={mediaStream}
-            isReady={phase === 'ready' || phase === 'interviewing'}
-            onToggleCamera={handleToggleCamera}
-            onToggleMicrophone={handleToggleMicrophone}
-            cameraEnabled={cameraEnabled}
-            microphoneEnabled={microphoneEnabled}
-          />
+        {/* Left Column: Candidate Video + Transcript */}
+        <div className="flex-1 flex flex-col gap-4 min-h-0 min-w-0">
+          {/* Candidate Video */}
+          <div className="flex-1 relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 bg-black min-h-0">
+            <VideoPreview
+              stream={mediaStream}
+              isReady={phase === 'ready' || phase === 'interviewing'}
+              onToggleCamera={handleToggleCamera}
+              onToggleMicrophone={handleToggleMicrophone}
+              cameraEnabled={cameraEnabled}
+              microphoneEnabled={microphoneEnabled}
+            />
 
-          {/* Audio Indicator - Bottom Right */}
-          <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg">
-            <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse" />
-            <div className="w-16">
-              <AudioVisualizer
-                audioLevel={userAudioLevel}
-                isActive={microphoneEnabled && isRecording}
-                height={20}
+            {/* Audio Indicator - Bottom Right */}
+            <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg">
+              <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse" />
+              <div className="w-16">
+                <AudioVisualizer
+                  audioLevel={userAudioLevel}
+                  isActive={microphoneEnabled && isRecording}
+                  height={20}
+                />
+              </div>
+            </div>
+
+            {/* Turn-Taking Indicator - Bottom Left (EP3-S11) */}
+            {phase === 'interviewing' && (
+              <div className="absolute bottom-4 left-4">
+                <TurnTakingIndicator state={turnState} />
+              </div>
+            )}
+
+            {/* Coaching Signals - Top Right (EP3-S4) */}
+            {phase === 'interviewing' && coachingSignals.length > 0 && (
+              <div className="absolute top-4 right-4 max-w-xs space-y-2">
+                {coachingSignals.slice(-3).map((signal, index) => (
+                  <CoachingSignalDisplay
+                    key={`${signal.type}-${signal.timestamp.getTime()}-${index}`}
+                    signal={signal}
+                    onDismiss={() => {
+                      setCoachingSignals(prev =>
+                        prev.filter(
+                          (_, i) => i !== coachingSignals.length - 3 + index
+                        )
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Transcript Panel (EP3-S11) */}
+          {phase === 'interviewing' && (
+            <div className="h-48 rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+              <InterviewTranscript
+                segments={transcriptItems.map(item => ({
+                  ...item,
+                  isPartial: !item.isFinal,
+                }))}
               />
             </div>
-          </div>
+          )}
         </div>
 
-        {/* AI Interviewer */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Right Column: AI Interviewer + Voice Selector */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 gap-4">
+          {/* Voice Selector (EP3-S11) - Only shown in ready phase */}
+          {phase === 'ready' && showVoiceSelector && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Choose AI Voice
+              </h3>
+              <VoiceSelector
+                selectedVoice={selectedVoice}
+                onVoiceChange={voice => {
+                  setSelectedVoice(voice);
+                  setShowVoiceSelector(false);
+                }}
+              />
+            </div>
+          )}
+
+          {/* AI Interviewer */}
           <div className="flex-1 bg-gradient-to-br from-[#A16AE8]/10 to-[#8096FD]/10 dark:from-[#A16AE8]/20 dark:to-[#8096FD]/20 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg flex flex-col items-center justify-center p-8 overflow-hidden">
             <AISpeakingAnimation
               isSpeaking={aiSpeaking}
@@ -1173,6 +1475,27 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           </div>
         </div>
       </div>
+
+      {/* Latency Metrics Panel - Dev Only (EP3-S11) */}
+      {showLatencyMetrics && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <LatencyMetricsPanel
+            metrics={{
+              lastResponseLatency: latencyMetrics.openai.current || null,
+              averageResponseLatency: latencyMetrics.openai.average,
+              minResponseLatency: 0,
+              maxResponseLatency: latencyMetrics.openai.current,
+              totalResponses: 0,
+              audioChunkCount: 0,
+              audioChunkLatencies: [],
+              connectionUptime: elapsedSeconds,
+              reconnectCount: latencyMetrics.openai.reconnects,
+            }}
+            isVisible={true}
+            onClose={() => setShowLatencyMetrics(false)}
+          />
+        </div>
+      )}
 
       {/* Interview Results Modal (NEW - EP3-S5) */}
       {calculatedScores && scoringFeedback && (

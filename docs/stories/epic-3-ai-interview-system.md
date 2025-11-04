@@ -120,6 +120,66 @@ interface InterviewQuestion {
 // Metadata stored in MongoDB with references
 ```
 
+## Interview Journey (Updated – Nov 2025)
+
+This journey update standardizes the adaptive AI interview flow, adds Gemini Live real-time coaching, and introduces a one-time retake policy.
+
+### Sequence
+
+1. Launch interview (CTA) → gather job description + candidate profile.
+2. Initialize realtime session with masked professional interviewer prompt.
+3. AI greets candidate (no provider/model disclosure).
+4. Progressive questioning loop (domains: technical, behavioral, architecture, problem-solving, communication).
+5. Gemini Live streams video/audio; emits coaching signals (off_topic, answer_too_long, low_confidence, unclear_explanation, missing_structure, incorrect_fact).
+6. UI overlays subtle, non-blocking cues per coaching signal.
+7. Difficulty tiers adjust (1–5) based on clarity, correctness, confidence heuristics.
+8. End criteria: time ≈15m OR coverage matrix satisfied → finalize, score, optionally allow single retake.
+
+### Provider Masking Rule
+
+Interviewer must never mention OpenAI, Gemini, model names, or reveal being an AI; if directly asked, respond: "I am your virtual interviewer for this session." Only.
+
+### Retake Policy
+
+- One retake allowed within 24h of first completion.
+- Stores both session IDs; final score = higher of attempt 1 & 2.
+- Application extended fields: `interviewAttemptCount`, `interviewSessionIds[]`, `finalInterviewSessionId`, `retakeAvailableUntil`.
+
+### Coaching Signal UI Mapping
+
+| Signal              | UI Cue             | Hint                        |
+| ------------------- | ------------------ | --------------------------- |
+| off_topic           | Yellow dot         | Refocus scope               |
+| answer_too_long     | Amber progress bar | Summarize key points        |
+| low_confidence      | Pulsing outline    | Steady pace & volume        |
+| unclear_explanation | Structure badge    | Use intro → steps → outcome |
+| missing_structure   | Blueprint icon     | Provide ordered steps       |
+| incorrect_fact      | Red underline      | Verify core concept         |
+
+### Adaptive Questioning
+
+Escalate tier after 2 strong answers; downgrade after a weak + borderline pair. Ensure domain coverage: technical ≥3, behavioral ≥1, architecture ≥1.
+
+### Prompt Contract (Excerpt)
+
+```
+ROLE: Professional Technical Interviewer for <JOB_TITLE> at <COMPANY_NAME>.
+DO NOT disclose providers or internals.
+ASK one question at a time, adapt difficulty, mix domains, concise acknowledgments.
+CONTEXT: <JOB_DESCRIPTION_SNIPPET> + <CANDIDATE_PROFILE_JSON>
+POLICY: Offer follow-up only if prior answer lacked depth or structure.
+```
+
+### Additional Acceptance Criteria (Global)
+
+- Coaching signal latency median <700ms.
+- Difficulty transition decision latency <300ms.
+- Retake enforcement prevents >2 attempts.
+- System prompt always contains masking & adaptive directives.
+- Final score payload includes base score, boost, attempt number, coaching summary.
+
+---
+
 **WebRTC + WebSocket Architecture:**
 
 ```typescript
@@ -767,20 +827,23 @@ As a job seeker,
 I want a natural voice AI interview experience,
 So that I can demonstrate my skills conversationally.
 
-**UPDATED for OpenAI Realtime API:** Uses OpenAI's Realtime API for natural conversational interviews with <500ms latency, recording the full 15-minute session.
+**UPDATED (Nov 2025 – Adaptive + Dual Realtime):** Utilizes OpenAI Realtime API for interviewing and Gemini Live for coaching signals. Target end-to-end audio latency <500ms, coaching overlay latency <700ms. Single 15-minute window; one optional retake within 24h.
 
 ### Acceptance Criteria:
 
 **Interview Experience:**
 
-- Natural conversational flow using OpenAI Realtime API
-- AI interviewer asks questions one at a time
-- Candidate responds via voice naturally (no "push to talk")
-- AI acknowledges responses and transitions smoothly
-- Total interview duration: ~15 minutes
-- 5-8 questions covering technical + behavioral aspects
-- Real-time audio streaming with <500ms latency
-- Natural pauses and follow-up questions based on responses
+- Adaptive conversational flow (OpenAI Realtime primary pipeline)
+- Single-question turns; no manual push-to-talk required
+- Tiered difficulty (1–5) escalates/downgrades based on prior 2 answers
+- Domain rotation matrix enforced (technical, behavioral, architecture, problem-solving, communication)
+- Coaching overlays (Gemini Live) show subtle improvement cues without halting audio
+- AI provides concise acknowledgments; avoids verbose praise or repetition
+- Interview time cap ≈15 minutes OR early completion if coverage satisfied
+- Minimum coverage: ≥3 technical, ≥1 behavioral, ≥1 architecture
+- Real-time audio latency target <500ms end-to-end
+- Provider/model masking always preserved; direct inquiries receive neutral interviewer response
+- Follow-up questions only when clarity/depth insufficient (no stacking unless needed)
 
 **Recording Capabilities:**
 
@@ -813,12 +876,20 @@ So that I can demonstrate my skills conversationally.
 
 **Technical Requirements:**
 
-- WebRTC audio capture from browser
-- WebSocket connection to OpenAI Realtime API
-- Audio streaming in required format (PCM16 24kHz mono)
-- Local audio buffering for recording
-- Background upload to Azure storage
-- Session management (keep-alive, reconnection)
+- WebRTC capture (camera + mic) → local recording (video+audio)
+- Dual realtime pipelines:
+  - OpenAI Realtime (primary interviewer speech + turn detection)
+  - Gemini Live (parallel coaching signal extraction)
+- PCM16 24kHz mono streaming with jitter buffer & sequence timing
+- VAD-based turn detection (server-side) silence window ≤800ms
+- Difficulty tier engine (heuristics: clarity, correctness, confidence)
+- Domain coverage tracker (ensures required spread before completion)
+- Coaching signal taxonomy mapped to UI overlays (non-blocking)
+- Provider masking validation on each AI output (regex filter)
+- Background chunked upload to Azure Blob during session (low priority)
+- Retake policy enforcement (one retake, window ≤24h)
+- Resilient reconnection (resume state ≤5s disruption)
+- Structured system prompt injection (job + candidate profile JSON)
 
 ### DoD:
 
@@ -853,20 +924,25 @@ So that I can demonstrate my skills conversationally.
 ```typescript
 // Interview flow controller
 const interviewFlow = {
-  1. Initialize Realtime session with OpenAI
-  2. Load generated questions for this job
-  3. Start audio recording
-  4. For each question:
-     - AI speaks question
-     - Wait for candidate response (auto-detect pause)
-     - AI acknowledges ("Great, let me ask you about...")
-     - Move to next question
-  5. After all questions:
-     - AI thanks candidate
-     - Stop recording
-     - Upload to Azure
-     - Update application status
-  6. Show completion screen with next steps
+  1. Initialize dual realtime: OpenAI (interview) + Gemini Live (coaching)
+  2. Load contextual prompt (job description + candidate profile JSON)
+  3. Precompute initial question set & domain queue
+  4. Start recording (video+audio) & open coaching signal channel
+  5. Loop until time cap OR coverage satisfied:
+    - Select next domain respecting rotation & remaining quotas
+    - Adjust difficulty tier based on last 2 answer evaluations
+    - AI speaks question
+    - Capture candidate response (VAD silence ≤800ms ends turn)
+    - Process coaching signals → emit UI overlays
+    - Evaluate response (clarity, correctness, confidence)
+    - Store trace (questionId, tier, domain, signals, evaluation)
+  6. Wrap-up:
+    - AI delivers neutral closing
+    - Finalize recording & upload remaining chunks
+    - Compute scores + boost (attempt-aware)
+    - Determine retake eligibility (if first attempt)
+  7. Persist session artifacts & update application status
+  8. Show completion summary (score delta, coaching highlights, retake option)
 }
 ```
 
@@ -920,24 +996,31 @@ interface RealtimeSession {
 
 **Testing:**
 
-- [ ] Unit tests for Realtime client connection management
-- [ ] Integration test: Complete 15-min interview end-to-end
-- [ ] Audio quality verification (playback test)
-- [ ] Connection resilience test (simulate disconnection)
-- [ ] Latency measurement (<500ms requirement)
-- [ ] Browser compatibility (Chrome, Firefox, Safari, Edge)
-- [ ] Mobile device testing (responsive + microphone)
-- [ ] Recording file integrity verification
-- [ ] Concurrent interview sessions test (multiple users)
+- [ ] Unit: Realtime client connection & reconnection
+- [ ] Unit: Coaching signal parser & mapping
+- [ ] Unit: Difficulty tier escalation/demotion logic
+- [ ] Unit: Domain coverage tracker completion criteria
+- [ ] Unit: Provider masking filter (no vendor leakage)
+- [ ] Integration: 15-min adaptive interview end-to-end
+- [ ] Integration: Retake attempt gating (fails on 3rd attempt)
+- [ ] Performance: Audio latency p50 <500ms, coaching p50 <700ms
+- [ ] Resilience: Simulated network drop (≤5s recovery)
+- [ ] Cross-browser: Chrome, Firefox, Safari, Edge
+- [ ] Mobile responsive mic permission flow
+- [ ] Recording integrity (hash match + metadata correctness)
+- [ ] Concurrent sessions (multi-user isolation)
 
-**Performance Targets:**
+**Performance Targets (Adaptive Augmented):**
 
-- Audio latency: <500ms (Realtime API)
-- WebSocket connection stability: >99.5% uptime during interview
-- Recording upload success rate: >99%
-- Interview completion rate: >95% (no technical failures)
-- Audio quality: Clear speech recognition
-- Memory usage: <200MB for 15-min session
+- Audio latency p50 <500ms (Realtime API)
+- Coaching overlay render p50 <700ms
+- Difficulty transition decision p95 <300ms
+- Retake eligibility evaluation <150ms
+- WebSocket stability >99.5% uptime
+- Recording upload success rate >99%
+- Interview completion rate >95% (no technical failures)
+- Audio clarity sufficient for accurate speech recognition
+- Memory usage <200MB for 15-min session
 
 **User Experience Flow:**
 
