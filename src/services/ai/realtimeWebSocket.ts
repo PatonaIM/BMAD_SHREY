@@ -76,6 +76,10 @@ export interface RealtimeEventHandlers {
   onInputAudioBufferSpeechStopped?: () => void;
   onInputAudioBufferCommitted?: () => void;
 
+  // User transcript events (when inputAudioTranscription is enabled)
+  onUserTranscriptDelta?: (_delta: string) => void;
+  onUserTranscriptDone?: (_transcript: string) => void;
+
   // Function call events
   onFunctionCall?: (_functionName: string, _arguments: string) => void;
 
@@ -425,8 +429,51 @@ export class RealtimeWebSocketManager {
         }
         break;
 
+      case 'conversation.item.input_audio_transcription.delta':
+        // User transcript streaming
+        if (event.delta && typeof event.delta === 'string') {
+          this.handlers.onUserTranscriptDelta?.(event.delta);
+        }
+        break;
+
+      case 'conversation.item.input_audio_transcription.completed':
+        // User transcript completed
+        if (event.transcript && typeof event.transcript === 'string') {
+          this.handlers.onUserTranscriptDone?.(event.transcript);
+        }
+        break;
+
       case 'conversation.item.created':
         this.handlers.onConversationItemCreated?.(event);
+        // Check if this is a user input with transcript
+        if (
+          event.item &&
+          typeof event.item === 'object' &&
+          'type' in event.item &&
+          event.item.type === 'message' &&
+          'role' in event.item &&
+          event.item.role === 'user' &&
+          'content' in event.item &&
+          Array.isArray(event.item.content)
+        ) {
+          // Look for input_audio content with transcript
+          const audioContent = event.item.content.find(
+            (c: unknown) =>
+              typeof c === 'object' &&
+              c !== null &&
+              'type' in c &&
+              c.type === 'input_audio' &&
+              'transcript' in c
+          );
+          if (
+            audioContent &&
+            typeof audioContent === 'object' &&
+            'transcript' in audioContent &&
+            typeof audioContent.transcript === 'string'
+          ) {
+            this.handlers.onUserTranscriptDone?.(audioContent.transcript);
+          }
+        }
         break;
 
       case 'response.created':

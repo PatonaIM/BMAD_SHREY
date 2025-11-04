@@ -65,8 +65,11 @@ export function InterviewTranscriptViewer({
     for (let i = filteredTranscript.length - 1; i >= 0; i--) {
       const qa = filteredTranscript[i];
       if (!qa) continue;
-      const qaStartTime =
-        new Date(qa.questionAskedAt).getTime() / 1000 - currentTime;
+      const dateObj =
+        typeof qa.questionAskedAt === 'string'
+          ? new Date(qa.questionAskedAt)
+          : qa.questionAskedAt;
+      const qaStartTime = dateObj.getTime() / 1000 - currentTime;
       if (currentTime >= qaStartTime) {
         return i;
       }
@@ -74,9 +77,11 @@ export function InterviewTranscriptViewer({
     return -1;
   }, [filteredTranscript, currentTime]);
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
+    // Convert to Date object if string
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
     // Convert to seconds from start of interview
-    const seconds = Math.floor(date.getTime() / 1000);
+    const seconds = Math.floor(dateObj.getTime() / 1000);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -93,7 +98,11 @@ export function InterviewTranscriptViewer({
 
   const handleJumpToQuestion = (qa: InterviewQAPair) => {
     if (onSeek) {
-      const timeInSeconds = new Date(qa.questionAskedAt).getTime() / 1000;
+      const dateObj =
+        typeof qa.questionAskedAt === 'string'
+          ? new Date(qa.questionAskedAt)
+          : qa.questionAskedAt;
+      const timeInSeconds = dateObj.getTime() / 1000;
       onSeek(timeInSeconds);
     }
   };

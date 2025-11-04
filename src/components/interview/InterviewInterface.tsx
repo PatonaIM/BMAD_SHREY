@@ -448,6 +448,16 @@ export function InterviewInterface({
               );
             }
 
+            // Send AI transcript to Gemini Live for context (EP3-S4)
+            if (geminiClientRef.current) {
+              geminiClientRef.current.sendTranscriptionDelta({
+                text: delta,
+                speaker: 'ai',
+                timestamp: new Date(),
+                isPartial: true,
+              });
+            }
+
             // Also accumulate for Q&A tracking (legacy)
             answerTranscriptRef.current += delta;
           },
@@ -488,6 +498,65 @@ export function InterviewInterface({
             // Reset transcript accumulator
             answerTranscriptRef.current = '';
           },
+          onUserTranscriptDelta: (delta: string) => {
+            // Stream user transcript in real-time (EP3-S11 + EP3-S4)
+            userTranscriptBufferRef.current += delta;
+
+            // Update the current user transcript item
+            if (currentUserTranscriptIdRef.current) {
+              setTranscriptItems(prev =>
+                prev.map(item =>
+                  item.id === currentUserTranscriptIdRef.current
+                    ? { ...item, text: userTranscriptBufferRef.current }
+                    : item
+                )
+              );
+
+              // Send streaming transcript to Gemini Live for real-time analysis
+              if (geminiClientRef.current) {
+                geminiClientRef.current.sendTranscriptionDelta({
+                  text: delta,
+                  speaker: 'user',
+                  timestamp: new Date(),
+                  isPartial: true,
+                });
+              }
+            }
+          },
+          onUserTranscriptDone: (transcript: string) => {
+            // User transcript completed - finalize and send to Gemini
+            if (currentUserTranscriptIdRef.current && transcript.trim()) {
+              userTranscriptBufferRef.current = transcript;
+
+              // Update the current user transcript item with final text
+              setTranscriptItems(prev =>
+                prev.map(item =>
+                  item.id === currentUserTranscriptIdRef.current
+                    ? { ...item, text: transcript, isFinal: false }
+                    : item
+                )
+              );
+
+              // Send final transcript to Gemini Live for coaching analysis (EP3-S4)
+              if (geminiClientRef.current) {
+                geminiClientRef.current.sendTranscriptionDelta({
+                  text: transcript,
+                  speaker: 'user',
+                  timestamp: new Date(),
+                  isPartial: false,
+                });
+
+                setGeminiLogs(prev => [
+                  ...prev,
+                  {
+                    timestamp: new Date(),
+                    message: `User transcript completed (${transcript.split(/\s+/).length} words)`,
+                    type: 'info',
+                  },
+                ]);
+              }
+            }
+          },
           onInputAudioBufferSpeechStarted: () => {
             // User started speaking - update timestamp and mark answer start
             lastSpeechTimestampRef.current = Date.now();
@@ -509,6 +578,16 @@ export function InterviewInterface({
                 text: '',
                 timestamp: new Date(),
                 isFinal: false,
+              },
+            ]);
+
+            // Log speech start to Gemini (EP3-S4)
+            setGeminiLogs(prev => [
+              ...prev,
+              {
+                timestamp: new Date(),
+                message: 'User started speaking',
+                type: 'info',
               },
             ]);
 
@@ -638,6 +717,9 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           voice: selectedVoice,
           inputAudioFormat: 'pcm16',
           outputAudioFormat: 'pcm16',
+          inputAudioTranscription: {
+            model: 'whisper-1',
+          },
           turnDetection: {
             type: 'server_vad',
             threshold: 0.5,
@@ -882,14 +964,23 @@ CRITICAL: If candidate says "end interview", "stop", "I'm done", or "finish", im
           // 45 seconds of silence - end interview
           endInterview();
         } else if (silenceDuration > 25 && !silenceWarningIssuedRef.current) {
-          // 25 seconds - warn user
+          // 25 seconds - warn user (only if AI is not currently speaking)
           silenceWarningIssuedRef.current = true;
-          if (websocketManagerRef.current) {
+          if (websocketManagerRef.current && !aiSpeaking) {
             websocketManagerRef.current.updateSession({
               instructions:
                 'The candidate has been quiet for a while. Gently ask if they need clarification or if everything is okay.',
             });
-            websocketManagerRef.current.createResponse();
+            // Only create response if AI is idle
+            try {
+              websocketManagerRef.current.createResponse();
+            } catch (err) {
+              // Ignore error if response already in progress
+              if (process.env.NODE_ENV === 'development') {
+                // eslint-disable-next-line no-console
+                console.log('Could not create silence warning response:', err);
+              }
+            }
           }
         }
       }, 5000);
