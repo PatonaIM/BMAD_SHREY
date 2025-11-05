@@ -244,6 +244,9 @@ Successfully implemented ReadyPlayerMe avatar integration with Three.js in the r
 10. Created comprehensive test suite covering all major functionality
 11. Added testing library dependencies for React component testing
 12. Updated realtimeInterview.ts to detect OpenAI Realtime API `response.audio.delta` and `response.audio.done` events from data channel to control `aiSpeaking` state instead of relying on custom `ai.state` events
+13. Added comprehensive logging for `aiSpeaking` state changes in both realtimeInterview.ts and AIAvatarCanvas component for debugging lip-sync issues
+14. Enhanced lighting setup with brighter ambient (0.8), directional (1.2), and additional point lights for better avatar visibility
+15. Repositioned avatar to show seated upper body view (scale 2.0, position [0, -0.8, 0]) instead of full standing body
 
 ### Debug Log References
 

@@ -19,6 +19,8 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [localReady, setLocalReady] = useState(false);
+  const [remoteAudioStream, setRemoteAudioStream] =
+    useState<MediaStream | null>(null);
 
   useEffect(() => {
     applyLegacyTheme();
@@ -111,6 +113,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
             <InterviewerPanel
               phase={phase}
               isSpeaking={controller.state.aiSpeaking ?? false}
+              audioStream={remoteAudioStream}
             />
 
             {/* Bottom: Live Feedback Panel */}
@@ -119,7 +122,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
         </div>
       </div>
 
-      <RemoteAIAudioPlayer />
+      <RemoteAIAudioPlayer onStreamReady={setRemoteAudioStream} />
     </div>
   );
 };
@@ -255,7 +258,9 @@ const CandidatePanel: React.FC<{ phase: string }> = ({ phase }) => {
 };
 
 // Hidden audio element that plays remote AI audio when stream becomes available
-const RemoteAIAudioPlayer: React.FC = () => {
+const RemoteAIAudioPlayer: React.FC<{
+  onStreamReady?: (_stream: MediaStream) => void;
+}> = ({ onStreamReady }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [trackDiagnostic, setTrackDiagnostic] = useState<string>('');
   const [needsManualUnmute, setNeedsManualUnmute] = useState(false);
@@ -285,6 +290,11 @@ const RemoteAIAudioPlayer: React.FC = () => {
         .__interviewV2RemoteStream;
       if (remote && audioRef.current && audioRef.current.srcObject !== remote) {
         audioRef.current.srcObject = remote;
+
+        // Notify parent component about stream availability
+        if (onStreamReady) {
+          onStreamReady(remote);
+        }
 
         // Diagnostic: check audio tracks
         const audioTracks = remote.getAudioTracks();
@@ -357,7 +367,7 @@ const RemoteAIAudioPlayer: React.FC = () => {
     window.addEventListener('interview:remote_stream_ready', attach);
     return () =>
       window.removeEventListener('interview:remote_stream_ready', attach);
-  }, []);
+  }, [onStreamReady]);
 
   return (
     <>
@@ -595,14 +605,15 @@ const DiagnosticsModal: React.FC<{
 };
 
 // Interviewer Panel (Top half of right column)
-const InterviewerPanel: React.FC<{ phase: string; isSpeaking: boolean }> = ({
-  phase,
-  isSpeaking,
-}) => {
+const InterviewerPanel: React.FC<{
+  phase: string;
+  isSpeaking: boolean;
+  audioStream?: MediaStream | null;
+}> = ({ phase, isSpeaking, audioStream }) => {
   return (
     <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
       {/* 3D Avatar Canvas */}
-      <AIAvatarCanvas isSpeaking={isSpeaking} />
+      <AIAvatarCanvas isSpeaking={isSpeaking} audioStream={audioStream} />
 
       {/* Label overlay */}
       <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10 pointer-events-none z-10">

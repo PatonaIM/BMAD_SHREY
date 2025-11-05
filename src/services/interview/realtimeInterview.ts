@@ -182,30 +182,43 @@ export async function startRealtimeInterview(
 
         // Handle OpenAI Realtime API audio events for aiSpeaking state
         if (parsed && parsed.type) {
-          // AI starts speaking when audio generation begins
-          if (
-            parsed.type === 'response.audio.delta' ||
-            parsed.type === 'response.audio_transcript.delta'
-          ) {
-            const evtState: Partial<RealtimeSessionState> = {
-              aiSpeaking: true,
-              lastEventTs: Date.now(),
-            };
-            current = { ...current, ...evtState };
-            update(evtState);
+          // AI starts speaking when audio playback begins
+          // Only update if state actually changes to avoid spam
+          if (parsed.type === 'output_audio_buffer.started') {
+            if (!current.aiSpeaking) {
+              // eslint-disable-next-line no-console
+              console.log(
+                '[AI SPEAKING] 🎤 AI started speaking - event:',
+                parsed.type,
+                'timestamp:',
+                new Date().toISOString()
+              );
+              const evtState: Partial<RealtimeSessionState> = {
+                aiSpeaking: true,
+                lastEventTs: Date.now(),
+              };
+              current = { ...current, ...evtState };
+              update(evtState);
+            }
           }
 
-          // AI stops speaking when audio generation completes
-          if (
-            parsed.type === 'response.audio.done' ||
-            parsed.type === 'response.done'
-          ) {
-            const evtState: Partial<RealtimeSessionState> = {
-              aiSpeaking: false,
-              lastEventTs: Date.now(),
-            };
-            current = { ...current, ...evtState };
-            update(evtState);
+          // AI stops speaking when audio buffer playback actually stops
+          if (parsed.type === 'output_audio_buffer.stopped') {
+            if (current.aiSpeaking) {
+              // eslint-disable-next-line no-console
+              console.log(
+                '[AI SPEAKING] 🔇 AI stopped speaking - event:',
+                parsed.type,
+                'timestamp:',
+                new Date().toISOString()
+              );
+              const evtState: Partial<RealtimeSessionState> = {
+                aiSpeaking: false,
+                lastEventTs: Date.now(),
+              };
+              current = { ...current, ...evtState };
+              update(evtState);
+            }
           }
 
           // Log function-related events for debugging
