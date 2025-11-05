@@ -44,6 +44,13 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
       }
+      // Expose stream globally for subsequent realtime initialization (EP5-S2)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__interviewV2LocalStream = stream;
+      } catch {
+        /* no-op */
+      }
       cleanupAudioRef.current = setupAudioLevelMeter(stream, lvl =>
         setAudioLevel(lvl)
       );

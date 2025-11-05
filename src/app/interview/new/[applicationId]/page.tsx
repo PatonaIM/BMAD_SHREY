@@ -5,6 +5,7 @@ import { applicationRepo } from '../../../../data-access/repositories/applicatio
 import { getEnv } from '../../../../config/env';
 import Link from 'next/link';
 import { DevicePermissionGate } from '../../../../components/interview/v2/DevicePermissionGate';
+import { RealtimeSessionBootstrap } from '../../../../components/interview/v2/RealtimeSessionBootstrap';
 
 interface PageProps {
   params: Promise<{ applicationId: string }>;
@@ -58,13 +59,16 @@ export default async function InterviewV2Page({ params }: PageProps) {
         <h2 className="text-lg font-semibold">Environment & Readiness</h2>
         {/* EP5-S1 Permission & Device Gate */}
         <DevicePermissionGate applicationId={applicationId} className="mb-4" />
-        {/* Future: listen for 'interview:permissions_ready' in a client wrapper to bootstrap session */}
+        {/* EP5-S2 Realtime session bootstrap (initiates after permissions) */}
+        <RealtimeSessionBootstrap applicationId={applicationId} />
         <ul className="list-disc pl-5 text-sm space-y-1">
           <li>Device & permission checks (camera, microphone) – TODO</li>
           <li>
             Network diagnostics (latency, jitter, TURN reachability) – TODO
           </li>
-          <li>WebRTC peer connection establishment & signaling – TODO</li>
+          <li>
+            WebRTC peer connection establishment & signaling – IN PROGRESS
+          </li>
           <li>Adaptive question stream & timers – TODO</li>
           <li>Canvas composite recording + chunked uploads – TODO</li>
           <li>Realtime scoring & feedback rail – TODO</li>

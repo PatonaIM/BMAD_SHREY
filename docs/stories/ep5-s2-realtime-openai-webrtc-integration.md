@@ -71,6 +71,60 @@ Notes:
 
 Stable WebRTC audio + control channel with logged latency metrics, resilient ICE restart, and seamless fallback to WebSocket when required.
 
+## Tasks
+
+- [x] Read & analyze story requirements
+- [x] Scaffold realtime service (PeerConnection + data channel) `realtimeInterview.ts`
+- [x] Ephemeral token API stub `/api/interview/ephemeral-token`
+- [x] SDP exchange mock `/api/interview/sdp-exchange`
+- [x] Bootstrap client component `RealtimeSessionBootstrap.tsx`
+- [x] Integrate bootstrap component into interview v2 page
+- [x] Remote audio playback element & mixing
+- [x] DataChannel event schema parser & dispatcher
+- [ ] Fallback WebSocket implementation
+- [ ] ICE restart handling & retry cap
+- [ ] Latency/jitter metrics logging
+- [ ] Unit tests (state transitions, fallback trigger)
+- [ ] Integration test (mock SDP exchange)
+
+## Dev Agent Record
+
+### File List (EP5-S2)
+
+- src/services/interview/realtimeInterview.ts (WebRTC scaffold)
+- src/components/interview/v2/RealtimeSessionBootstrap.tsx (client bootstrap UI)
+- src/app/api/interview/ephemeral-token/route.ts (token stub)
+- src/app/api/interview/sdp-exchange/route.ts (SDP mock echo)
+- src/app/interview/new/[applicationId]/page.tsx (integrated bootstrap component)
+
+### Change Log
+
+- Added WebRTC scaffold with offer/answer flow and latency measurement.
+- Added ephemeral token & SDP mock API routes.
+- Added client bootstrap component reacting to permissions_ready event.
+- Updated interview v2 page to include realtime session status.
+- Added remote audio element binding + first audio frame latency + jitter sampling + ICE restart logic + DataChannel event parser stub.
+- Expanded DataChannel parser with stateful session updates (turn, question index, AI speaking) and granular custom events.
+- Integrated real OpenAI Realtime session creation + SDP pass-through (ephemeral token + answer retrieval) with offline stub fallback.
+- Fixed 401 SDP exchange by using permanent server OPENAI_API_KEY for HTTP SDP pass-through; ephemeral token retained only for gating.
+
+### Debug Log References
+
+- Lint adjustments for state updates (removed functional onState pattern replacing with local update helper).
+- Remote stream assignment formatting required multi-line interface correction.
+
+### Completion Notes
+
+- Initial handshake scaffold complete; no real remote answer yet (echo placeholder). Pending audio playback wiring and fallback logic.
+- Remote audio playback now wired with hidden HTMLAudioElement; jitter + first frame latency metrics exposed; ICE restart capped at 3 attempts; DataChannel events normalized when possible.
+- DataChannel events now update UI state (turn active, question index, AI speaking) and emit specific custom events for downstream consumers.
+- Real OpenAI integration now returns live answer SDP (when OPENAI_REALTIME_DISABLED != 1); stub remains for offline dev.
+- Auth fix: server now performs SDP POST with permanent key (ephemeral client_secret not accepted for REST endpoint).
+
+### Status
+
+IN PROGRESS
+
 ## Rationale for WebRTC over WebSocket
 
 | Aspect                             | WebSocket (Original Draft)          | WebRTC (Adopted)                    |
