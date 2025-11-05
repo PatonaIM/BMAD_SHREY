@@ -949,3 +949,154 @@ Tracks scalar fields, array lengths, estimates impact:
 - Side-by-side diff UI
 - Collaborative editing with conflict resolution
 - Version export (JSON/PDF)
+
+---
+
+## Appendix: Realtime Interview Page Architecture (Epic 5)
+
+Version: 1.0 • Date: 2025-11-05
+
+### Purpose
+
+Introduce the greenfield realtime interview page (Epic 5) as an isolated architecture slice that intentionally avoids legacy Interview v1 component reuse to reduce complexity and enable faster adaptive iteration.
+
+### Design Tenets
+
+1. Lean surface area (single-page shell) – no split-panel coaching at launch.
+2. Just-in-time question generation – incremental context assembly each turn (no pre-generated list).
+3. Full-context recording – canvas composite captures UI state + webcam PiP + mixed audio (candidate & AI) from inception.
+4. Explicit control vs realtime planes – tRPC/HTTP for lifecycle & storage, WebSocket for low-latency audio & question events.
+5. Privacy-first contextual referencing – hash IDs in place of raw resume/job excerpts.
+6. Idempotency & observability baked into each mutation.
+
+### Component Map (Frontend)
+
+| Layer     | Component                  | Responsibility                                 |
+| --------- | -------------------------- | ---------------------------------------------- |
+| Page      | `NewInterviewPage`         | Entry + permission gate + loading handoff      |
+| Shell     | `RealtimeInterviewShell`   | Layout, timer, status indicators, controls     |
+| Feature   | `DynamicQuestionPresenter` | Current question + domain + difficulty tier    |
+| Feature   | `AudioLevelIndicator`      | Candidate mic volume visualization             |
+| Feature   | `AISpeakingPulse`          | AI speech activity state                       |
+| Recording | `RecordingStatusBar`       | Chunk upload progress & fallback notifications |
+
+### Service Layer (Frontend / Shared)
+
+| Service                   | Key Functions                                                       |
+| ------------------------- | ------------------------------------------------------------------- |
+| `OpenAIRealtimeClient`    | WebSocket connect, heartbeat, reconnect, AI audio delta handling    |
+| `RealtimeAudioBridge`     | getUserMedia → PCM16 conversion & frame dispatch                    |
+| `AdaptiveQuestionEngine`  | Domain quota enforcement, difficulty tier progression, gap analysis |
+| `ContextAssembler`        | Merge job snippet + resume profile + prior answer summaries         |
+| `CanvasCompositeRecorder` | DOM rasterization, PiP webcam overlay, mixed audio capture          |
+| `ChunkUploadManager`      | Queue, hash compute, exponential retry, manifest finalization       |
+| `ScoringEngineV2`         | Post-session aggregation & role weighting                           |
+| `TechnicalWeightResolver` | Resolve multipliers from role taxonomy                              |
+| `SessionStateStore`       | Finite state lifecycle + periodic snapshot for recovery             |
+| `SecurityTokenService`    | Ephemeral OpenAI + Azure SAS issuance & refresh scheduling          |
+
+### Data Flow (High-Level)
+
+```
+User Action (Start) → startSession (tRPC) → InterviewSessionV2 (status=initializing)
+→ issueRealtimeToken → WebSocket handshake (rt.session.init)
+→ Permissions granted → Recording start (CanvasCompositeRecorder + ChunkUploadManager)
+→ Question loop: AdaptiveQuestionEngine triggers OpenAI prompt → rt.question.ready → AI audio deltas
+→ Candidate speech → PCM16 frames → OpenAI → AI response
+→ Each question: pushQuestionEvent + updateQuestionEvaluation (heuristic)
+→ Chunks streamed & uploaded with hash
+→ End criteria hit (time cap or domain quotas) → finalizeRecording → requestScoreReport
+→ ScoringEngineV2 computes ScoreReportV2 → Application boost update
+→ getScoreReport polling resolves UI summary
+```
+
+### Key APIs (Control Plane)
+
+- `interviewV2.startSession`
+- `interviewV2.issueRealtimeToken`
+- `interviewV2.uploadChunk`
+- `interviewV2.finalizeRecording`
+- `interviewV2.pushQuestionEvent`
+- `interviewV2.updateQuestionEvaluation`
+- `interviewV2.requestScoreReport`
+- `interviewV2.getSession`
+- `interviewV2.getScoreReport`
+
+### Realtime Events
+
+| Event                                    | Purpose                                 |
+| ---------------------------------------- | --------------------------------------- |
+| `rt.session.init`                        | Authenticate realtime stream            |
+| `rt.audio.delta`                         | Candidate audio frame outbound          |
+| `rt.turn.start` / `rt.turn.end`          | Turn-taking state transitions           |
+| `rt.question.ready`                      | Next adaptive question payload          |
+| `rt.ai.audio.delta` / `rt.ai.audio.done` | AI spoken output streaming & completion |
+| `rt.session.end`                         | Interview termination signal            |
+| `rt.error`                               | Structured error propagation            |
+
+### State Machine
+
+`initializing → active → finalizing → completed | error`
+
+- Guard: chunk uploads only allowed in `active | finalizing`.
+- Recovery: refresh within 60s reads last snapshot (question index, elapsed time) and resumes `active`.
+
+### Observability & Metrics
+
+Captured per session:
+
+- `question_latency_ms` (ask → first AI audio)
+- `ai_audio_start_latency_ms`
+- `chunk_upload_ms` (per chunk)
+- `reconnect_attempts`
+- `upload_retry_count`
+  Persist summary into `InterviewSessionV2.metrics` and structured logs (`session_start`, `question_generated`, `session_finalize`, `scoring_complete`).
+
+### Privacy & Security Highlights (Detailed section pending Task 6)
+
+- Resume/job raw text excluded from events (only hashed fragment IDs)
+- Ephemeral tokens: OpenAI (<2m), Azure SAS (<15m) auto-refresh before expiry
+- No PII in performance metrics or error logs
+
+### Performance Targets (Epic 5 Specific)
+
+| Metric                       | Target               |
+| ---------------------------- | -------------------- |
+| AI question latency p50      | <1200ms              |
+| End-to-end audio latency p50 | <550ms               |
+| Recording continuity         | ≥99% frames captured |
+| Scoring completion           | <20s post-end        |
+
+### Failure / Fallback Modes
+
+| Failure                         | Fallback                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| Canvas unsupported              | Switch to webcam-only MediaRecorder (flag composite=false)                            |
+| Token expiry mid-stream         | Refresh token silently; at fail → soft reconnect                                      |
+| Chunk upload persistent failure | Pause recording, alert user, attempt manual retry; if unresolved mark session partial |
+| Question generation error       | Use role/domain fallback bank; log `INT_V2_BACKUP_QUESTION_USED`                      |
+
+### Rollout Strategy
+
+1. Feature flag: `ENABLE_INTERVIEW_V2_PAGE` (off by default in prod).
+2. Internal QA sessions to gather latency & recording integrity metrics.
+3. Gradual candidate cohort exposure (e.g. 5%) after stability thresholds met.
+4. Retain Interview v1 fallback route until ≥95% success rate sustained for v2.
+
+### Future Extension Points
+
+- Recruiter observer channel (secondary read-only WebSocket)
+- Real-time transcript overlay (rt.transcript.delta)
+- Multi-participant peer merge (panel simulation)
+- Sentiment timeline derivation from answer summaries
+
+### Risks & Mitigations (Summary)
+
+| Risk                                     | Mitigation                                            |
+| ---------------------------------------- | ----------------------------------------------------- |
+| Latency spikes due to verbose prompt     | Enforce token budget & incremental context injection  |
+| Recording performance on low-end devices | Dynamic resolution downgrade + monitoring encode time |
+| Adaptive engine bias / instability       | Calibrate on seed dataset; cap difficulty jumps       |
+| Token refresh race                       | Mutex around refresh, discard stale completions       |
+
+---
