@@ -28,7 +28,20 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
     latencyMs: number | null;
     classification: string;
   }>({ status: 'idle', latencyMs: null, classification: 'unknown' });
-  const [support] = useState(() => detectBrowserInterviewSupport());
+  const [support, setSupport] = useState<{
+    hasMediaDevices: boolean;
+    hasGetUserMedia: boolean;
+    hasWebRTC: boolean;
+    hasWebSocket: boolean;
+    browser: string;
+  }>({
+    hasMediaDevices: false,
+    hasGetUserMedia: false,
+    hasWebRTC: false,
+    hasWebSocket: false,
+    browser: 'unknown',
+  });
+  const [hydrated, setHydrated] = useState(false);
   const cleanupAudioRef = useRef<() => void>();
 
   async function requestPermissions() {
@@ -106,8 +119,12 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
   }
 
   useEffect(() => {
-    if (support.browser !== 'safari') requestPermissions();
-  }, [support.browser]);
+    setSupport(detectBrowserInterviewSupport());
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (hydrated && support.browser !== 'safari') requestPermissions();
+  }, [hydrated, support.browser]);
   useEffect(
     () => () => {
       cleanupAudioRef.current?.();
@@ -131,11 +148,16 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
       </div>
       <h2 className="text-sm font-semibold mb-3">Device Readiness</h2>
       <div className="flex flex-wrap gap-2 text-xs mb-3">
-        <Badge label="MediaDevices" ok={support.hasMediaDevices} />
-        <Badge label="getUserMedia" ok={support.hasGetUserMedia} />
-        <Badge label="WebRTC" ok={support.hasWebRTC} />
-        <Badge label="WebSocket" ok={support.hasWebSocket} />
-        <Badge label={support.browser} ok={support.browser !== 'unknown'} />
+        {hydrated && (
+          <>
+            <Badge label="MediaDevices" ok={support.hasMediaDevices} />
+            <Badge label="getUserMedia" ok={support.hasGetUserMedia} />
+            <Badge label="WebRTC" ok={support.hasWebRTC} />
+            <Badge label="WebSocket" ok={support.hasWebSocket} />
+            <Badge label={support.browser} ok={support.browser !== 'unknown'} />
+          </>
+        )}
+        {!hydrated && <Badge label="browser" ok={false} />}
       </div>
       {permissionState === 'awaiting' && (
         <p className="text-xs text-muted-foreground mb-3">

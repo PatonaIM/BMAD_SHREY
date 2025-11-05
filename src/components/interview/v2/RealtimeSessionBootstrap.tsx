@@ -39,16 +39,21 @@ export const RealtimeSessionBootstrap: React.FC<
       const remote = (window as any).__interviewV2RemoteStream as
         | MediaStream
         | undefined;
+      console.log('[Interview] remote_stream_ready', { remote });
       if (
         remote &&
         audioElRef.current &&
         audioElRef.current.srcObject !== remote
       ) {
         audioElRef.current.srcObject = remote;
+        console.log(
+          '[Interview] audio element srcObject set',
+          audioElRef.current
+        );
         const attempt = audioElRef.current.play();
         if (attempt && typeof attempt.then === 'function') {
-          attempt.catch(() => {
-            // Silent: autoplay might require user gesture.
+          attempt.catch(err => {
+            console.warn('[Interview] audio play() failed', err);
           });
         }
       }
@@ -65,6 +70,7 @@ export const RealtimeSessionBootstrap: React.FC<
   useEffect(() => {
     function onPerms() {
       setReadyForStart(true);
+      console.log('[Interview] permissions_ready');
     }
     window.addEventListener('interview:permissions_ready', onPerms);
     return () =>
@@ -126,6 +132,7 @@ export const RealtimeSessionBootstrap: React.FC<
       startInitiated &&
       state.interviewPhase === 'pre_start'
     ) {
+      console.log('[Interview] sending client.start', { handles });
       sendInterviewStart(handles.controlChannel);
     }
   }, [handles, state.phase, startInitiated, state.interviewPhase]);
@@ -135,8 +142,10 @@ export const RealtimeSessionBootstrap: React.FC<
   // Synthetic greet fallback retained but shorter (1.5s) if no real greet
   useEffect(() => {
     if (state.interviewPhase === 'intro') {
+      console.log('[Interview] interviewPhase=intro, waiting for greeting');
       const timer = setTimeout(() => {
         if (state.currentQuestionIndex == null) {
+          console.log('[Interview] synthetic greet fallback triggered');
           window.dispatchEvent(
             new CustomEvent('interview:rtc_interview_greet', {
               detail: {
@@ -159,6 +168,9 @@ export const RealtimeSessionBootstrap: React.FC<
       (state.interviewPhase === 'scoring' ||
         state.interviewPhase === 'completed')
     ) {
+      console.log('[Interview] stopping recorder', {
+        phase: state.interviewPhase,
+      });
       recorderRef.current.stop();
     }
   }, [state.interviewPhase]);
@@ -166,6 +178,7 @@ export const RealtimeSessionBootstrap: React.FC<
   function endAndScore() {
     if (!handles || scoreRequested) return;
     setScoreRequested(true);
+    console.log('[Interview] sending client.request_score', { handles });
     requestInterviewScore(handles.controlChannel);
     setState(s => ({ ...s, interviewPhase: 'scoring' }));
     // Fallback local scoring placeholder if remote never returns after timeout
@@ -173,6 +186,7 @@ export const RealtimeSessionBootstrap: React.FC<
       setState(s => {
         if (s.finalScore != null || s.interviewPhase === 'completed') return s;
         const pseudoScore = Math.round(Math.random() * 40 + 60); // 60-100 placeholder
+        console.log('[Interview] fallback score applied', pseudoScore);
         return { ...s, finalScore: pseudoScore, interviewPhase: 'completed' };
       });
     }, 8000);

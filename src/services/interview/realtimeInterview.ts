@@ -152,8 +152,10 @@ export async function startRealtimeInterview(
     const controlChannel = pc.createDataChannel('control');
     controlChannel.onopen = () => {
       window.dispatchEvent(new CustomEvent('interview:control_channel_open'));
+      console.log('[Interview] control channel opened');
     };
     controlChannel.onmessage = ev => {
+      console.log('[Interview] control channel message received', ev.data);
       const parsed = parseInterviewRTCEvent(ev.data);
       if (parsed) {
         // Update session state based on event type
