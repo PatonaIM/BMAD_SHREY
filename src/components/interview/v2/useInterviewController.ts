@@ -48,6 +48,7 @@ export function useInterviewController(
   const [elapsedMs, setElapsedMs] = useState(0);
   const scoreRequestedRef = useRef(false);
   const startTsRef = useRef<number | null>(null);
+  const greetingSentRef = useRef(false);
   // Debug flag (reserved for future verbose logging if needed)
   // const DEBUG = process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1';
 
@@ -72,17 +73,6 @@ export function useInterviewController(
       if (!detail || typeof detail !== 'object') return;
       if (detail.type) {
         switch (detail.type) {
-          case 'interview.greet':
-            pushFeed({
-              ts: Date.now(),
-              type: 'greet',
-              // Split long expression for formatter compliance
-              text: detail.payload?.message
-                ? detail.payload.message
-                : 'Hello, please introduce yourself.',
-              payload: detail.payload,
-            });
-            break;
           case 'question.ready':
             pushFeed({
               ts: Date.now(),
@@ -164,17 +154,6 @@ export function useInterviewController(
       return;
     }
 
-    // Optimistic UI update: immediately transition to intro phase
-    // This ensures the Start button hides right away before async operations
-    setState(s => ({ ...s, interviewPhase: 'intro' }));
-
-    if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
-      // eslint-disable-next-line no-console
-      console.log(
-        '[Interview] Phase transition: pre_start → intro (optimistic)'
-      );
-    }
-
     startTsRef.current = performance.now();
     startRealtimeInterview({
       applicationId,
@@ -199,21 +178,18 @@ export function useInterviewController(
     });
   }, [applicationId, handles, state.phase, state.interviewPhase, pushFeed]);
 
-  // Kick off greeting once connected and still in pre_start
+  // Kick off greeting once connected - send when channel is ready
   useEffect(() => {
-    if (
-      handles &&
-      state.phase === 'connected' &&
-      state.interviewPhase === 'pre_start'
-    ) {
+    if (handles && state.phase === 'connected' && !greetingSentRef.current) {
+      greetingSentRef.current = true;
       sendInterviewStart(handles.controlChannel);
       pushFeed({
         ts: Date.now(),
         type: 'info',
-        text: 'Started interview session',
+        text: 'Interview started - AI is greeting you',
       });
     }
-  }, [handles, state.phase, state.interviewPhase, pushFeed]);
+  }, [handles, state.phase, pushFeed]);
 
   // Diagnostic: if no remote audio stream appears shortly after connection, notify feed.
   useEffect(() => {

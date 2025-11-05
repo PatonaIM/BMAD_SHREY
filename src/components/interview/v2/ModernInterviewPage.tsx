@@ -16,10 +16,36 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
 }) => {
   const controller = useInterviewController({ applicationId });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [localReady, setLocalReady] = useState(false);
 
   useEffect(() => {
     applyLegacyTheme();
   }, []);
+
+  // Track local stream readiness
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    if (w.__interviewV2LocalStream) setLocalReady(true);
+    const handler = () => setLocalReady(true);
+    window.addEventListener('interview:permissions_ready', handler);
+    return () =>
+      window.removeEventListener('interview:permissions_ready', handler);
+  }, []);
+
+  // Reset loading state when phase changes from pre_start
+  const phase = controller.state.interviewPhase || 'pre_start';
+  useEffect(() => {
+    if (phase !== 'pre_start' && isStarting) {
+      setIsStarting(false);
+    }
+  }, [phase, isStarting]);
+
+  const handleBegin = () => {
+    setIsStarting(true);
+    controller.begin();
+  };
 
   const progressPct = useMemo(() => {
     if (
@@ -34,12 +60,30 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   const elapsedSeconds = (controller.elapsedMs / 1000).toFixed(1);
 
   const difficulty = controller.state.difficultyTier ?? 3;
-  const phase = controller.state.interviewPhase || 'pre_start';
 
   return (
     <div className="relative h-screen w-full overflow-hidden font-sans flex flex-col">
       <div className="absolute inset-0 -z-10 opacity-40 blur-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600" />
       <div className="absolute inset-0 -z-10 bg-neutral-950/80 backdrop-blur" />
+
+      {/* Device Check Modal */}
+      {phase === 'pre_start' && (
+        <DeviceCheckModal
+          applicationId={applicationId}
+          localReady={localReady}
+          isStarting={isStarting}
+          onBegin={handleBegin}
+        />
+      )}
+
+      {/* Diagnostics Modal */}
+      {showDiagnostics && (
+        <DiagnosticsModal
+          applicationId={applicationId}
+          controller={controller}
+          onClose={() => setShowDiagnostics(false)}
+        />
+      )}
 
       {/* Fixed Header */}
       <div className="flex-none px-4 pt-4">
@@ -49,94 +93,25 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           phase={phase}
           difficulty={difficulty}
           progressPct={progressPct}
+          onEndInterview={controller.endAndScore}
+          onToggleDiagnostics={() => setShowDiagnostics(prev => !prev)}
         />
       </div>
 
       {/* Flexible Content Area */}
       <div className="flex-1 px-4 py-4 overflow-hidden">
-        <div className="h-full grid lg:grid-cols-3 gap-4">
-          {/* Main Video Area */}
-          <div className="lg:col-span-2 flex flex-col gap-4 h-full overflow-hidden">
-            <VideoAndControls
-              controller={controller}
-              applicationId={applicationId}
-            />
+        <div className="h-full grid lg:grid-cols-2 gap-4">
+          {/* Left: Candidate Video */}
+          <CandidatePanel phase={phase} />
+
+          {/* Right: Split Panel - Interviewer + Live Feedback */}
+          <div className="flex flex-col gap-4 h-full">
+            {/* Top: AI Interviewer Panel */}
+            <InterviewerPanel phase={phase} />
+
+            {/* Bottom: Live Feedback Panel */}
+            <LiveFeedbackPanel controller={controller} phase={phase} />
           </div>
-
-          {/* Sidebar */}
-          <aside className="hidden lg:flex lg:flex-col gap-4 overflow-y-auto custom-scrollbar">
-            {/* Device Check - visible only during pre_start phase */}
-            {phase === 'pre_start' && (
-              <div
-                className="transition-opacity duration-500"
-                role="region"
-                aria-label="Device check"
-              >
-                <PermissionCard applicationId={applicationId} />
-              </div>
-            )}
-
-            {/* ARIA live region to announce phase changes */}
-            <div
-              className="sr-only"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {phase === 'intro' && 'Device check complete, interview starting'}
-              {phase === 'conducting' && 'Interview in progress'}
-              {phase === 'scoring' && 'Calculating your score'}
-              {phase === 'completed' && 'Interview completed'}
-            </div>
-            <ScoreCard controller={controller} />
-            <DiagnosticsToggle
-              show={showDiagnostics}
-              onToggle={() => setShowDiagnostics(s => !s)}
-            />
-            {showDiagnostics && (
-              <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-xl p-3">
-                <RealtimeSessionBootstrap applicationId={applicationId} />
-              </div>
-            )}
-            {/* Debug-only feed log */}
-            {showDiagnostics &&
-              process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1' && (
-                <details className="rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-xl p-3">
-                  <summary className="text-xs font-semibold text-neutral-300 cursor-pointer hover:text-white transition">
-                    Feed Log (Debug)
-                  </summary>
-                  <div className="mt-3 max-h-96 overflow-y-auto custom-scrollbar">
-                    {controller.feed.length === 0 ? (
-                      <p className="text-xs text-neutral-500 italic">
-                        No feed events yet
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {controller.feed.map(item => (
-                          <div
-                            key={item.id}
-                            className="text-[10px] font-mono bg-neutral-800/50 rounded p-2 border border-neutral-700"
-                          >
-                            <div className="text-neutral-400 mb-1">
-                              [{new Date(item.ts).toLocaleTimeString()}]{' '}
-                              <span className="text-emerald-400 uppercase">
-                                {item.type}
-                              </span>
-                            </div>
-                            <div className="text-neutral-200">{item.text}</div>
-                            {item.payload && (
-                              <pre className="mt-1 text-neutral-500 overflow-x-auto">
-                                {JSON.stringify(item.payload, null, 2)}
-                              </pre>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </details>
-              )}
-          </aside>
         </div>
       </div>
 
@@ -145,14 +120,24 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   );
 };
 
-// Header with progress + status
+// Header with progress + status + action buttons
 const HeaderBar: React.FC<{
   applicationId: string;
   elapsedSeconds: string;
   phase: string;
   difficulty: number;
   progressPct: number;
-}> = ({ applicationId, elapsedSeconds, phase, difficulty, progressPct }) => {
+  onEndInterview: () => void;
+  onToggleDiagnostics: () => void;
+}> = ({
+  applicationId,
+  elapsedSeconds,
+  phase,
+  difficulty,
+  progressPct,
+  onEndInterview,
+  onToggleDiagnostics,
+}) => {
   return (
     <div className="rounded-2xl border border-white/10 bg-neutral-900/70 backdrop-blur shadow-2xl overflow-hidden">
       <div className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -169,6 +154,52 @@ const HeaderBar: React.FC<{
           <StatusPill phase={phase} />
           <Badge label={`Difficulty T${difficulty}`} variant="purple" />
           <Badge label={`${elapsedSeconds}s`} variant="slate" />
+
+          {/* Diagnostics Icon Button */}
+          <button
+            onClick={onToggleDiagnostics}
+            className="p-2 rounded-lg border border-white/10 bg-neutral-800/60 hover:bg-neutral-700/80 transition text-neutral-300 hover:text-white"
+            title="Toggle Diagnostics"
+            aria-label="Toggle diagnostics"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </button>
+
+          {/* End Interview Button - visible during conducting phase */}
+          {phase === 'conducting' && (
+            <button
+              onClick={onEndInterview}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-red-600 text-white hover:brightness-110 transition text-xs font-medium shadow flex items-center gap-1.5"
+              aria-label="End interview"
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              End Interview
+            </button>
+          )}
         </div>
       </div>
       <div className="h-1.5 w-full bg-neutral-800 relative overflow-hidden">
@@ -176,89 +207,6 @@ const HeaderBar: React.FC<{
           className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-pink-400 transition-all"
           style={{ width: `${progressPct}%` }}
         />
-      </div>
-    </div>
-  );
-};
-
-const VideoAndControls: React.FC<{
-  controller: ReturnType<typeof useInterviewController>;
-  applicationId: string;
-}> = ({ controller }) => {
-  const phase = controller.state.interviewPhase || 'pre_start';
-  const [localReady, setLocalReady] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    if (w.__interviewV2LocalStream) setLocalReady(true);
-    const handler = () => setLocalReady(true);
-    window.addEventListener('interview:permissions_ready', handler);
-    return () =>
-      window.removeEventListener('interview:permissions_ready', handler);
-  }, []);
-
-  // Reset loading state when phase changes from pre_start
-  useEffect(() => {
-    if (phase !== 'pre_start' && isStarting) {
-      setIsStarting(false);
-    }
-  }, [phase, isStarting]);
-
-  const handleBegin = () => {
-    setIsStarting(true);
-    controller.begin();
-  };
-
-  return (
-    <div className="h-full flex flex-col gap-4">
-      {/* Split-screen video panels */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-        <CandidatePanel phase={phase} />
-        <AIAvatarPanel phase={phase} />
-      </div>
-
-      {/* Controls below split view */}
-      <div className="flex-none flex flex-wrap gap-3 items-center">
-        {phase === 'pre_start' && (
-          <div className="flex flex-col gap-2 w-full">
-            <PrimaryButton
-              onClick={handleBegin}
-              disabled={!localReady || isStarting}
-              label={
-                isStarting
-                  ? 'Starting Interview...'
-                  : localReady
-                    ? 'Start Interview'
-                    : 'Waiting for Devices…'
-              }
-              loading={isStarting}
-            />
-            {!localReady && !isStarting && (
-              <p className="text-[11px] text-neutral-400 text-center">
-                Grant camera & microphone access to enable start.
-              </p>
-            )}
-          </div>
-        )}
-        {phase === 'conducting' && (
-          <PrimaryButton
-            onClick={controller.endAndScore}
-            label="End & Score"
-            variant="danger"
-          />
-        )}
-        {phase === 'completed' && controller.state.finalScore != null && (
-          <div className="text-sm text-neutral-300 flex items-center gap-2">
-            <span className="font-semibold text-white text-lg">
-              {controller.state.finalScore}
-            </span>
-            <span className="uppercase tracking-wide text-[10px] text-neutral-500">
-              Score
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -292,51 +240,10 @@ const CandidatePanel: React.FC<{ phase: string }> = ({ phase }) => {
       <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
         You
       </div>
-      {phase === 'pre_start' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-neutral-900/70 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold text-white mb-2">
-            Ready to Begin?
-          </h2>
-          <p className="text-sm text-neutral-300 max-w-sm">
-            When you start, the AI interviewer will greet you and then begin
-            adaptive questioning.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Right panel: AI Avatar (placeholder for S16)
-const AIAvatarPanel: React.FC<{ phase: string }> = ({ phase }) => {
-  return (
-    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
-      <div
-        className="absolute inset-0 w-full h-full flex items-center justify-center"
-        aria-label="AI interviewer"
-      >
-        {/* Placeholder for S16 3D avatar */}
-        <div className="text-center p-6">
-          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
-            <span className="text-4xl">🤖</span>
-          </div>
-          <p className="text-sm text-neutral-300 font-medium">AI Interviewer</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            {phase === 'pre_start' && 'Waiting to start...'}
-            {phase === 'intro' && 'Initializing...'}
-            {phase === 'conducting' && 'Listening...'}
-            {phase === 'scoring' && 'Calculating score...'}
-            {phase === 'completed' && 'Interview complete'}
-          </p>
-        </div>
-      </div>
-      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
-        AI Interviewer
-      </div>
       {(phase === 'conducting' || phase === 'intro') && (
-        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2">
+        <div className="absolute left-4 bottom-4 bg-green-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-green-400/30 flex items-center gap-2">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          {phase === 'intro' ? 'Starting...' : 'Active'}
+          Recording
         </div>
       )}
     </div>
@@ -474,63 +381,6 @@ const RemoteAIAudioPlayer: React.FC = () => {
   );
 };
 
-const PermissionCard: React.FC<{ applicationId: string }> = ({
-  applicationId,
-}) => (
-  <div className="rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-xl p-4">
-    <h3 className="text-sm font-semibold text-white mb-3">Device Check</h3>
-    <DevicePermissionGate applicationId={applicationId} />
-  </div>
-);
-
-const ScoreCard: React.FC<{
-  controller: ReturnType<typeof useInterviewController>;
-}> = ({ controller }) => {
-  if (controller.state.interviewPhase !== 'completed') {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-xl p-4 text-xs text-neutral-400">
-        <p className="font-semibold text-neutral-200 mb-1">Score</p>
-        <p>Score will appear here after completion.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-600/10 backdrop-blur shadow-xl p-4">
-      <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold mb-2">
-        Final Score
-      </p>
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-3xl font-bold text-white">
-          {controller.state.finalScore ?? '—'}
-        </span>
-        <span className="text-xs text-emerald-200">/100</span>
-      </div>
-      {controller.scoreBreakdown && (
-        <div className="grid grid-cols-3 gap-2 text-[10px] text-neutral-200">
-          {Object.entries(controller.scoreBreakdown).map(([k, v]) => (
-            <div key={k} className="flex flex-col">
-              <span className="uppercase tracking-wide opacity-70">{k}</span>
-              <span className="font-medium">{v}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const DiagnosticsToggle: React.FC<{ show: boolean; onToggle: () => void }> = ({
-  show,
-  onToggle,
-}) => (
-  <button
-    onClick={onToggle}
-    className="w-full rounded-xl border border-white/10 bg-neutral-800/60 hover:bg-neutral-800/80 transition text-xs py-2 text-neutral-300"
-  >
-    {show ? 'Hide Diagnostics' : 'Show Diagnostics'}
-  </button>
-);
-
 // Shared UI primitives
 const StatusPill: React.FC<{ phase: string }> = ({ phase }) => {
   const colorMap: Record<string, string> = {
@@ -615,5 +465,233 @@ const PrimaryButton: React.FC<{
       )}
       <span className={loading ? 'ml-6' : ''}>{label}</span>
     </button>
+  );
+};
+
+// Device Check Modal
+const DeviceCheckModal: React.FC<{
+  applicationId: string;
+  localReady: boolean;
+  isStarting: boolean;
+  onBegin: () => void;
+}> = ({ applicationId, localReady, isStarting, onBegin }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-neutral-900 rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg mx-4 p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Device Check</h2>
+        <div className="mb-6">
+          <DevicePermissionGate applicationId={applicationId} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <PrimaryButton
+            onClick={onBegin}
+            disabled={!localReady || isStarting}
+            label={
+              isStarting
+                ? 'Starting Interview...'
+                : localReady
+                  ? 'Start Interview'
+                  : 'Waiting for Devices…'
+            }
+            loading={isStarting}
+          />
+          {!localReady && !isStarting && (
+            <p className="text-xs text-neutral-400 text-center">
+              Grant camera & microphone access to enable start.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Diagnostics Modal
+const DiagnosticsModal: React.FC<{
+  applicationId: string;
+  controller: ReturnType<typeof useInterviewController>;
+  onClose: () => void;
+}> = ({ applicationId, controller, onClose }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-neutral-900 rounded-2xl border border-white/10 shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <h2 className="text-xl font-semibold text-white">Diagnostics</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-neutral-800 transition text-neutral-400 hover:text-white"
+            aria-label="Close diagnostics"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Bootstrap Info */}
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-xl p-4">
+            <h3 className="text-sm font-semibold text-white mb-2">
+              Session Bootstrap
+            </h3>
+            <RealtimeSessionBootstrap applicationId={applicationId} />
+          </div>
+
+          {/* Feed Log - Debug only */}
+          {process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1' && (
+            <details className="rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-xl p-4">
+              <summary className="text-sm font-semibold text-neutral-300 cursor-pointer hover:text-white transition">
+                Feed Log (Debug)
+              </summary>
+              <div className="mt-3 max-h-96 overflow-y-auto">
+                {controller.feed.length === 0 ? (
+                  <p className="text-xs text-neutral-500 italic">
+                    No feed events yet
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {controller.feed.map(item => (
+                      <div
+                        key={item.id}
+                        className="text-[10px] font-mono bg-neutral-800/50 rounded p-2 border border-neutral-700"
+                      >
+                        <div className="text-neutral-400 mb-1">
+                          [{new Date(item.ts).toLocaleTimeString()}]{' '}
+                          <span className="text-emerald-400 uppercase">
+                            {item.type}
+                          </span>
+                        </div>
+                        <div className="text-neutral-200">{item.text}</div>
+                        {item.payload && (
+                          <pre className="mt-1 text-neutral-500 overflow-x-auto">
+                            {JSON.stringify(item.payload, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Interviewer Panel (Top half of right column)
+const InterviewerPanel: React.FC<{ phase: string }> = ({ phase }) => {
+  return (
+    <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
+      <div
+        className="absolute inset-0 w-full h-full flex items-center justify-center"
+        aria-label="AI interviewer"
+      >
+        {/* Placeholder for S16 3D avatar */}
+        <div className="text-center p-6">
+          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
+            <span className="text-4xl">🤖</span>
+          </div>
+          <p className="text-sm text-neutral-300 font-medium">AI Interviewer</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            {phase === 'pre_start' && 'Waiting to start...'}
+            {phase === 'intro' && 'Initializing...'}
+            {phase === 'conducting' && 'Listening...'}
+            {phase === 'scoring' && 'Calculating score...'}
+            {phase === 'completed' && 'Interview complete'}
+          </p>
+        </div>
+      </div>
+      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
+        AI Interviewer
+      </div>
+      {(phase === 'conducting' || phase === 'intro') && (
+        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          {phase === 'intro' ? 'Starting...' : 'Active'}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Live Feedback Panel (Bottom half of right column)
+const LiveFeedbackPanel: React.FC<{
+  controller: ReturnType<typeof useInterviewController>;
+  phase: string;
+}> = ({ controller, phase }) => {
+  if (phase === 'completed') {
+    return (
+      <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-emerald-600/10 ring-1 ring-emerald-500/30 border border-emerald-500/30 p-6">
+        <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold mb-2">
+          Final Score
+        </p>
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className="text-4xl font-bold text-white">
+            {controller.state.finalScore ?? '—'}
+          </span>
+          <span className="text-sm text-emerald-200">/100</span>
+        </div>
+        {controller.scoreBreakdown && (
+          <div className="grid grid-cols-3 gap-3 text-xs text-neutral-200">
+            {Object.entries(controller.scoreBreakdown).map(([k, v]) => (
+              <div key={k} className="flex flex-col">
+                <span className="uppercase tracking-wide opacity-70 text-[10px]">
+                  {k}
+                </span>
+                <span className="font-medium text-base">{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10 p-6">
+      <h3 className="text-sm font-semibold text-white mb-3">Live Feedback</h3>
+      {phase === 'pre_start' && (
+        <p className="text-xs text-neutral-400">
+          Feedback will appear here during the interview.
+        </p>
+      )}
+      {(phase === 'intro' || phase === 'conducting') && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-400">Clarity</span>
+            <span className="text-neutral-200 font-medium">—</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-400">Correctness</span>
+            <span className="text-neutral-200 font-medium">—</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-400">Depth</span>
+            <span className="text-neutral-200 font-medium">—</span>
+          </div>
+          <p className="text-[10px] text-neutral-500 mt-4">
+            Real-time scoring coming soon...
+          </p>
+        </div>
+      )}
+      {phase === 'scoring' && (
+        <div className="flex items-center gap-2 text-xs text-neutral-300">
+          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          Calculating your score...
+        </div>
+      )}
+    </div>
   );
 };

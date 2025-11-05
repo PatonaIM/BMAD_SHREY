@@ -50,7 +50,6 @@ export interface InterviewRTCEvent {
     | 'latency.ping'
     | 'error'
     | 'ai.state'
-    | 'interview.greet' // AI greeting & introduction request
     | 'interview.score' // AI finished scoring
     | 'interview.done'; // explicit completion signal
   ts: number; // epoch ms
@@ -176,6 +175,21 @@ export async function startRealtimeInterview(
           ev.data
         );
       }
+
+      // Try to parse as JSON to see ALL event types
+      try {
+        const parsed = JSON.parse(ev.data);
+        if (parsed && parsed.type && parsed.type.includes('function')) {
+          // eslint-disable-next-line no-console
+          console.log(
+            '[RTC] Function-related event:',
+            JSON.stringify(parsed, null, 2)
+          );
+        }
+      } catch {
+        // not JSON
+      }
+
       const parsed = parseInterviewRTCEvent(ev.data);
       if (parsed) {
         // Update session state based on event type
@@ -233,50 +247,112 @@ export async function startRealtimeInterview(
               type?: string;
               id?: string;
               tool_call_id?: string;
+              call_id?: string;
               name?: string;
-              delta?: { arguments?: string };
+              delta?: string;
+              arguments?: string;
+              item?: {
+                id?: string;
+                call_id?: string;
+                name?: string;
+                type?: string;
+              };
             };
             switch (m.type) {
-              case 'response.output_tool_call.delta': {
-                // Streaming arguments for a tool call
-                // shape may include: { type, tool_call_id, name?, delta: { arguments?: '...' } }
-                const toolId: string | undefined = m.tool_call_id;
+              case 'response.output_item.added': {
+                // This event contains the function name and call_id
+                const callId = m.item?.call_id;
+                const name = m.item?.name;
+                if (callId && name) {
+                  if (!toolCallBuffers[callId]) {
+                    toolCallBuffers[callId] = { name, args: '' };
+                  } else {
+                    toolCallBuffers[callId].name = name;
+                  }
+                  // eslint-disable-next-line no-console
+                  console.log('[RTC] Function call started:', { name, callId });
+                }
+                break;
+              }
+              case 'response.function_call_arguments.delta': {
+                // Streaming arguments for a function call
+                const toolId: string | undefined = m.call_id;
                 if (toolId) {
                   if (!toolCallBuffers[toolId]) {
                     toolCallBuffers[toolId] = { name: m.name, args: '' };
                   }
+                  // Update name if provided (it may come in any delta)
                   if (m.name) {
                     toolCallBuffers[toolId].name = m.name;
                   }
-                  const deltaArgs = m.delta?.arguments;
+                  const deltaArgs = m.delta;
                   if (deltaArgs) {
                     toolCallBuffers[toolId].args += String(deltaArgs);
+                  }
+
+                  // Debug logging to track name assignment
+                  if (
+                    process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1' &&
+                    m.name
+                  ) {
+                    // eslint-disable-next-line no-console
+                    console.log(
+                      '[RTC] Tool name received in delta:',
+                      m.name,
+                      'for call_id:',
+                      toolId
+                    );
                   }
                 }
                 break;
               }
-              case 'response.output_tool_call.done':
-              case 'response.tool_call.completed': {
-                const toolId: string | undefined = m.tool_call_id;
+              case 'response.function_call_arguments.done': {
+                const toolId: string | undefined = m.call_id;
                 if (toolId && toolCallBuffers[toolId]) {
-                  const { name, args } = toolCallBuffers[toolId];
+                  let { name } = toolCallBuffers[toolId];
+                  const { args } = toolCallBuffers[toolId];
+
+                  // If name is still missing, try to get it from the done event
+                  if (!name && m.name) {
+                    name = m.name;
+                    toolCallBuffers[toolId].name = m.name;
+                  }
+
                   delete toolCallBuffers[toolId];
+
+                  // Debug logging
+                  // eslint-disable-next-line no-console
+                  console.log('[RTC] Tool call completed:', {
+                    name,
+                    toolId,
+                    args: args.substring(0, 100),
+                  });
+
+                  // Use m.arguments if available (complete arguments), fallback to buffered
+                  const argsToUse = m.arguments || args;
                   let parsedArgs: Record<string, unknown> | undefined;
-                  if (args.trim()) {
+                  if (argsToUse && argsToUse.trim()) {
                     try {
-                      parsedArgs = JSON.parse(args);
+                      parsedArgs = JSON.parse(argsToUse);
                     } catch {
                       /* ignore malformed args */
                     }
                   }
                   // Map tool name to interview event type
                   const map: Record<string, InterviewRTCEvent['type']> = {
-                    interview_greet: 'interview.greet',
                     question_ready: 'question.ready',
                     interview_score: 'interview.score',
                     interview_done: 'interview.done',
                   };
                   const evtType = name ? map[name] : undefined;
+
+                  // eslint-disable-next-line no-console
+                  console.log('[RTC] Event type mapped:', {
+                    name,
+                    evtType,
+                    parsedArgs,
+                  });
+
                   if (evtType) {
                     const evt: InterviewRTCEvent = {
                       type: evtType,
@@ -290,6 +366,13 @@ export async function startRealtimeInterview(
                       evtState,
                       applyInterviewRTCEvent(current, evt)
                     );
+
+                    // eslint-disable-next-line no-console
+                    console.log('[RTC] Applying state update:', {
+                      evt,
+                      evtState,
+                    });
+
                     update(evtState);
                     window.dispatchEvent(
                       new CustomEvent('interview:rtc_event', { detail: evt })
@@ -332,6 +415,7 @@ export async function startRealtimeInterview(
     };
 
     let offerCreatedAt: number | null = null;
+    let hasReceivedFirstAudio = false;
     pc.ontrack = ev => {
       const inboundStream = ev.streams[0];
       if (!inboundStream) return;
@@ -348,6 +432,17 @@ export async function startRealtimeInterview(
           // eslint-disable-next-line no-console
           console.warn(
             '[Interview DEBUG] first remote audio frame latency recorded'
+          );
+        }
+      }
+      // Transition to intro phase when first audio arrives (AI is greeting)
+      if (!hasReceivedFirstAudio && current.interviewPhase === 'pre_start') {
+        hasReceivedFirstAudio = true;
+        update({ interviewPhase: 'intro' });
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.log(
+            '[Interview DEBUG] AI audio started - transitioned to intro phase'
           );
         }
       }
@@ -488,7 +583,13 @@ function sendWhenOpen(
   payload: Record<string, unknown>,
   attempts = 0
 ): void {
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1';
+
   if (control.readyState === 'open') {
+    if (DEBUG) {
+      // eslint-disable-next-line no-console
+      console.log('[Interview DEBUG] Sending control message:', payload.type);
+    }
     control.send(JSON.stringify(payload));
     return;
   }
@@ -498,6 +599,13 @@ function sendWhenOpen(
     console.warn('DataChannel not open, abandoning send', payload.type);
     return;
   }
+  if (DEBUG && attempts % 10 === 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[Interview DEBUG] Waiting for channel to open, attempt ${attempts}, state:`,
+      control.readyState
+    );
+  }
   setTimeout(() => sendWhenOpen(control, payload, attempts + 1), 100);
 }
 
@@ -506,6 +614,16 @@ export function sendInterviewStart(control: RTCDataChannel): void {
   // We map our control intent into a supported pair of events:
   // 1. conversation.item.create (user message with sentinel)
   // 2. response.create (ask model to generate)
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1';
+
+  if (DEBUG) {
+    // eslint-disable-next-line no-console
+    console.log(
+      '[Interview DEBUG] sendInterviewStart called, channel state:',
+      control.readyState
+    );
+  }
+
   const ts = Date.now();
   const itemId = `ctl_start_${ts}`;
   const createEvent = {
@@ -527,14 +645,7 @@ export function sendInterviewStart(control: RTCDataChannel): void {
   const responseEvent = {
     type: 'response.create',
     response: {
-      conversation: 'auto',
-      // OpenAI Realtime models accept modalities and audio config.
-      // These fields are ignored if unsupported.
       modalities: ['text', 'audio'],
-      audio: {
-        voice: 'alloy', // fallback voice name; adjust if your deployment differs
-        format: 'pcm16',
-      },
     },
   } as const;
   sendWhenOpen(control, createEvent);
@@ -611,18 +722,25 @@ export function applyInterviewRTCEvent(
     case 'question.ready': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       partial.currentQuestionIndex = (evt.payload as any)?.idx;
+      // First question transitions from intro to conducting
       if (prev.interviewPhase === 'intro') {
         partial.interviewPhase = 'conducting';
+        // eslint-disable-next-line no-console
+        console.log(
+          '[RTC] Phase transition: intro → conducting (question.ready received)'
+        );
+      } else {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[RTC] question.ready received but phase is not intro:',
+          prev.interviewPhase
+        );
       }
       break;
     }
     case 'ai.state': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       partial.aiSpeaking = !!(evt.payload as any)?.speaking;
-      break;
-    }
-    case 'interview.greet': {
-      partial.interviewPhase = 'intro';
       break;
     }
     case 'interview.score': {
