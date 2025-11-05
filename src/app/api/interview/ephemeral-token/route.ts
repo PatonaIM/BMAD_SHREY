@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { buildInterviewerInstructions } from '../../../../services/interview/interviewerPersona';
 
 // EP5-S2: Ephemeral realtime session token endpoint (OpenAI integration)
 // Creates a short-lived client secret used by the browser to perform the SDP exchange directly
@@ -24,12 +25,18 @@ export async function GET(req: NextRequest) {
   try {
     // OpenAI Realtime sessions currently allow: model, voice, modalities, instructions
     // Remove unsupported 'metadata' param that caused error.
+    const instructions = buildInterviewerInstructions({
+      applicationId,
+      // Future: pass role & requiredSkills from query or DB; placeholder now.
+      roleLabel: 'Senior Software Engineer',
+      requiredSkills: ['system design', 'algorithms', 'data structures'],
+      difficultyTier: 3,
+    });
     const bodyPayload = {
       model,
       voice,
-      // The browser will negotiate audio; include both text & audio modalities for flexibility.
       modalities: ['text', 'audio'],
-      instructions: `AI Interview session for application ${applicationId}. Respond succinctly and await turn events.`,
+      instructions,
     };
     const sessionRes = await fetch(
       'https://api.openai.com/v1/realtime/sessions',

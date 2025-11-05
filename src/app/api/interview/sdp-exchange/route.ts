@@ -10,9 +10,14 @@ export async function POST(req: NextRequest) {
     return new Response('Missing SDP', { status: 400 });
   }
   const applicationId: string | undefined = body?.applicationId;
-  const ephemeral = req.headers.get('X-Ephemeral-Token');
+  // Prefer header but allow body fallback (client could inline for robustness)
+  const ephemeral =
+    req.headers.get('X-Ephemeral-Token') || body?.ephemeralToken;
   if (!ephemeral) {
-    return new Response('Missing ephemeral token header', { status: 401 });
+    return new Response(
+      'Missing ephemeral token (header X-Ephemeral-Token or body.ephemeralToken)',
+      { status: 401 }
+    );
   }
   // Server pass-through must still use permanent API key; ephemeral client_secret isn't valid for this HTTP endpoint.
   const apiKey = process.env.OPENAI_API_KEY;
@@ -30,24 +35,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(
+    const upstreamUrl =
       `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}` +
-        (applicationId
-          ? `&application_id=${encodeURIComponent(applicationId)}`
-          : ''),
-      {
-        method: 'POST',
-        headers: {
-          // Use permanent server key for SDP HTTP exchange; retain ephemeral for potential validation or logging.
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/sdp',
-          'OpenAI-Beta': 'realtime=v1',
-          'X-Client-Secret': ephemeral, // optional: for downstream logging/auditing (not required by OpenAI)
-        },
-        body: offerSdp,
-        cache: 'no-store',
-      }
-    );
+      (applicationId
+        ? `&application_id=${encodeURIComponent(applicationId)}`
+        : '');
+    // Revert to previously working strategy: use ephemeral token directly as Authorization.
+    const res = await fetch(upstreamUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${ephemeral}`,
+        'Content-Type': 'application/sdp',
+        'OpenAI-Beta': 'realtime=v1',
+      },
+      body: offerSdp,
+      cache: 'no-store',
+    });
     if (!res.ok) {
       const text = await res.text();
       return Response.json(
@@ -60,7 +63,11 @@ export async function POST(req: NextRequest) {
       );
     }
     const answerSdp = await res.text();
-    return Response.json({ answer: answerSdp, model });
+    return Response.json({
+      answer: answerSdp,
+      model,
+      forwardedEphemeral: true,
+    });
   } catch (err) {
     return Response.json(
       {
