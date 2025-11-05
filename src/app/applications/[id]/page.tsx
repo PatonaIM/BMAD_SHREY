@@ -18,6 +18,7 @@ import { ScoreComparisonCard } from '../../../components/application/ScoreCompar
 import { InterviewCompletionBadge } from '../../../components/application/InterviewCompletionBadge';
 import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
 import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
+import { getEnv } from '../../../config/env';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -139,6 +140,10 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       app.interviewSessionId
     );
   }
+
+  // Feature flag for new interview page (v2)
+  const env = getEnv();
+  const interviewV2Enabled = env.ENABLE_INTERVIEW_V2_PAGE;
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -374,6 +379,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
               <InterviewLauncher
                 jobId={app.jobId.toString()}
                 applicationId={app._id.toString()}
+                useV2Route={interviewV2Enabled}
               />
             </div>
           )}
@@ -387,6 +393,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         matchScore={matchScore || 0}
         interviewStatus={app.interviewStatus}
         className="mb-6"
+        useV2Route={interviewV2Enabled}
       />
       <InterviewStatusCard
         interviewStatus={app.interviewStatus || 'not_started'}

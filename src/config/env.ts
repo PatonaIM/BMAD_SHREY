@@ -34,6 +34,11 @@ const EnvSchema = z
       .optional()
       .transform(v => v === 'true')
       .pipe(z.boolean().default(false)),
+    ENABLE_INTERVIEW_V2_PAGE: z
+      .string()
+      .optional()
+      .transform(v => v === 'true')
+      .pipe(z.boolean().default(false)),
     RESEND_API_KEY: z.string().optional(),
     RESEND_FROM: z
       .string()
@@ -95,6 +100,14 @@ const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['OPENAI_API_KEY'],
         message: 'OPENAI_API_KEY is required when ENABLE_AI_INTERVIEW=true',
+      });
+    }
+    // V2 interview page implies AI interview must also be enabled
+    if (data.ENABLE_INTERVIEW_V2_PAGE && !data.ENABLE_AI_INTERVIEW) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ENABLE_INTERVIEW_V2_PAGE'],
+        message: 'ENABLE_INTERVIEW_V2_PAGE requires ENABLE_AI_INTERVIEW=true',
       });
     }
     if (data.WORKABLE_SUBDOMAIN && !data.WORKABLE_API_KEY) {

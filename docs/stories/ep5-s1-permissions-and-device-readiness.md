@@ -46,6 +46,47 @@ So that I can confidently start the interview without technical surprises.
 Permission gate consistently transitions to READY state and exposes stream object for subsequent stories.
 "Take AI Interview" button on application detail page opens this new page route under feature flag control.
 
+## Tasks
+
+- [x] Feature flag & route scaffold
+- [x] Permission gate component
+- [x] Integration into v2 route
+- [x] Analytics events
+- [x] Accessibility (ARIA live region)
+- [x] Network diagnostics helper
+- [x] Audio level meter
+- [x] Event-based readiness dispatch
+- [ ] Unit & integration tests
+
+## Dev Agent Record
+
+### File List
+
+- src/app/interview/new/[applicationId]/page.tsx (integration of gate)
+- src/components/interview/v2/DevicePermissionGate.tsx (permission gate)
+- src/utils/interview/deviceSupport.ts (support + diagnostics utilities)
+- src/components/interview/v2/DevicePermissionGate.test.tsx (tests for permission flow) NEW
+- vitest.config.ts (updated for jsdom + tsx tests)
+
+### Change Log
+
+- Added jsdom test environment configuration to `vitest.config.ts`
+- Created `DevicePermissionGate.test.tsx` with stubs for `AudioContext` and media APIs
+- Adjusted test implementation to avoid RSC callback pattern (event-based)
+
+### Debug Log References
+
+- Initial test failures due to missing `AudioContext` and media playback stubs; introduced `FakeAudioContext` and `HTMLMediaElement.play` override.
+- Ongoing issue: Automated test runner output truncated; manual verification pending.
+
+### Completion Notes
+
+- Pending: Stabilize DevicePermissionGate tests (ensure event dispatch & denied state assertions pass under jsdom).
+
+### Status
+
+IN PROGRESS
+
 ## Implementation Notes (Routing Update)
 
 - New route pattern: `/interview/new/[applicationId]`.

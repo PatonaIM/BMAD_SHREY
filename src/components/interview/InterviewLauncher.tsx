@@ -11,6 +11,7 @@ interface InterviewLauncherProps {
   hasExistingInterview?: boolean;
   disabled?: boolean;
   className?: string;
+  useV2Route?: boolean; // When true, navigate to new v2 interview page instead of starting legacy session
 }
 
 export function InterviewLauncher({
@@ -20,6 +21,7 @@ export function InterviewLauncher({
   hasExistingInterview = false,
   disabled = false,
   className = '',
+  useV2Route = false,
 }: InterviewLauncherProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,6 +37,12 @@ export function InterviewLauncher({
         setError(
           'Your browser does not support video recording. Please use a modern browser like Chrome, Firefox, or Edge.'
         );
+        return;
+      }
+
+      // V2 flow: just navigate to the new page where session bootstrapping occurs server-side
+      if (useV2Route) {
+        router.push(`/interview/new/${applicationId}`);
         return;
       }
 
@@ -76,14 +84,16 @@ export function InterviewLauncher({
   const getButtonText = () => {
     if (isGenerating) return 'Preparing Interview...';
     if (hasExistingInterview) return 'Interview Completed';
-    return 'Take AI Interview';
+    return useV2Route ? 'Start New Interview' : 'Take AI Interview';
   };
 
   const getButtonTooltip = () => {
     if (hasExistingInterview) {
       return 'You have already completed an interview for this application';
     }
-    return 'Start an AI-powered video interview';
+    return useV2Route
+      ? 'Begin the next-generation AI interview experience'
+      : 'Start an AI-powered video interview';
   };
 
   return (

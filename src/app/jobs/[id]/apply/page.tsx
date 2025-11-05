@@ -135,7 +135,10 @@ export default async function ApplyPage({
           You already applied to this job. Application ID: {existing._id}
         </div>
       ) : (
-        <ApplyForm jobId={job._id} existingResume={serializedResume} />
+        <ApplyForm
+          jobId={job._id.toString()}
+          existingResume={serializedResume}
+        />
       )}
       <Link
         href={`/jobs/${job.workableId || job._id}`}

@@ -9,6 +9,7 @@ interface AIInterviewCTAProps {
   matchScore: number;
   interviewStatus?: 'not_started' | 'in_progress' | 'completed';
   className?: string;
+  useV2Route?: boolean;
 }
 
 export const AIInterviewCTA: React.FC<AIInterviewCTAProps> = ({
@@ -17,6 +18,7 @@ export const AIInterviewCTA: React.FC<AIInterviewCTAProps> = ({
   matchScore,
   interviewStatus = 'not_started',
   className = '',
+  useV2Route = false,
 }) => {
   // Only show for scores between 50-89% and not yet completed
   const isEligible =
@@ -154,6 +156,7 @@ export const AIInterviewCTA: React.FC<AIInterviewCTAProps> = ({
               matchScore={matchScore}
               hasExistingInterview={false}
               className="shadow-lg hover:shadow-xl transition-all"
+              useV2Route={useV2Route}
             />
             <button
               type="button"
