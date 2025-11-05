@@ -135,7 +135,21 @@ export function useInterviewController(
   }, []);
 
   const begin = useCallback(() => {
-    if (handles || state.phase !== 'idle') return;
+    // Guard: prevent redundant calls if already started
+    if (
+      handles ||
+      state.phase !== 'idle' ||
+      state.interviewPhase !== 'pre_start'
+    ) {
+      if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[Interview] begin() blocked - already started or in progress'
+        );
+      }
+      return;
+    }
+
     // Acquire pre-stored local stream from permission gate
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const localStream: MediaStream | undefined = (window as any)
@@ -149,6 +163,18 @@ export function useInterviewController(
       });
       return;
     }
+
+    // Optimistic UI update: immediately transition to intro phase
+    // This ensures the Start button hides right away before async operations
+    setState(s => ({ ...s, interviewPhase: 'intro' }));
+
+    if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[Interview] Phase transition: pre_start → intro (optimistic)'
+      );
+    }
+
     startTsRef.current = performance.now();
     startRealtimeInterview({
       applicationId,
@@ -171,7 +197,7 @@ export function useInterviewController(
         setHandles(h);
       }
     });
-  }, [applicationId, handles, state.phase]);
+  }, [applicationId, handles, state.phase, state.interviewPhase, pushFeed]);
 
   // Kick off greeting once connected and still in pre_start
   useEffect(() => {
@@ -208,6 +234,10 @@ export function useInterviewController(
 
   // Feed updates for phase transitions & errors
   const prevPhaseRef = useRef<string | undefined>(state.phase);
+  const prevInterviewPhaseRef = useRef<string | undefined>(
+    state.interviewPhase
+  );
+
   useEffect(() => {
     if (state.phase !== prevPhaseRef.current) {
       pushFeed({
@@ -215,9 +245,30 @@ export function useInterviewController(
         type: 'info',
         text: `Transport phase → ${state.phase}`,
       });
+
+      if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[Interview] Transport phase: ${prevPhaseRef.current} → ${state.phase}`
+        );
+      }
+
       prevPhaseRef.current = state.phase;
     }
   }, [state.phase, pushFeed]);
+
+  useEffect(() => {
+    if (state.interviewPhase !== prevInterviewPhaseRef.current) {
+      if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[Interview] Interview phase: ${prevInterviewPhaseRef.current} → ${state.interviewPhase}`
+        );
+      }
+      prevInterviewPhaseRef.current = state.interviewPhase;
+    }
+  }, [state.interviewPhase]);
+
   useEffect(() => {
     if (state.error) {
       pushFeed({
@@ -225,6 +276,11 @@ export function useInterviewController(
         type: 'info',
         text: `Error: ${state.error}`,
       });
+
+      if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+        // eslint-disable-next-line no-console
+        console.error(`[Interview] Error: ${state.error}`);
+      }
     }
   }, [state.error, pushFeed]);
 

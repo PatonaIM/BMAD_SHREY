@@ -16,18 +16,10 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
 }) => {
   const controller = useInterviewController({ applicationId });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     applyLegacyTheme();
   }, []);
-
-  // Auto-scroll feed
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [controller.feed.length]);
 
   const progressPct = useMemo(() => {
     if (
@@ -45,10 +37,12 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   const phase = controller.state.interviewPhase || 'pre_start';
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden font-sans">
+    <div className="relative h-screen w-full overflow-hidden font-sans flex flex-col">
       <div className="absolute inset-0 -z-10 opacity-40 blur-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600" />
       <div className="absolute inset-0 -z-10 bg-neutral-950/80 backdrop-blur" />
-      <div className="mx-auto max-w-7xl px-4 py-8 space-y-6">
+
+      {/* Fixed Header */}
+      <div className="flex-none px-4 pt-4">
         <HeaderBar
           applicationId={applicationId}
           elapsedSeconds={elapsedSeconds}
@@ -56,17 +50,44 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           difficulty={difficulty}
           progressPct={progressPct}
         />
+      </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 space-y-6">
+      {/* Flexible Content Area */}
+      <div className="flex-1 px-4 py-4 overflow-hidden">
+        <div className="h-full grid lg:grid-cols-3 gap-4">
+          {/* Main Video Area */}
+          <div className="lg:col-span-2 flex flex-col gap-4 h-full overflow-hidden">
             <VideoAndControls
               controller={controller}
               applicationId={applicationId}
             />
-            <QuestionFeed controller={controller} scrollRef={scrollRef} />
           </div>
-          <aside className="space-y-6">
-            <PermissionCard applicationId={applicationId} />
+
+          {/* Sidebar */}
+          <aside className="hidden lg:flex lg:flex-col gap-4 overflow-y-auto custom-scrollbar">
+            {/* Device Check - visible only during pre_start phase */}
+            {phase === 'pre_start' && (
+              <div
+                className="transition-opacity duration-500"
+                role="region"
+                aria-label="Device check"
+              >
+                <PermissionCard applicationId={applicationId} />
+              </div>
+            )}
+
+            {/* ARIA live region to announce phase changes */}
+            <div
+              className="sr-only"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {phase === 'intro' && 'Device check complete, interview starting'}
+              {phase === 'conducting' && 'Interview in progress'}
+              {phase === 'scoring' && 'Calculating your score'}
+              {phase === 'completed' && 'Interview completed'}
+            </div>
             <ScoreCard controller={controller} />
             <DiagnosticsToggle
               show={showDiagnostics}
@@ -77,10 +98,49 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
                 <RealtimeSessionBootstrap applicationId={applicationId} />
               </div>
             )}
+            {/* Debug-only feed log */}
+            {showDiagnostics &&
+              process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1' && (
+                <details className="rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-xl p-3">
+                  <summary className="text-xs font-semibold text-neutral-300 cursor-pointer hover:text-white transition">
+                    Feed Log (Debug)
+                  </summary>
+                  <div className="mt-3 max-h-96 overflow-y-auto custom-scrollbar">
+                    {controller.feed.length === 0 ? (
+                      <p className="text-xs text-neutral-500 italic">
+                        No feed events yet
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {controller.feed.map(item => (
+                          <div
+                            key={item.id}
+                            className="text-[10px] font-mono bg-neutral-800/50 rounded p-2 border border-neutral-700"
+                          >
+                            <div className="text-neutral-400 mb-1">
+                              [{new Date(item.ts).toLocaleTimeString()}]{' '}
+                              <span className="text-emerald-400 uppercase">
+                                {item.type}
+                              </span>
+                            </div>
+                            <div className="text-neutral-200">{item.text}</div>
+                            {item.payload && (
+                              <pre className="mt-1 text-neutral-500 overflow-x-auto">
+                                {JSON.stringify(item.payload, null, 2)}
+                              </pre>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
           </aside>
         </div>
-        <RemoteAIAudioPlayer />
       </div>
+
+      <RemoteAIAudioPlayer />
     </div>
   );
 };
@@ -125,11 +185,9 @@ const VideoAndControls: React.FC<{
   controller: ReturnType<typeof useInterviewController>;
   applicationId: string;
 }> = ({ controller }) => {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  // Use interviewPhase instead of transport phase so UI reflects logical interview start
-  const hasStarted = controller.state.interviewPhase !== 'pre_start';
   const phase = controller.state.interviewPhase || 'pre_start';
   const [localReady, setLocalReady] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,57 +199,49 @@ const VideoAndControls: React.FC<{
       window.removeEventListener('interview:permissions_ready', handler);
   }, []);
 
-  // Attach local stream once permission gate stored it
+  // Reset loading state when phase changes from pre_start
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stream = (window as any).__interviewV2LocalStream as
-      | MediaStream
-      | undefined;
-    if (stream && videoRef.current && !videoRef.current.srcObject) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => undefined);
+    if (phase !== 'pre_start' && isStarting) {
+      setIsStarting(false);
     }
-  });
+  }, [phase, isStarting]);
+
+  const handleBegin = () => {
+    setIsStarting(true);
+    controller.begin();
+  };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur shadow-2xl p-5 flex flex-col gap-5">
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-neutral-800/60 ring-1 ring-white/5">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-          muted
-          playsInline
-        />
+    <div className="h-full flex flex-col gap-4">
+      {/* Split-screen video panels */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        <CandidatePanel phase={phase} />
+        <AIAvatarPanel phase={phase} />
+      </div>
+
+      {/* Controls below split view */}
+      <div className="flex-none flex flex-wrap gap-3 items-center">
         {phase === 'pre_start' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-neutral-900/70 backdrop-blur-sm">
-            <h2 className="text-lg font-semibold text-white mb-2">
-              Ready to Begin?
-            </h2>
-            <p className="text-sm text-neutral-300 max-w-sm mb-4">
-              When you start, the AI interviewer will greet you and then begin
-              adaptive questioning.
-            </p>
-            <div className="flex flex-col items-center gap-2 w-full">
-              <PrimaryButton
-                onClick={controller.begin}
-                disabled={hasStarted || !localReady}
-                label={localReady ? 'Start Interview' : 'Waiting for Devices…'}
-              />
-              {!localReady && (
-                <p className="text-[11px] text-neutral-400">
-                  Grant camera & microphone access to enable start.
-                </p>
-              )}
-            </div>
+          <div className="flex flex-col gap-2 w-full">
+            <PrimaryButton
+              onClick={handleBegin}
+              disabled={!localReady || isStarting}
+              label={
+                isStarting
+                  ? 'Starting Interview...'
+                  : localReady
+                    ? 'Start Interview'
+                    : 'Waiting for Devices…'
+              }
+              loading={isStarting}
+            />
+            {!localReady && !isStarting && (
+              <p className="text-[11px] text-neutral-400 text-center">
+                Grant camera & microphone access to enable start.
+              </p>
+            )}
           </div>
         )}
-        {phase === 'conducting' && (
-          <OverlayLabel text="Interview in Progress" />
-        )}
-        {phase === 'scoring' && <OverlayLabel text="Scoring..." />}
-        {phase === 'completed' && <OverlayLabel text="Completed" />}
-      </div>
-      <div className="flex flex-wrap gap-3">
         {phase === 'conducting' && (
           <PrimaryButton
             onClick={controller.endAndScore}
@@ -210,6 +260,85 @@ const VideoAndControls: React.FC<{
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// Left panel: Candidate's video feed
+const CandidatePanel: React.FC<{ phase: string }> = ({ phase }) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Attach local stream once permission gate stored it
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stream = (window as any).__interviewV2LocalStream as
+      | MediaStream
+      | undefined;
+    if (stream && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => undefined);
+    }
+  });
+
+  return (
+    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        muted
+        playsInline
+        aria-label="Your video feed"
+      />
+      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
+        You
+      </div>
+      {phase === 'pre_start' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-neutral-900/70 backdrop-blur-sm">
+          <h2 className="text-lg font-semibold text-white mb-2">
+            Ready to Begin?
+          </h2>
+          <p className="text-sm text-neutral-300 max-w-sm">
+            When you start, the AI interviewer will greet you and then begin
+            adaptive questioning.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Right panel: AI Avatar (placeholder for S16)
+const AIAvatarPanel: React.FC<{ phase: string }> = ({ phase }) => {
+  return (
+    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
+      <div
+        className="absolute inset-0 w-full h-full flex items-center justify-center"
+        aria-label="AI interviewer"
+      >
+        {/* Placeholder for S16 3D avatar */}
+        <div className="text-center p-6">
+          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
+            <span className="text-4xl">🤖</span>
+          </div>
+          <p className="text-sm text-neutral-300 font-medium">AI Interviewer</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            {phase === 'pre_start' && 'Waiting to start...'}
+            {phase === 'intro' && 'Initializing...'}
+            {phase === 'conducting' && 'Listening...'}
+            {phase === 'scoring' && 'Calculating score...'}
+            {phase === 'completed' && 'Interview complete'}
+          </p>
+        </div>
+      </div>
+      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
+        AI Interviewer
+      </div>
+      {(phase === 'conducting' || phase === 'intro') && (
+        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          {phase === 'intro' ? 'Starting...' : 'Active'}
+        </div>
+      )}
     </div>
   );
 };
@@ -345,69 +474,6 @@ const RemoteAIAudioPlayer: React.FC = () => {
   );
 };
 
-const QuestionFeed: React.FC<{
-  controller: ReturnType<typeof useInterviewController>;
-  scrollRef: React.RefObject<HTMLDivElement>;
-}> = ({ controller, scrollRef }) => {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-900/50 backdrop-blur shadow-2xl p-5 h-[460px] flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">Interview Feed</h3>
-        <div className="flex items-center gap-2 text-[10px] text-neutral-400">
-          <span>
-            Q{(controller.state.currentQuestionIndex ?? -1) + 1}/
-            {controller.targetQuestions}
-          </span>
-          <span>|</span>
-          <span>{(controller.elapsedMs / 1000).toFixed(0)}s</span>
-        </div>
-      </div>
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar"
-      >
-        {controller.feed.map(item => (
-          <FeedItem key={item.id} item={item} />
-        ))}
-        {!controller.feed.length && (
-          <div className="text-xs text-neutral-500 pt-8 text-center">
-            Awaiting greeting...
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-interface FeedItemProps {
-  item: ReturnType<typeof useInterviewController>['feed'][number];
-}
-const FeedItem: React.FC<FeedItemProps> = ({ item }) => {
-  const base =
-    'rounded-lg px-3 py-2 text-xs shadow ring-1 ring-inset backdrop-blur';
-  const variantMap: Record<string, string> = {
-    greet: 'bg-indigo-500/15 ring-indigo-400/30 text-indigo-200',
-    question: 'bg-fuchsia-500/15 ring-fuchsia-400/30 text-fuchsia-200',
-    score: 'bg-emerald-500/15 ring-emerald-400/30 text-emerald-200',
-    done: 'bg-slate-500/15 ring-slate-400/30 text-slate-200',
-    info: 'bg-neutral-500/10 ring-neutral-400/20 text-neutral-300',
-  };
-  const style = variantMap[item.type] || variantMap.info;
-  return (
-    <div className={`${base} ${style}`}>
-      <div className="font-medium leading-tight mb-1 capitalize">
-        {item.type.replace(/_/g, ' ')}
-      </div>
-      <div className="leading-snug whitespace-pre-wrap">{item.text}</div>
-      {item.type === 'score' && item.payload != null && (
-        <pre className="mt-2 text-[10px] opacity-70 overflow-x-auto">
-          {JSON.stringify(item.payload, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-};
-
 const PermissionCard: React.FC<{ applicationId: string }> = ({
   applicationId,
 }) => (
@@ -507,7 +573,8 @@ const PrimaryButton: React.FC<{
   onClick?: () => void;
   disabled?: boolean;
   variant?: 'primary' | 'danger';
-}> = ({ label, onClick, disabled, variant = 'primary' }) => {
+  loading?: boolean;
+}> = ({ label, onClick, disabled, variant = 'primary', loading = false }) => {
   const base =
     'px-4 py-2 rounded-lg text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition shadow';
   const variants: Record<string, string> = {
@@ -519,16 +586,34 @@ const PrimaryButton: React.FC<{
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      className={`${base} ${variants[variant]}`}
+      disabled={disabled || loading}
+      className={`${base} ${variants[variant]} ${loading ? 'relative' : ''}`}
     >
-      {label}
+      {loading && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2">
+          <svg
+            className="animate-spin h-4 w-4 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+        </span>
+      )}
+      <span className={loading ? 'ml-6' : ''}>{label}</span>
     </button>
   );
 };
-
-const OverlayLabel: React.FC<{ text: string }> = ({ text }) => (
-  <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
-    {text}
-  </div>
-);
