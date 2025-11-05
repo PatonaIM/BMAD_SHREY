@@ -55,7 +55,14 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
       setPermissionState('granted');
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        // Some browsers require autoplay attribute + muted + play() call
+        videoRef.current.play().catch(() => {
+          // Swallow but expose a lightweight diagnostic for debugging
+          if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+            // eslint-disable-next-line no-console
+            console.warn('[DevicePermissionGate] autoplay play() blocked');
+          }
+        });
       }
       // Expose stream globally for subsequent realtime initialization (EP5-S2)
       try {
@@ -125,6 +132,19 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
   useEffect(() => {
     if (hydrated && support.browser !== 'safari') requestPermissions();
   }, [hydrated, support.browser]);
+  // Attach previously granted stream on hot reload / remount
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const existing: MediaStream | undefined = w.__interviewV2LocalStream;
+    if (existing && permissionState !== 'granted') {
+      if (videoRef.current && !videoRef.current.srcObject) {
+        videoRef.current.srcObject = existing;
+        videoRef.current.play().catch(() => undefined);
+      }
+      setPermissionState('granted');
+    }
+  }, [permissionState]);
   useEffect(
     () => () => {
       cleanupAudioRef.current?.();
@@ -179,6 +199,7 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
+              autoPlay
               muted
               playsInline
             />
@@ -226,22 +247,15 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {permissionState === 'denied' && (
+        {(permissionState === 'denied' || permissionState === 'awaiting') && (
           <button
             type="button"
             onClick={requestPermissions}
             className="btn-primary px-3 py-1.5 text-xs"
           >
-            Retry Permissions
-          </button>
-        )}
-        {support.browser === 'safari' && permissionState === 'awaiting' && (
-          <button
-            type="button"
-            onClick={requestPermissions}
-            className="btn-primary px-3 py-1.5 text-xs"
-          >
-            Request Permissions
+            {permissionState === 'denied'
+              ? 'Retry Permissions'
+              : 'Request Permissions'}
           </button>
         )}
         {permissionState === 'granted' && (
@@ -250,6 +264,13 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
           </span>
         )}
       </div>
+      {permissionState === 'granted' &&
+        videoRef.current &&
+        !videoRef.current.srcObject && (
+          <div className="mt-3 text-[11px] text-amber-600 dark:text-amber-300">
+            Video stream not attached yet. You may need to retry permissions.
+          </div>
+        )}
       {error && (
         <div className="mt-3 text-xs text-red-600 dark:text-red-400">
           {error}

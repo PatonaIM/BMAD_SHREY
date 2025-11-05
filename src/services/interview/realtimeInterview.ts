@@ -1,6 +1,12 @@
 // EP5-S2: WebRTC + OpenAI Realtime integration scaffold (refactored)
 // Focus: structural handshake + state updates + event exposure. Not production ready.
 
+export interface FinalScoreBreakdown {
+  clarity: number;
+  correctness: number;
+  depth: number;
+}
+
 export interface RealtimeSessionState {
   // WebRTC session lifecycle phase
   phase: 'idle' | 'token' | 'connecting' | 'connected' | 'fallback' | 'error';
@@ -23,6 +29,7 @@ export interface RealtimeSessionState {
     | 'scoring'
     | 'completed';
   finalScore?: number; // 0..100 once completed
+  finalScoreBreakdown?: FinalScoreBreakdown;
   // Adaptive context fields (populated when assembling next question)
   difficultyTier?: number;
   contextFragments?: Array<{
@@ -138,6 +145,9 @@ export async function startRealtimeInterview(
     onState(current);
   };
 
+  // Buffers for accumulating tool call argument deltas
+  const toolCallBuffers: Record<string, { name?: string; args: string }> = {};
+
   try {
     update({ phase: 'token' });
     const tokenResp = await fetchEphemeralToken(applicationId);
@@ -149,13 +159,23 @@ export async function startRealtimeInterview(
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) pc.addTrack(audioTrack, localStream);
 
+    const DEBUG = process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1';
     const controlChannel = pc.createDataChannel('control');
     controlChannel.onopen = () => {
       window.dispatchEvent(new CustomEvent('interview:control_channel_open'));
-      console.log('[Interview] control channel opened');
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn('[Interview DEBUG] control channel opened');
+      }
     };
     controlChannel.onmessage = ev => {
-      console.log('[Interview] control channel message received', ev.data);
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[Interview DEBUG] control channel message received',
+          ev.data
+        );
+      }
       const parsed = parseInterviewRTCEvent(ev.data);
       if (parsed) {
         // Update session state based on event type
@@ -205,6 +225,92 @@ export async function startRealtimeInterview(
           })
         );
       } else {
+        // Attempt to parse OpenAI Realtime tool call streaming events
+        try {
+          const maybe = JSON.parse(ev.data);
+          if (maybe && typeof maybe === 'object') {
+            const m = maybe as {
+              type?: string;
+              id?: string;
+              tool_call_id?: string;
+              name?: string;
+              delta?: { arguments?: string };
+            };
+            switch (m.type) {
+              case 'response.output_tool_call.delta': {
+                // Streaming arguments for a tool call
+                // shape may include: { type, tool_call_id, name?, delta: { arguments?: '...' } }
+                const toolId: string | undefined = m.tool_call_id;
+                if (toolId) {
+                  if (!toolCallBuffers[toolId]) {
+                    toolCallBuffers[toolId] = { name: m.name, args: '' };
+                  }
+                  if (m.name) {
+                    toolCallBuffers[toolId].name = m.name;
+                  }
+                  const deltaArgs = m.delta?.arguments;
+                  if (deltaArgs) {
+                    toolCallBuffers[toolId].args += String(deltaArgs);
+                  }
+                }
+                break;
+              }
+              case 'response.output_tool_call.done':
+              case 'response.tool_call.completed': {
+                const toolId: string | undefined = m.tool_call_id;
+                if (toolId && toolCallBuffers[toolId]) {
+                  const { name, args } = toolCallBuffers[toolId];
+                  delete toolCallBuffers[toolId];
+                  let parsedArgs: Record<string, unknown> | undefined;
+                  if (args.trim()) {
+                    try {
+                      parsedArgs = JSON.parse(args);
+                    } catch {
+                      /* ignore malformed args */
+                    }
+                  }
+                  // Map tool name to interview event type
+                  const map: Record<string, InterviewRTCEvent['type']> = {
+                    interview_greet: 'interview.greet',
+                    question_ready: 'question.ready',
+                    interview_score: 'interview.score',
+                    interview_done: 'interview.done',
+                  };
+                  const evtType = name ? map[name] : undefined;
+                  if (evtType) {
+                    const evt: InterviewRTCEvent = {
+                      type: evtType,
+                      ts: Date.now(),
+                      payload: parsedArgs,
+                    };
+                    const evtState: Partial<RealtimeSessionState> = {
+                      lastEventTs: evt.ts,
+                    };
+                    Object.assign(
+                      evtState,
+                      applyInterviewRTCEvent(current, evt)
+                    );
+                    update(evtState);
+                    window.dispatchEvent(
+                      new CustomEvent('interview:rtc_event', { detail: evt })
+                    );
+                    window.dispatchEvent(
+                      new CustomEvent(
+                        `interview:rtc_${evt.type.replace('.', '_')}`,
+                        { detail: evt }
+                      )
+                    );
+                  }
+                }
+                break;
+              }
+              default:
+                break;
+            }
+          }
+        } catch {
+          // ignore non-JSON control payloads
+        }
         window.dispatchEvent(
           new CustomEvent('interview:rtc_event', { detail: { raw: ev.data } })
         );
@@ -215,6 +321,10 @@ export async function startRealtimeInterview(
       update({ connectionState: pc.connectionState });
       if (pc.connectionState === 'connected') {
         update({ phase: 'connected' });
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.warn('[Interview DEBUG] RTCPeerConnection connected');
+        }
       }
     };
     pc.onicegatheringstatechange = () => {
@@ -234,6 +344,12 @@ export async function startRealtimeInterview(
         update({
           firstAudioFrameLatencyMs: performance.now() - offerCreatedAt,
         });
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[Interview DEBUG] first remote audio frame latency recorded'
+          );
+        }
       }
       window.dispatchEvent(new CustomEvent('interview:remote_stream_ready'));
     };
@@ -253,8 +369,17 @@ export async function startRealtimeInterview(
     };
 
     update({ phase: 'connecting' });
+
+    // Explicitly add a recvonly audio transceiver to ensure an audio m= section
+    // Modern browsers increasingly rely on transceivers instead of deprecated
+    // offerToReceive* constraints for consistent remote media negotiation.
+    try {
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+    } catch {
+      /* ignore – older browsers may not support */
+    }
     const offer = await pc.createOffer({
-      offerToReceiveAudio: true,
+      offerToReceiveAudio: true, // kept for backward compatibility
       offerToReceiveVideo: false,
     });
     offerCreatedAt = performance.now();
@@ -277,6 +402,15 @@ export async function startRealtimeInterview(
     update({ latencyMs });
     await pc.setRemoteDescription({ type: 'answer', sdp: answer });
 
+    // Diagnostic: log if answer SDP lacks audio
+    if (DEBUG && !answer.includes('m=audio')) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[Interview DEBUG] Remote SDP answer has no m=audio section. ' +
+          'Audio may not be negotiated via WebRTC. Check if model supports audio over WebRTC or if separate WebSocket is needed.'
+      );
+    }
+
     setTimeout(() => {
       if (pc.connectionState !== 'connected') {
         if (enableWebSocketFallback) {
@@ -294,6 +428,7 @@ export async function startRealtimeInterview(
         const stats = await pc.getStats();
         let jitterAccum = 0;
         let jitterCount = 0;
+        let inboundAudioPackets = 0;
         stats.forEach(report => {
           if (
             report.type === 'inbound-rtp' &&
@@ -302,6 +437,10 @@ export async function startRealtimeInterview(
           ) {
             jitterAccum += report.jitter * 1000; // seconds → ms
             jitterCount++;
+            // Check if we're actually receiving audio packets
+            if (typeof report.packetsReceived === 'number') {
+              inboundAudioPackets = report.packetsReceived;
+            }
           }
         });
         if (jitterCount) {
@@ -309,6 +448,18 @@ export async function startRealtimeInterview(
             avgInboundAudioJitterMs:
               Math.round((jitterAccum / jitterCount) * 100) / 100,
           });
+        }
+        // Debug: log if no audio packets are being received
+        if (DEBUG && inboundAudioPackets === 0) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[Interview DEBUG] Connected but no inbound audio packets received yet. Check if remote peer is sending audio.'
+          );
+        } else if (DEBUG && inboundAudioPackets > 0) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[Interview DEBUG] Receiving audio: ${inboundAudioPackets} packets`
+          );
         }
       } catch {
         // ignore
@@ -351,19 +502,97 @@ function sendWhenOpen(
 }
 
 export function sendInterviewStart(control: RTCDataChannel): void {
-  sendWhenOpen(control, {
-    type: 'client.start',
-    ts: Date.now(),
-    payload: { note: 'begin_intro' },
-  });
+  // OpenAI Realtime API rejects unknown event types like 'client.start'.
+  // We map our control intent into a supported pair of events:
+  // 1. conversation.item.create (user message with sentinel)
+  // 2. response.create (ask model to generate)
+  const ts = Date.now();
+  const itemId = `ctl_start_${ts}`;
+  const createEvent = {
+    type: 'conversation.item.create',
+    item: {
+      id: itemId,
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: '[CONTROL client.start] Candidate is ready. Greet and request introduction.',
+        },
+      ],
+    },
+  };
+  // Request both text and audio so the model produces an audible greeting.
+  // If the server side / token model does not support audio, the track simply won't arrive.
+  const responseEvent = {
+    type: 'response.create',
+    response: {
+      conversation: 'auto',
+      // OpenAI Realtime models accept modalities and audio config.
+      // These fields are ignored if unsupported.
+      modalities: ['text', 'audio'],
+      audio: {
+        voice: 'alloy', // fallback voice name; adjust if your deployment differs
+        format: 'pcm16',
+      },
+    },
+  } as const;
+  sendWhenOpen(control, createEvent);
+  // slight delay to ensure ordering
+  setTimeout(() => sendWhenOpen(control, responseEvent), 40);
 }
 
 export function requestInterviewScore(control: RTCDataChannel): void {
-  sendWhenOpen(control, {
-    type: 'client.request_score',
-    ts: Date.now(),
-    payload: { breakdownRequested: true },
-  });
+  const ts = Date.now();
+  const itemId = `ctl_score_${ts}`;
+  const createEvent = {
+    type: 'conversation.item.create',
+    item: {
+      id: itemId,
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: '[CONTROL client.request_score] Please provide final numeric score (0-100) with clarity/correctness/depth breakdown JSON.',
+        },
+      ],
+    },
+  };
+  const responseEvent = {
+    type: 'response.create',
+    response: { conversation: 'auto' },
+  };
+  sendWhenOpen(control, createEvent);
+  setTimeout(() => sendWhenOpen(control, responseEvent), 40);
+}
+
+// Deterministic fallback scoring (used if model does not respond in time)
+export function computeDeterministicScore(state: RealtimeSessionState): {
+  score: number;
+  breakdown: FinalScoreBreakdown;
+} {
+  const questionsAnswered = (state.currentQuestionIndex ?? -1) + 1;
+  const difficulty = state.difficultyTier ?? 3;
+  // Simple heuristic distributions
+  const clarity = Math.min(1, 0.55 + questionsAnswered * 0.03);
+  const correctness = Math.min(
+    1,
+    0.5 + difficulty * 0.07 + questionsAnswered * 0.025
+  );
+  const depth = Math.min(
+    1,
+    0.45 + difficulty * 0.08 + questionsAnswered * 0.035
+  );
+  const score = Math.round(((clarity + correctness + depth) / 3) * 100);
+  return {
+    score,
+    breakdown: {
+      clarity: parseFloat(clarity.toFixed(2)),
+      correctness: parseFloat(correctness.toFixed(2)),
+      depth: parseFloat(depth.toFixed(2)),
+    },
+  };
 }
 
 // Pure state transition helper (exported for unit testing)

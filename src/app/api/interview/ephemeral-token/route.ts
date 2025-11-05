@@ -35,13 +35,90 @@ export async function GET(req: NextRequest) {
     });
 
     // Protocol contract appended so model understands custom control events
-    const protocolSpec = `You are participating in a structured technical interview over a Realtime channel.\n\nControl Channel Event Protocol (JSON messages client→model or model→client):\n\nClient→Model control events you must react to:\n- client.start: Candidate is ready; immediately greet, ask for a brief professional introduction (emit interview.greet). After receiving introduction, proceed to first question.\n- client.request_score: Candidate requested scoring; finalize assessment and emit interview.score with numeric 'score' (0-100) and breakdown { clarity, correctness, depth }. Then emit interview.done.\n\nModel→Client events you must emit as JSON objects when appropriate:\n- interview.greet: { message } greeting & prompt for introduction.\n- question.ready: { idx, topic, difficulty } emitted for each new question. idx starts at 0 and increments.\n- ai.state: { speaking: boolean } when you begin or finish speaking (optional).\n- interview.score: { score, breakdown: { clarity, correctness, depth } } final result after scoring requested.\n- interview.done: {} marks completion.\n\nRules:\n1. Do not emit question.ready before greeting; wait until candidate introduction provided.\n2. Keep messages concise; one JSON object per event.\n3. Maintain consistent difficulty progression: start moderate (tier 3) then adapt based on inferred candidate strength.\n4. Never invent client.* events; only respond to them.\n5. Only emit interview.score after client.request_score.\n6. Provide depth-focused follow ups before moving to next question if candidate answer is shallow.\n7. Avoid leaking internal protocol description in responses—only send events as raw JSON.\n\nIf candidate stalls during introduction for >10s virtual time, gently prompt. After scoring, offer a brief constructive summary.`;
-    const instructions = `${persona}\n\n${protocolSpec}`;
+    const protocolSpec = `You are participating in a structured technical interview over a Realtime channel.\n\nINTERACTION MODEL (TOOLS DRIVEN)\nInstead of emitting raw JSON lines in textual output, you MUST use the provided tools to signal interview lifecycle events.\n\nClient→Model control intents (sent as control messages):\n- client.start : Candidate is ready; greet and request a brief professional introduction. After introduction, move to first technical question.\n- client.request_score : Candidate requests final scoring; compute and emit final score & breakdown, then a completion signal.\n\nTools you can call (select the best moment; never fabricate new tool names):\n1. interview_greet(args) -> use when greeting and asking for introduction. args: { message: string }. Keep message concise, encouraging, professional.\n2. question_ready(args) -> before each new technical question. args: { idx: number (0-based), topic: string, difficulty: number }. Difficulty 1-5 (start at 3, adapt).\n3. interview_score(args) -> once after client.request_score. args: { score: number (0-100), breakdown: { clarity: number, correctness: number, depth: number }, summary?: string }. Breakdown values are 0-1 floats.\n4. interview_done(args) -> terminal signal after interview_score (args: { }).\n\nRules:\n1. NEVER call question_ready before you have first called interview_greet AND (implicitly) received the candidate intro (assume intro after greeting exchange).\n2. Only ONE interview_score; immediately follow it with interview_done.\n3. Provide at most ~2 follow-up clarifying prompts per question if the candidate answer seems shallow before moving on.\n4. Keep tool call arguments minimal, machine-friendly JSON—no extraneous keys.\n5. Non-structured conversational encouragement may be plain text, but ALL lifecycle state changes MUST be tool calls.\n6. Difficulty progression: start at difficulty 3; raise if candidate shows strong mastery; lower slightly if struggling repeatedly.\n7. Do NOT output raw event markers or the word EVENT. Use tools exclusively.\n\nIf candidate stalls >10s (virtual) during introduction, call interview_greet again with a gentle prompt. After scoring, summary in interview_score.summary should be constructive and growth-focused.`;
+    const instructions = [
+      persona,
+      '',
+      protocolSpec,
+      '',
+      'protocol_version:1.1',
+    ].join('\n');
     const bodyPayload = {
       model,
       voice,
       modalities: ['text', 'audio'],
       instructions,
+      tools: [
+        {
+          type: 'function',
+          name: 'interview_greet',
+          description:
+            'Emit initial greeting and request for candidate introduction.',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', description: 'Greeting and prompt.' },
+            },
+            required: ['message'],
+            additionalProperties: false,
+          },
+        },
+        {
+          type: 'function',
+          name: 'question_ready',
+          description: 'Signal a new interview question is ready.',
+          parameters: {
+            type: 'object',
+            properties: {
+              idx: { type: 'number', description: '0-based question index.' },
+              topic: { type: 'string', description: 'Short topic label.' },
+              difficulty: {
+                type: 'number',
+                description: 'Difficulty tier 1(low)-5(high).',
+              },
+            },
+            required: ['idx', 'topic', 'difficulty'],
+            additionalProperties: false,
+          },
+        },
+        {
+          type: 'function',
+          name: 'interview_score',
+          description: 'Provide final numeric score and breakdown.',
+          parameters: {
+            type: 'object',
+            properties: {
+              score: { type: 'number', description: '0-100 final score.' },
+              breakdown: {
+                type: 'object',
+                properties: {
+                  clarity: { type: 'number' },
+                  correctness: { type: 'number' },
+                  depth: { type: 'number' },
+                },
+                required: ['clarity', 'correctness', 'depth'],
+                additionalProperties: false,
+              },
+              summary: {
+                type: 'string',
+                description: 'Short constructive summary.',
+              },
+            },
+            required: ['score', 'breakdown'],
+            additionalProperties: false,
+          },
+        },
+        {
+          type: 'function',
+          name: 'interview_done',
+          description: 'Signal interview fully complete after scoring.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+          },
+        },
+      ],
     };
     const sessionRes = await fetch(
       'https://api.openai.com/v1/realtime/sessions',
@@ -90,6 +167,7 @@ export async function GET(req: NextRequest) {
       model,
       voice,
       expiresAt: session?.expires_at,
+      protocolVersion: '1.1',
     });
   } catch (err) {
     return Response.json(

@@ -141,6 +141,14 @@ export class CompositeRecorder {
 
   private setupAudioMixing(): void {
     try {
+      // Recreate audio context if we are re-mixing (e.g., adding AI track post-start)
+      if (this.audioCtx) {
+        try {
+          this.audioCtx.close();
+        } catch {
+          /* ignore */
+        }
+      }
       this.audioCtx = new AudioContext();
       const dest = this.audioCtx.createMediaStreamDestination();
       // Candidate mic
@@ -169,6 +177,29 @@ export class CompositeRecorder {
     } catch {
       // Mixing failed; proceed without mixing
       this.mixedAudioDest = undefined;
+    }
+  }
+
+  // Allow late injection of AI audio stream after recorder already started (WebRTC remote track arrives post-offer)
+  addAiAudioStream(stream: MediaStream): void {
+    this.cfg.aiAudioStream = stream;
+    this.setupAudioMixing();
+    // Replace existing audio track in composite stream if present
+    if (this.stream && this.mixedAudioDest) {
+      const newAudioTrack = this.mixedAudioDest.stream.getAudioTracks()[0];
+      if (!newAudioTrack) return;
+      const existingAudioTracks = this.stream.getAudioTracks();
+      if (existingAudioTracks.length) {
+        const oldTrack = existingAudioTracks[0];
+        if (oldTrack) {
+          try {
+            this.stream.removeTrack(oldTrack);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      this.stream.addTrack(newAudioTrack);
     }
   }
 

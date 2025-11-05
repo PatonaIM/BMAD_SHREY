@@ -2,6 +2,8 @@
 
 This document defines the JSON event schema exchanged over the WebRTC DataChannel between the client and the AI interviewer model.
 
+Protocol Version: 1.1
+
 ## Overview
 
 We use lightweight JSON messages (one object per message) to coordinate interview flow, adaptive questioning, and scoring. Messages are divided into two categories:
@@ -75,6 +77,18 @@ They should follow the same one-event-per-message rule.
 ## Versioning
 
 Protocol changes should update this doc and append a short CHANGELOG section. Embed version tag inside session instructions if divergence becomes necessary, e.g. `protocol_version:1`.
+
+### CHANGELOG
+
+1.1
+
+- Added explicit protocol version tag (`protocol_version:1.1`).
+- Clarified scoring event ordering and introduced client-side deterministic fallback scoring (used only if model fails to respond within timeout after `client.request_score`).
+- Prepared for remote AI audio stream injection into composite recorder (no protocol change; just implementation note).
+
+  1.0
+
+- Initial specification of control channel events and lifecycle.
 
 ---
 

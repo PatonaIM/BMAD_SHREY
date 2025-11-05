@@ -6,6 +6,7 @@ import {
   RealtimeInterviewHandles,
   requestInterviewScore,
   sendInterviewStart,
+  computeDeterministicScore,
 } from '../../../services/interview/realtimeInterview';
 import {
   CompositeRecorder,
@@ -29,6 +30,8 @@ export const RealtimeSessionBootstrap: React.FC<
   const [readyForStart, setReadyForStart] = useState(false); // permissions acquired
   const [startInitiated, setStartInitiated] = useState(false); // user clicked Start Interview
   const recorderRef = useRef<CompositeRecorder | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1';
   // startSent removed: auto-start handled in startRealtimeInterview
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -39,22 +42,39 @@ export const RealtimeSessionBootstrap: React.FC<
       const remote = (window as any).__interviewV2RemoteStream as
         | MediaStream
         | undefined;
-      console.log('[Interview] remote_stream_ready', { remote });
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn('[Interview DEBUG] remote_stream_ready', { remote });
+      }
       if (
         remote &&
         audioElRef.current &&
         audioElRef.current.srcObject !== remote
       ) {
         audioElRef.current.srcObject = remote;
-        console.log(
-          '[Interview] audio element srcObject set',
-          audioElRef.current
-        );
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[Interview DEBUG] audio element srcObject set',
+            audioElRef.current
+          );
+        }
         const attempt = audioElRef.current.play();
         if (attempt && typeof attempt.then === 'function') {
           attempt.catch(err => {
-            console.warn('[Interview] audio play() failed', err);
+            if (DEBUG) {
+              // eslint-disable-next-line no-console
+              console.warn('[Interview DEBUG] audio play() failed', err);
+            }
           });
+        }
+        // Late injection of AI audio into composite recorder
+        if (remote && recorderRef.current) {
+          recorderRef.current.addAiAudioStream(remote);
+          if (DEBUG) {
+            // eslint-disable-next-line no-console
+            console.warn('[Interview DEBUG] AI audio injected into recorder');
+          }
         }
       }
     }
@@ -70,7 +90,10 @@ export const RealtimeSessionBootstrap: React.FC<
   useEffect(() => {
     function onPerms() {
       setReadyForStart(true);
-      console.log('[Interview] permissions_ready');
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn('[Interview DEBUG] permissions_ready');
+      }
     }
     window.addEventListener('interview:permissions_ready', onPerms);
     return () =>
@@ -84,7 +107,9 @@ export const RealtimeSessionBootstrap: React.FC<
       | MediaStream
       | undefined;
     if (!stream) return;
+    // Initialize interview timing
     setStartInitiated(true);
+    setElapsedMs(0);
     // Start composite recorder immediately (local stream only; remote mixed later if available)
     try {
       recorderRef.current = new CompositeRecorder({
@@ -132,7 +157,10 @@ export const RealtimeSessionBootstrap: React.FC<
       startInitiated &&
       state.interviewPhase === 'pre_start'
     ) {
-      console.log('[Interview] sending client.start', { handles });
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn('[Interview DEBUG] sending client.start', { handles });
+      }
       sendInterviewStart(handles.controlChannel);
     }
   }, [handles, state.phase, startInitiated, state.interviewPhase]);
@@ -142,10 +170,20 @@ export const RealtimeSessionBootstrap: React.FC<
   // Synthetic greet fallback retained but shorter (1.5s) if no real greet
   useEffect(() => {
     if (state.interviewPhase === 'intro') {
-      console.log('[Interview] interviewPhase=intro, waiting for greeting');
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[Interview DEBUG] interviewPhase=intro, waiting for greeting'
+        );
+      }
       const timer = setTimeout(() => {
         if (state.currentQuestionIndex == null) {
-          console.log('[Interview] synthetic greet fallback triggered');
+          if (DEBUG) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[Interview DEBUG] synthetic greet fallback triggered'
+            );
+          }
           window.dispatchEvent(
             new CustomEvent('interview:rtc_interview_greet', {
               detail: {
@@ -168,26 +206,58 @@ export const RealtimeSessionBootstrap: React.FC<
       (state.interviewPhase === 'scoring' ||
         state.interviewPhase === 'completed')
     ) {
-      console.log('[Interview] stopping recorder', {
-        phase: state.interviewPhase,
-      });
+      if (DEBUG) {
+        // eslint-disable-next-line no-console
+        console.warn('[Interview DEBUG] stopping recorder', {
+          phase: state.interviewPhase,
+        });
+      }
       recorderRef.current.stop();
     }
   }, [state.interviewPhase]);
 
+  // Elapsed time tracking
+  useEffect(() => {
+    if (!startInitiated) return;
+    let raf: number;
+    const startTs = performance.now();
+    const tick = () => {
+      setElapsedMs(performance.now() - startTs);
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
+  }, [startInitiated]);
+
   function endAndScore() {
     if (!handles || scoreRequested) return;
     setScoreRequested(true);
-    console.log('[Interview] sending client.request_score', { handles });
+    if (DEBUG) {
+      // eslint-disable-next-line no-console
+      console.warn('[Interview DEBUG] sending client.request_score', {
+        handles,
+      });
+    }
     requestInterviewScore(handles.controlChannel);
     setState(s => ({ ...s, interviewPhase: 'scoring' }));
     // Fallback local scoring placeholder if remote never returns after timeout
     setTimeout(() => {
       setState(s => {
         if (s.finalScore != null || s.interviewPhase === 'completed') return s;
-        const pseudoScore = Math.round(Math.random() * 40 + 60); // 60-100 placeholder
-        console.log('[Interview] fallback score applied', pseudoScore);
-        return { ...s, finalScore: pseudoScore, interviewPhase: 'completed' };
+        const result = computeDeterministicScore(s);
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[Interview DEBUG] fallback deterministic score applied',
+            result
+          );
+        }
+        return {
+          ...s,
+          finalScore: result.score,
+          finalScoreBreakdown: result.breakdown,
+          interviewPhase: 'completed',
+        };
       });
     }, 8000);
   }
@@ -202,6 +272,10 @@ export const RealtimeSessionBootstrap: React.FC<
         <StatusPill phase={state.phase} />
       </div>
       <div className="grid grid-cols-2 gap-2">
+        <Info
+          label="Elapsed s"
+          value={startInitiated ? (elapsedMs / 1000).toFixed(1) : '0.0'}
+        />
         <Info label="Phase" value={state.phase} />
         <Info label="Conn" value={state.connectionState || '—'} />
         <Info label="ICE" value={state.iceGatheringState || '—'} />
@@ -307,6 +381,13 @@ export const RealtimeSessionBootstrap: React.FC<
       {state.interviewPhase === 'completed' && (
         <div className="text-xs font-semibold">
           Final Score: {state.finalScore != null ? state.finalScore : '—'} / 100
+          {state.finalScoreBreakdown && (
+            <div className="mt-1 text-[10px] font-normal space-x-2">
+              <span>clarity {state.finalScoreBreakdown.clarity}</span>
+              <span>correctness {state.finalScoreBreakdown.correctness}</span>
+              <span>depth {state.finalScoreBreakdown.depth}</span>
+            </div>
+          )}
         </div>
       )}
       <audio ref={audioElRef} autoPlay playsInline className="hidden" />
