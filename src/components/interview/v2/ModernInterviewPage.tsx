@@ -4,6 +4,7 @@ import { useInterviewController } from './useInterviewController';
 import { DevicePermissionGate } from './DevicePermissionGate';
 import { applyLegacyTheme } from '../../../styles/legacyInterviewTheme';
 import { RealtimeSessionBootstrap } from './RealtimeSessionBootstrap';
+import { AIAvatarCanvas } from './AIAvatarCanvas';
 
 interface ModernInterviewPageProps {
   applicationId: string;
@@ -107,7 +108,10 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           {/* Right: Split Panel - Interviewer + Live Feedback */}
           <div className="flex flex-col gap-4 h-full">
             {/* Top: AI Interviewer Panel */}
-            <InterviewerPanel phase={phase} />
+            <InterviewerPanel
+              phase={phase}
+              isSpeaking={controller.state.aiSpeaking ?? false}
+            />
 
             {/* Bottom: Live Feedback Panel */}
             <LiveFeedbackPanel controller={controller} phase={phase} />
@@ -591,33 +595,23 @@ const DiagnosticsModal: React.FC<{
 };
 
 // Interviewer Panel (Top half of right column)
-const InterviewerPanel: React.FC<{ phase: string }> = ({ phase }) => {
+const InterviewerPanel: React.FC<{ phase: string; isSpeaking: boolean }> = ({
+  phase,
+  isSpeaking,
+}) => {
   return (
     <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
-      <div
-        className="absolute inset-0 w-full h-full flex items-center justify-center"
-        aria-label="AI interviewer"
-      >
-        {/* Placeholder for S16 3D avatar */}
-        <div className="text-center p-6">
-          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
-            <span className="text-4xl">🤖</span>
-          </div>
-          <p className="text-sm text-neutral-300 font-medium">AI Interviewer</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            {phase === 'pre_start' && 'Waiting to start...'}
-            {phase === 'intro' && 'Initializing...'}
-            {phase === 'conducting' && 'Listening...'}
-            {phase === 'scoring' && 'Calculating score...'}
-            {phase === 'completed' && 'Interview complete'}
-          </p>
-        </div>
-      </div>
-      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
+      {/* 3D Avatar Canvas */}
+      <AIAvatarCanvas isSpeaking={isSpeaking} />
+
+      {/* Label overlay */}
+      <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10 pointer-events-none z-10">
         AI Interviewer
       </div>
+
+      {/* Status indicator overlay */}
       {(phase === 'conducting' || phase === 'intro') && (
-        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2">
+        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2 pointer-events-none z-10">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
           {phase === 'intro' ? 'Starting...' : 'Active'}
         </div>

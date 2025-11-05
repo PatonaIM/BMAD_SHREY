@@ -176,15 +176,46 @@ export async function startRealtimeInterview(
         );
       }
 
-      // Try to parse as JSON to see ALL event types
+      // Try to parse as JSON to see ALL event types and handle OpenAI Realtime API events
       try {
         const parsed = JSON.parse(ev.data);
-        if (parsed && parsed.type && parsed.type.includes('function')) {
-          // eslint-disable-next-line no-console
-          console.log(
-            '[RTC] Function-related event:',
-            JSON.stringify(parsed, null, 2)
-          );
+
+        // Handle OpenAI Realtime API audio events for aiSpeaking state
+        if (parsed && parsed.type) {
+          // AI starts speaking when audio generation begins
+          if (
+            parsed.type === 'response.audio.delta' ||
+            parsed.type === 'response.audio_transcript.delta'
+          ) {
+            const evtState: Partial<RealtimeSessionState> = {
+              aiSpeaking: true,
+              lastEventTs: Date.now(),
+            };
+            current = { ...current, ...evtState };
+            update(evtState);
+          }
+
+          // AI stops speaking when audio generation completes
+          if (
+            parsed.type === 'response.audio.done' ||
+            parsed.type === 'response.done'
+          ) {
+            const evtState: Partial<RealtimeSessionState> = {
+              aiSpeaking: false,
+              lastEventTs: Date.now(),
+            };
+            current = { ...current, ...evtState };
+            update(evtState);
+          }
+
+          // Log function-related events for debugging
+          if (parsed.type.includes('function')) {
+            // eslint-disable-next-line no-console
+            console.log(
+              '[RTC] Function-related event:',
+              JSON.stringify(parsed, null, 2)
+            );
+          }
         }
       } catch {
         // not JSON
