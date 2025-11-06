@@ -314,12 +314,12 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
 
       {/* Flexible Content Area */}
       <div className="flex-1 px-4 py-4 overflow-hidden">
-        <div className="h-full grid lg:grid-cols-2 gap-4">
+        <div className="h-full grid lg:grid-cols-2 gap-4 min-h-0">
           {/* Left: Candidate Video */}
           <CandidatePanel phase={phase} />
 
           {/* Right: Split Panel - Interviewer + Live Feedback */}
-          <div className="flex flex-col gap-4 h-full">
+          <div className="flex flex-col gap-4 h-full min-h-0">
             {/* Top: AI Interviewer Panel */}
             <InterviewerPanel
               phase={phase}
@@ -1047,7 +1047,7 @@ const LiveFeedbackPanel: React.FC<{
           </p>
         )}
         {phase === 'started' && (
-          <div className="space-y-4 max-h-full overflow-y-auto">
+          <div className="space-y-4">
             {/* Latest Score */}
             {latestScore ? (
               <>
@@ -1070,9 +1070,9 @@ const LiveFeedbackPanel: React.FC<{
                   </p>
                 </div>
 
-                {/* History List - only shown when expanded */}
+                {/* History List - only shown when expanded, with fixed max height */}
                 {showHistory && scoreHistory.length > 1 && (
-                  <div className="space-y-2 flex-shrink-0">
+                  <div className="max-h-48 overflow-y-auto space-y-2 flex-shrink-0">
                     {scoreHistory.map((s, idx) => (
                       <div
                         key={idx}
