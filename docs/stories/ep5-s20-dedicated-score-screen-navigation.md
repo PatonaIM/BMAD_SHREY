@@ -9,9 +9,11 @@ So that I can review my performance breakdown and next steps.
 - Create new route: `/interview/score/[sessionId]`
 - Auto-navigate to score screen when `interviewPhase === 'completed'`
 - Display final score, breakdown (clarity, correctness, depth), and summary feedback
+- **Calculate and display score boost (interview performance → match score improvement)**
+- **Update application's match score with boost applied**
 - Show interview metadata: duration, questions answered, difficulty progression
-- Provide "Return to Dashboard" button
-- Persist score in database (already handled by S18)
+- Provide "Return to Application" and "Go to Dashboard" buttons
+- Persist score and boost in database (already handled by S18)
 
 ## Acceptance Criteria
 
@@ -19,10 +21,14 @@ So that I can review my performance breakdown and next steps.
 2. Score screen loads within 1 second
 3. Displays final score as large prominent number (0-100)
 4. Shows breakdown: clarity, correctness, depth (each 0-1 scale, converted to %)
-5. Displays interview metadata: duration (MM:SS), questions answered, difficulty tier
-6. Shows AI-generated summary feedback (if available)
-7. "Return to Dashboard" button navigates to `/applications` or job board
-8. If session not found, show 404 error page
+5. **Displays score boost: interview score impact on match score (max +15 points)**
+6. **Shows before/after match score comparison**
+7. Displays interview metadata: duration (MM:SS), questions answered, difficulty tier
+8. Shows AI-generated summary feedback (if available)
+9. "Return to Application" button navigates back to `/applications/[applicationId]`
+10. "Go to Dashboard" button navigates to `/dashboard`
+11. If session not found, show 404 error page
+12. **Application page displays score boost badge and updated match score**
 
 ## Score Screen Design
 
@@ -36,6 +42,13 @@ So that I can review my performance breakdown and next steps.
 │           │       85        │  Large Score        │
 │           │      /100       │                     │
 │           └─────────────────┘                     │
+│                                                    │
+│  🎯 Match Score Improvement                       │
+│  ┌────────────────────────────────────────────┐  │
+│  │ Before Interview:    72%                   │  │
+│  │ Score Boost:        +13%  (from interview) │  │
+│  │ New Match Score:     85%  ⬆️               │  │
+│  └────────────────────────────────────────────┘  │
 │                                                    │
 │  Performance Breakdown                             │
 │  ┌────────────────────────────────────────────┐  │
@@ -68,6 +81,7 @@ Stacked vertically with full-width sections.
 // src/app/interview/score/[sessionId]/page.tsx
 import { getDb } from '@/lib/mongodb';
 import { notFound } from 'next/navigation';
+import { applicationRepo } from '@/data-access/repositories/applicationRepo';
 
 interface ScorePageProps {
   params: { sessionId: string };
@@ -85,6 +99,14 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
 
   const { finalScore, scoreBreakdown, duration, metadata, createdAt, completedAt } = session;
 
+  // Fetch application to get before/after scores
+  const application = await applicationRepo.findById(session.applicationId);
+  const scoreBeforeInterview = application?.scoreBeforeInterview;
+  const scoreAfterInterview = application?.scoreAfterInterview;
+  const scoreBoost = scoreAfterInterview && scoreBeforeInterview
+    ? scoreAfterInterview - scoreBeforeInterview
+    : undefined;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-neutral-950 dark:to-neutral-900 py-12">
       <div className="max-w-3xl mx-auto px-4">
@@ -95,6 +117,9 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
           questionsAnswered={session.events?.filter(e => e.type === 'question.ready').length ?? 0}
           difficulty={metadata?.difficultyTier ?? 3}
           feedback={session.aiSummary}
+          scoreBeforeInterview={scoreBeforeInterview}
+          scoreAfterInterview={scoreAfterInterview}
+          scoreBoost={scoreBoost}
         />
         <div className="mt-8 text-center">
           <a
@@ -121,6 +146,9 @@ interface ScoreCardProps {
   questionsAnswered: number;
   difficulty: number;
   feedback?: string;
+  scoreBeforeInterview?: number;
+  scoreAfterInterview?: number;
+  scoreBoost?: number;
 }
 
 export const ScoreCard: React.FC<ScoreCardProps> = ({
@@ -130,6 +158,9 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   questionsAnswered,
   difficulty,
   feedback,
+  scoreBeforeInterview,
+  scoreAfterInterview,
+  scoreBoost,
 }) => {
   const formatDuration = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -151,6 +182,44 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           / 100
         </div>
       </div>
+
+      {/* Score Boost Section */}
+      {scoreBeforeInterview !== undefined &&
+       scoreAfterInterview !== undefined &&
+       scoreBoost !== undefined && (
+        <div className="mb-8 bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-900/20 dark:to-cyan-900/20 rounded-xl p-6 border border-emerald-200 dark:border-emerald-800">
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+            🎯 Match Score Improvement
+          </h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
+                Before Interview
+              </div>
+              <div className="text-2xl font-bold text-neutral-700 dark:text-neutral-300">
+                {scoreBeforeInterview}%
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-emerald-600 dark:text-emerald-400 mb-1">
+                Score Boost
+              </div>
+              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                +{scoreBoost}%
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
+                New Match Score
+              </div>
+              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1">
+                {scoreAfterInterview}%
+                <span className="text-lg">⬆️</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Breakdown */}
       {breakdown && (
@@ -248,9 +317,34 @@ useEffect(() => {
 2. `controller.endAndScore()` called
 3. Scoring logic updates `finalScore` and `scoreBreakdown` in state
 4. Backend API `/api/interview/end-session` persists score to DB
-5. Client waits 2s (optional: show inline score preview)
-6. Navigate to `/interview/score/[sessionId]`
-7. Score page fetches session from DB and renders
+5. **Backend calculates score boost: `min(interviewScore * 0.15, 15)` (max 15 points)**
+6. **Backend updates application: `scoreBeforeInterview`, `scoreAfterInterview`, `matchScore`**
+7. Client waits 2s (optional: show inline score preview)
+8. Navigate to `/interview/score/[sessionId]`
+9. Score page fetches session and application from DB and renders with boost
+
+## Score Boost Calculation
+
+```typescript
+// In /api/interview/end-session
+const interviewScore = finalScore ?? 0; // 0-100
+const scoreBoost = Math.min(interviewScore * 0.15, 15); // Max 15 point boost
+
+// Get current match score from application
+const application = await applicationRepo.findById(session.applicationId);
+const originalMatchScore = application.matchScore;
+
+// Calculate new match score (capped at 100)
+const newMatchScore = Math.min(originalMatchScore + scoreBoost, 100);
+
+// Update application with interview completion data
+await applicationRepo.updateInterviewCompletion(
+  session.applicationId,
+  interviewScore,
+  originalMatchScore
+);
+// This sets: scoreBeforeInterview, scoreAfterInterview, matchScore
+```
 
 ## Edge Cases
 
@@ -289,16 +383,20 @@ After interview completion, candidate auto-navigates to `/interview/score/[sessi
 
 ## Tasks
 
-- [ ] Create `/interview/score/[sessionId]/page.tsx` route
-- [ ] Implement ScoreCard component with breakdown visualization
-- [ ] Add auto-navigation logic in useInterviewController
-- [ ] Persist final score to database (already in useInterviewController)
-- [ ] Add session data fetch in score page
-- [ ] Implement 404 handling for invalid sessions
-- [ ] Style score screen (gradient background, animations)
-- [ ] Add "Return to Dashboard" button
+- [x] Create `/interview/score/[sessionId]/page.tsx` route
+- [x] Implement ScoreCard component with breakdown visualization
+- [x] Add score boost display section to ScoreCard
+- [x] Add auto-navigation logic in useInterviewController
+- [x] Persist final score to database (already in useInterviewController)
+- [x] **Update `/api/interview/end-session` to calculate score boost**
+- [x] **Update application with score boost via `updateInterviewCompletion`**
+- [x] Add session and application data fetch in score page
+- [x] Implement 404 handling for invalid sessions
+- [x] Style score screen (gradient background, animations, boost highlight)
+- [x] Add "Return to Application" and "Go to Dashboard" buttons
+- [ ] **Verify ScoreComparisonCard on application page displays boost correctly**
 - [ ] Add analytics events
-- [ ] Test navigation flow end-to-end
+- [ ] Test navigation flow end-to-end with score boost
 
 ## Dependencies
 

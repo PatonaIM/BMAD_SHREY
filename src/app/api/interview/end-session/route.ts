@@ -150,12 +150,42 @@ export async function POST(req: NextRequest) {
         }
       );
 
-      // Update application status to 'completed'
+      // Calculate and apply score boost to application
       try {
+        const application = await applicationRepo.findById(
+          session.applicationId
+        );
+
+        if (application && finalScore !== undefined) {
+          const originalMatchScore = application.matchScore || 0;
+
+          // Calculate score boost (max 15 points, based on interview performance)
+          const scoreBoost = Math.min(finalScore * 0.15, 15);
+          const newMatchScore = Math.min(originalMatchScore + scoreBoost, 100);
+
+          // Update application with interview completion data
+          await applicationRepo.updateInterviewCompletion(
+            session.applicationId,
+            finalScore,
+            originalMatchScore
+          );
+
+          logger.info({
+            event: 'application_score_boost_applied',
+            applicationId: session.applicationId,
+            originalScore: originalMatchScore,
+            interviewScore: finalScore,
+            scoreBoost,
+            newScore: newMatchScore,
+          });
+        }
+
+        // Also update interview status to completed
         await applicationRepo.updateInterviewStatus(
           session.applicationId,
           'completed'
         );
+
         logger.info({
           event: 'application_interview_status_updated',
           applicationId: session.applicationId,
@@ -164,7 +194,7 @@ export async function POST(req: NextRequest) {
       } catch (appUpdateError) {
         // Log error but don't fail the request
         logger.error({
-          event: 'application_interview_status_update_failed',
+          event: 'application_update_failed',
           applicationId: session.applicationId,
           error:
             appUpdateError instanceof Error

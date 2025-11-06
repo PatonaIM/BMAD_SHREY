@@ -225,6 +225,25 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
     }
   }, [phase, recording, applicationId]);
 
+  // Auto-navigate to score screen when interview completes
+  useEffect(() => {
+    if (phase === 'completed') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sessionId = (window as any).__interviewSessionId;
+      if (sessionId) {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[Navigation] Interview completed, navigating to score screen...'
+        );
+        // Wait 2 seconds to show completion state, then navigate
+        const timer = setTimeout(() => {
+          window.location.href = `/interview/score/${sessionId}`;
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [phase]);
+
   const progressPct = useMemo(() => {
     if (
       controller.state.currentQuestionIndex == null ||
