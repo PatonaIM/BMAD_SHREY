@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   // Model & voice can be parameterized later; keep minimal for now.
   const model =
-    process.env.INTERVIEW_REALTIME_MODEL || 'gpt-4o-realtime-preview';
+    process.env.INTERVIEW_REALTIME_MODEL || 'gpt-realtime-2025-08-28';
   const voice = process.env.INTERVIEW_REALTIME_VOICE || 'alloy';
 
   try {

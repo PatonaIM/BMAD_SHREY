@@ -6,37 +6,40 @@ So that replay retains complete situational fidelity.
 
 ## Scope
 
-- Capture root interview container via `HTMLCanvasElement` draw loop
-- Draw webcam stream PiP (bottom-right, rounded corners)
+- Use `HTMLElement.captureStream()` to capture the root interview container directly
+- Browser handles frame capture automatically (no manual draw loop needed)
 - Mixed audio node combining candidate mic + AI playback stream
-- MediaRecorder on composite stream → chunked output
-- Dynamic resolution fallback (1280x720 → 960x540 → 640x360)
+- MediaRecorder on composite stream (video from captureStream + mixed audio)
+- Dynamic resolution fallback via CSS transform scale if capture quality is poor
+- Fallback: If captureStream() unsupported, record webcam-only with flag `composite=false`
 
 ## Acceptance Criteria
 
-1. Composite recording starts automatically at interview activation
-2. Frame rate target ~30fps (log actual averaged)
+1. Composite recording starts automatically at interview activation using `element.captureStream(frameRate)`
+2. Frame rate target ~30fps (browser-managed)
 3. Mixed audio balanced (AI volume normalized vs candidate)
-4. Resolution downgrade triggers when average encode time > threshold (e.g. 25ms)
-5. Metadata saved: resolution, fps avg, hasWebcam, total chunks
+4. If captureStream() unavailable (e.g., older Safari), gracefully fall back to webcam-only recording
+5. Metadata saved: resolution, fps target, hasComposite, hasWebcam, total chunks
 6. Graceful stop ensures final chunk flushed
-7. If canvas unsupported → fallback to webcam-only recording (flag composite=false)
+7. Audio/video sync maintained by combining captureStream video track with mixed audio track
 
 ## Performance
 
-- Canvas draw loop CPU <40% on mid-tier laptop
-- Memory usage stable (<250MB total for recording system)
+- Offloads frame capture to browser's native implementation (more efficient than manual canvas)
+- Memory usage stable (<150MB for recording system)
+- CPU usage minimal since browser handles encoding
 
 ## Risks
 
-- Safari canvas constraints → fallback path essential
-- Audio drift → use single mixed media stream for sync
+- Browser support: `captureStream()` supported in Chrome/Edge/Firefox, limited Safari support
+- Solution: Feature detection + webcam-only fallback
+- Audio drift → use single mixed MediaStream for sync
 
 ## Tests
 
 - Manual: inspect composite recording playback integrity
-- Automated: mock canvas draw loop timing & resolution fallback logic
+- Automated: feature detection for captureStream(), fallback logic validation
 
 ## Definition of Done
 
-Playable composite recording with captured UI + webcam + mixed audio and resilient fallbacks.
+Playable composite recording with captured UI + webcam + mixed audio using native captureStream() API with resilient fallbacks.

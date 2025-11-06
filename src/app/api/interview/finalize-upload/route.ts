@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
       userId: user._id,
       sessionId,
       blockCount: blockIds.length,
+      blockIds: blockIds.slice(0, 10), // Log first 10 block IDs for debugging
       duration,
       fileSize,
     });

@@ -88,15 +88,10 @@ const Avatar: React.FC<AvatarProps> = ({ isSpeaking, audioStream }) => {
   // Find jaw and head bones + morph targets for animation (only once)
   useEffect(() => {
     if (scene && !bonesScanned) {
-      // eslint-disable-next-line no-console
-      console.log('[Avatar] 🔍 Scanning avatar skeleton and morph targets...');
-
       scene.traverse((child: THREE.Object3D) => {
         // Look for bones
         if (child instanceof THREE.Bone) {
           const boneName = child.name.toLowerCase();
-          // eslint-disable-next-line no-console
-          console.log('[Avatar] 🦴 Found bone:', child.name);
 
           // Look for jaw bone
           if (
@@ -105,8 +100,6 @@ const Avatar: React.FC<AvatarProps> = ({ isSpeaking, audioStream }) => {
             boneName === 'cc_base_jawroot'
           ) {
             jawBoneRef.current = child;
-            // eslint-disable-next-line no-console
-            console.log('[Avatar] ✅ Jaw bone found:', child.name);
           }
 
           // Look for head bone
@@ -116,8 +109,6 @@ const Avatar: React.FC<AvatarProps> = ({ isSpeaking, audioStream }) => {
             !headBoneRef.current
           ) {
             headBoneRef.current = child;
-            // eslint-disable-next-line no-console
-            console.log('[Avatar] ✅ Head bone found:', child.name);
           }
         }
 
@@ -127,32 +118,12 @@ const Avatar: React.FC<AvatarProps> = ({ isSpeaking, audioStream }) => {
           if (mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
             if (!morphMeshRef.current) {
               morphMeshRef.current = mesh as THREE.SkinnedMesh;
-              // eslint-disable-next-line no-console
-              console.log(
-                '[Avatar] 🎭 Found morph targets on mesh:',
-                mesh.name,
-                '- Available targets:',
-                Object.keys(mesh.morphTargetDictionary)
-              );
             }
           }
         }
       });
 
       setBonesScanned(true);
-
-      if (!jawBoneRef.current && !morphMeshRef.current) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '[Avatar] ⚠️ No jaw bone or morph targets found - using fallback animation'
-        );
-      } else if (morphMeshRef.current) {
-        // eslint-disable-next-line no-console
-        console.log('[Avatar] ✅ Will use morph target animation for lip-sync');
-      } else if (jawBoneRef.current) {
-        // eslint-disable-next-line no-console
-        console.log('[Avatar] ✅ Will use jaw bone animation for lip-sync');
-      }
     }
   }, [scene, bonesScanned]);
 

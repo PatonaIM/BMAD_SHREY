@@ -4,6 +4,17 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Suppress React DevTools version check errors with @react-three/fiber
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Ignore React DevTools backend errors in development
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'react-devtools-core': false,
+      };
+    }
+    return config;
+  },
   async headers() {
     return [
       {

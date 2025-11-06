@@ -307,15 +307,23 @@ export class AzureBlobInterviewStorage {
     }
 
     // Commit the blocks in order with proper headers and metadata
-    await blockBlobClient.commitBlockList(blockIds, {
-      blobHTTPHeaders: {
-        blobContentType: 'video/webm',
-        blobCacheControl: 'public, max-age=31536000', // 1 year cache
-        // Add content disposition for inline display
-        blobContentDisposition: 'inline',
-      },
-      metadata: blobMetadata,
-    });
+    try {
+      await blockBlobClient.commitBlockList(blockIds, {
+        blobHTTPHeaders: {
+          blobContentType: 'video/webm',
+          blobCacheControl: 'public, max-age=31536000', // 1 year cache
+          // Add content disposition for inline display
+          blobContentDisposition: 'inline',
+        },
+        metadata: blobMetadata,
+      });
+    } catch (error) {
+      // Log detailed error including block IDs for debugging
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(
+        `Failed to commit blocks (count: ${blockIds.length}, ids: ${blockIds.slice(0, 5).join(', ')}...): ${message}`
+      );
+    }
 
     // Generate signed URL (valid for 7 days)
     const url = await this.getSignedUrl(blobName, 7 * 24 * 60);

@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useInterviewController } from './useInterviewController';
+import { useCompositeRecording } from './useCompositeRecording';
+import { uploadRecording } from '../../../services/interview/recordingUpload';
 import { DevicePermissionGate } from './DevicePermissionGate';
 import { applyLegacyTheme } from '../../../styles/legacyInterviewTheme';
 import { RealtimeSessionBootstrap } from './RealtimeSessionBootstrap';
@@ -16,11 +18,18 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   applicationId,
 }) => {
   const controller = useInterviewController({ applicationId });
+  const recording = useCompositeRecording({
+    applicationId,
+    enabled: true,
+    progressiveUpload: true, // Enable progressive Azure upload during recording
+  });
+
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [localReady, setLocalReady] = useState(false);
   const [remoteAudioStream, setRemoteAudioStream] =
     useState<MediaStream | null>(null);
+  const interviewRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     applyLegacyTheme();
@@ -48,7 +57,60 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   const handleBegin = () => {
     setIsStarting(true);
     controller.begin();
+
+    // Start recording when interview begins
+    if (interviewRootRef.current) {
+      recording.startRecording(interviewRootRef.current);
+    }
   };
+
+  // Add AI audio stream to recording when it becomes available
+  useEffect(() => {
+    if (remoteAudioStream && recording.isRecording) {
+      recording.addAiAudioStream(remoteAudioStream);
+    }
+  }, [remoteAudioStream, recording.isRecording, recording.addAiAudioStream]);
+
+  // Stop recording when interview completes
+  useEffect(() => {
+    if (phase === 'completed' && recording.isRecording) {
+      recording
+        .stopRecording()
+        .then(finalBlob => {
+          // Skip final upload if progressive upload is enabled (already uploaded)
+          if (finalBlob && recording.metadata && !recording.progressiveUpload) {
+            // Upload recording to storage
+            uploadRecording(
+              applicationId,
+              finalBlob,
+              recording.metadata as unknown as Record<string, unknown>
+            )
+              .then(result => {
+                if (result.success) {
+                  // eslint-disable-next-line no-console
+                  console.log('[Recording] Upload successful:', result.url);
+                } else {
+                  // eslint-disable-next-line no-console
+                  console.error('[Recording] Upload failed:', result.error);
+                }
+              })
+              .catch(err => {
+                // eslint-disable-next-line no-console
+                console.error('[Recording] Upload error:', err);
+              });
+          } else if (recording.progressiveUpload) {
+            // eslint-disable-next-line no-console
+            console.log(
+              '[Recording] Skipping final upload - progressive upload already completed'
+            );
+          }
+        })
+        .catch(err => {
+          // eslint-disable-next-line no-console
+          console.error('[Recording] Stop error:', err);
+        });
+    }
+  }, [phase, recording, applicationId]);
 
   const progressPct = useMemo(() => {
     if (
@@ -65,7 +127,11 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   const difficulty = controller.state.difficultyTier ?? 3;
 
   return (
-    <div className="relative h-screen w-full overflow-hidden font-sans flex flex-col">
+    <div
+      ref={interviewRootRef}
+      id="interview-root"
+      className="relative h-screen w-full overflow-hidden font-sans flex flex-col"
+    >
       <div className="absolute inset-0 -z-10 opacity-40 blur-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600" />
       <div className="absolute inset-0 -z-10 bg-neutral-950/80 backdrop-blur" />
 
@@ -98,6 +164,8 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           progressPct={progressPct}
           onEndInterview={controller.endAndScore}
           onToggleDiagnostics={() => setShowDiagnostics(prev => !prev)}
+          isRecording={recording.isRecording}
+          recordingChunkCount={recording.chunkCount}
         />
       </div>
 
@@ -136,6 +204,8 @@ const HeaderBar: React.FC<{
   progressPct: number;
   onEndInterview: () => void;
   onToggleDiagnostics: () => void;
+  isRecording?: boolean;
+  recordingChunkCount?: number;
 }> = ({
   applicationId,
   elapsedSeconds,
@@ -144,6 +214,8 @@ const HeaderBar: React.FC<{
   progressPct,
   onEndInterview,
   onToggleDiagnostics,
+  isRecording = false,
+  recordingChunkCount = 0,
 }) => {
   return (
     <div className="rounded-2xl border border-white/10 bg-neutral-900/70 backdrop-blur shadow-2xl overflow-hidden">
@@ -161,6 +233,16 @@ const HeaderBar: React.FC<{
           <StatusPill phase={phase} />
           <Badge label={`Difficulty T${difficulty}`} variant="purple" />
           <Badge label={`${elapsedSeconds}s`} variant="slate" />
+
+          {/* Recording indicator */}
+          {isRecording && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/15 text-red-300 ring-1 ring-inset ring-red-400/30">
+              <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+              <span className="text-[10px] font-medium uppercase tracking-wide">
+                REC {recordingChunkCount > 0 ? `(${recordingChunkCount})` : ''}
+              </span>
+            </div>
+          )}
 
           {/* Diagnostics Icon Button */}
           <button
@@ -184,8 +266,8 @@ const HeaderBar: React.FC<{
             </svg>
           </button>
 
-          {/* End Interview Button - visible during conducting phase */}
-          {phase === 'conducting' && (
+          {/* End Interview Button - visible after interview starts */}
+          {phase !== 'pre_start' && phase !== 'completed' && (
             <button
               onClick={onEndInterview}
               className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-red-600 text-white hover:brightness-110 transition text-xs font-medium shadow flex items-center gap-1.5"
