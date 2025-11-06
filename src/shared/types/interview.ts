@@ -113,6 +113,12 @@ export interface UpdateInterviewSessionParams {
   qaTranscript?: InterviewQAPair[];
   interviewSummary?: string;
   summaryGeneratedAt?: Date;
+  // EP5-S21: Detailed feedback from AI
+  detailedFeedback?: {
+    strengths: string[];
+    improvements: string[];
+    summary: string;
+  };
 }
 
 export interface InterviewSessionListItem {

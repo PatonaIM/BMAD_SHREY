@@ -4,24 +4,29 @@ interface ScoreCardProps {
   score: number;
   breakdown?: { clarity: number; correctness: number; depth: number };
   duration?: number; // seconds
-  questionsAnswered: number;
   difficulty: number;
-  feedback?: string;
+  feedback?: string; // Old feedback (legacy support)
   scoreBeforeInterview?: number;
   scoreAfterInterview?: number;
   scoreBoost?: number;
+  // EP5-S21: Detailed feedback from AI
+  detailedFeedback?: {
+    strengths: string[];
+    improvements: string[];
+    summary: string;
+  };
 }
 
 export const ScoreCard: React.FC<ScoreCardProps> = ({
   score,
   breakdown,
   duration = 0,
-  questionsAnswered,
   difficulty,
   feedback,
   scoreBeforeInterview,
   scoreAfterInterview,
   scoreBoost,
+  detailedFeedback,
 }) => {
   const formatDuration = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -123,21 +128,13 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       )}
 
       {/* Metadata */}
-      <div className="grid grid-cols-3 gap-4 mb-8 text-center">
+      <div className="grid grid-cols-2 gap-4 mb-8 text-center">
         <div>
           <div className="text-2xl font-bold text-neutral-900 dark:text-white">
             {formatDuration(duration)}
           </div>
           <div className="text-xs text-neutral-500 dark:text-neutral-400">
             Duration
-          </div>
-        </div>
-        <div>
-          <div className="text-2xl font-bold text-neutral-900 dark:text-white">
-            {questionsAnswered}
-          </div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400">
-            Questions
           </div>
         </div>
         <div>
@@ -150,16 +147,77 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
         </div>
       </div>
 
-      {/* Feedback */}
-      {feedback && (
-        <div>
-          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
-            Feedback
-          </h3>
-          <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">
-            {feedback}
-          </p>
+      {/* Detailed Feedback (EP5-S21) */}
+      {detailedFeedback ? (
+        <div className="space-y-6">
+          {/* Strengths Section */}
+          {detailedFeedback.strengths.length > 0 && (
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
+              <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3 flex items-center gap-2">
+                ✨ Key Strengths
+              </h3>
+              <ul className="space-y-2">
+                {detailedFeedback.strengths.map((strength, idx) => (
+                  <li
+                    key={idx}
+                    className="text-sm text-neutral-700 dark:text-neutral-300 flex items-start gap-2"
+                  >
+                    <span className="text-green-600 dark:text-green-400 mt-0.5">
+                      ✓
+                    </span>
+                    <span>{strength}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Improvements Section */}
+          {detailedFeedback.improvements.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800">
+              <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-2">
+                📈 Areas for Growth
+              </h3>
+              <ul className="space-y-2">
+                {detailedFeedback.improvements.map((improvement, idx) => (
+                  <li
+                    key={idx}
+                    className="text-sm text-neutral-700 dark:text-neutral-300 flex items-start gap-2"
+                  >
+                    <span className="text-amber-600 dark:text-amber-400 mt-0.5">
+                      →
+                    </span>
+                    <span>{improvement}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Overall Assessment */}
+          {detailedFeedback.summary && (
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-6 border border-indigo-200 dark:border-indigo-800">
+              <h3 className="text-lg font-semibold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
+                💡 Overall Assessment
+              </h3>
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                {detailedFeedback.summary}
+              </p>
+            </div>
+          )}
         </div>
+      ) : (
+        // Legacy feedback (backward compatibility)
+        feedback && (
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
+              Feedback
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              {feedback}
+            </p>
+          </div>
+        )
       )}
     </div>
   );

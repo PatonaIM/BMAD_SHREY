@@ -33,10 +33,10 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
       ? scoreAfterInterview - scoreBeforeInterview
       : undefined;
 
-  // Count questions answered from events
-  const questionsAnswered =
-    session.events?.filter((e: { type: string }) => e.type === 'question.ready')
-      .length ?? 0;
+  // EP5-S21: Get detailed feedback if available
+  const detailedFeedback = session.detailedFeedback as
+    | { strengths: string[]; improvements: string[]; summary: string }
+    | undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-neutral-950 dark:to-neutral-900 py-12">
@@ -45,12 +45,12 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
           score={finalScore ?? 0}
           breakdown={scoreBreakdown}
           duration={duration}
-          questionsAnswered={questionsAnswered}
           difficulty={metadata?.difficultyTier ?? 3}
           feedback={session.aiSummary}
           scoreBeforeInterview={scoreBeforeInterview}
           scoreAfterInterview={scoreAfterInterview}
           scoreBoost={scoreBoost}
+          detailedFeedback={detailedFeedback}
         />
 
         {/* Dual Navigation Buttons */}

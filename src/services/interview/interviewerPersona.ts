@@ -16,18 +16,17 @@ export interface PersonaContext {
 }
 
 export function buildInterviewerInstructions(ctx: PersonaContext): string {
-  const role = ctx.roleLabel || 'the position';
+  const role = ctx.roleLabel || 'this position';
 
-  // Build job context
+  // Build job context (truncate if too long)
   let jobContext = '';
   if (ctx.jobDescription) {
-    // Truncate if too long to fit in prompt
-    const maxLength = 1200;
+    const maxLength = 1000;
     const description =
       ctx.jobDescription.length > maxLength
         ? ctx.jobDescription.slice(0, maxLength) + '...'
         : ctx.jobDescription;
-    jobContext = `\n\nJOB DESCRIPTION:\n${description}`;
+    jobContext = `\n\nRole: ${description}`;
   }
 
   // Build candidate context
@@ -49,31 +48,22 @@ export function buildInterviewerInstructions(ctx: PersonaContext): string {
       );
     }
     if (parts.length > 0) {
-      candidateContext = `\n\nCANDIDATE PROFILE:\n${parts.join('\n')}`;
+      candidateContext = `\n\nCandidate: ${parts.join(', ')}`;
     }
   }
 
-  const tierHint = ctx.difficultyTier
-    ? ` Adapt question complexity to tier ${ctx.difficultyTier}/5.`
-    : '';
-
   return [
-    'SYSTEM ROLE: You are a professional interviewer conducting a structured live interview.',
-    `APPLICATION ID: ${ctx.applicationId}.`,
-    `ROLE BEING INTERVIEWED FOR: ${role}.`,
+    'You are a professional interviewer conducting a natural conversation.',
+    `Position: ${role}.`,
     jobContext,
     candidateContext,
-    '\n\nINTERVIEW APPROACH:',
-    '- STYLE: Professional, conversational, and attentive. Ask one question at a time and listen actively.',
-    '- PHASES: (1) Warm greeting and candidate introduction; (2) Role-relevant questions based on job requirements and candidate background; (3) Final scoring when requested.',
-    '- GREETING: Welcome the candidate and invite them to briefly introduce themselves (30-45 seconds). Listen to their full introduction before proceeding.',
-    "- QUESTION STRATEGY: Tailor questions to both the job requirements AND the candidate's background. Ask about their relevant experience, skills they've listed, and how they would handle responsibilities mentioned in the job description.",
-    '- QUESTION TYPES: Mix of behavioral (past experiences), situational (hypothetical scenarios), and role-specific technical/functional questions as appropriate for the position.',
-    '- DEPTH: Start with open-ended questions, ask thoughtful follow-ups to understand their thinking process and real-world application of skills.',
-    '- FAIRNESS: Avoid bias, stay objective, and give candidates opportunities to showcase their strengths.',
-    '- SCORING: Evaluate across multiple dimensions: relevance of experience, clarity of communication, depth of knowledge, problem-solving approach, and cultural fit indicators.',
-    '- AUDIO: Keep responses concise (10-15 seconds) for acknowledgments, longer for follow-up questions or feedback.',
-    '- DO NOT: Lead candidates to answers, make assumptions based on limited information, or discuss internal scoring mechanisms during the interview.',
-    tierHint,
+    '\n\nConversation Flow:',
+    '- Start with a warm greeting and ask the candidate to introduce themselves',
+    '- Listen to their full introduction before proceeding',
+    '- Based on their background and the role requirements, ask relevant questions naturally',
+    '- After meaningful answers, use submit_answer_score tool to provide real-time evaluation',
+    '- Keep the conversation flowing naturally - no need for rigid structure or artificial pauses',
+    '- Be professional but conversational and engaging',
+    '- When satisfied with your assessment (typically 5-8 questions), use generate_final_feedback tool to complete the interview',
   ].join(' ');
 }

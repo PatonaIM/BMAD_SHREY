@@ -8,6 +8,12 @@ export interface FinalScoreBreakdown {
   summary?: string;
 }
 
+export interface DetailedFeedback {
+  strengths: string[];
+  improvements: string[];
+  summary: string;
+}
+
 export interface RealtimeSessionState {
   // WebRTC session lifecycle phase
   phase: 'idle' | 'token' | 'connecting' | 'connected' | 'fallback' | 'error';
@@ -22,15 +28,11 @@ export interface RealtimeSessionState {
   currentQuestionIndex?: number;
   aiSpeaking?: boolean;
   lastEventTs?: number;
-  // Interview journey phases (EP5 user journey extension)
-  interviewPhase?:
-    | 'pre_start'
-    | 'intro'
-    | 'conducting'
-    | 'scoring'
-    | 'completed';
+  // Interview journey phases (EP5-S21: simplified to 3 states)
+  interviewPhase?: 'pre_start' | 'started' | 'completed';
   finalScore?: number; // 0..100 once completed
   finalScoreBreakdown?: FinalScoreBreakdown;
+  detailedFeedback?: DetailedFeedback; // EP5-S21: Detailed strengths/improvements
   // Adaptive context fields (populated when assembling next question)
   difficultyTier?: number;
   contextFragments?: Array<{
@@ -242,11 +244,11 @@ export async function startRealtimeInterview(
           lastEventTs: parsed.ts,
         };
         Object.assign(evtState, applyInterviewRTCEvent(current, parsed));
-        // Invoke context assembler only when entering or during conducting phase on question.ready events
+        // Invoke context assembler only when in started phase on question.ready events
         if (
           parsed.type === 'question.ready' &&
-          (current.interviewPhase === 'conducting' ||
-            evtState.interviewPhase === 'conducting') &&
+          (current.interviewPhase === 'started' ||
+            evtState.interviewPhase === 'started') &&
           jobProfile
         ) {
           try {
@@ -391,6 +393,88 @@ export async function startRealtimeInterview(
                   };
                   const evtType = name ? map[name] : undefined;
 
+                  // Handle new EP5-S21 tools
+                  if (name === 'submit_answer_score' && parsedArgs) {
+                    // Validate and sanitize args
+                    const questionText = String(
+                      parsedArgs.questionText || 'Question'
+                    ).substring(0, 200);
+                    const score = Math.max(
+                      0,
+                      Math.min(100, Number(parsedArgs.score) || 0)
+                    );
+                    const feedback = String(
+                      parsedArgs.feedback || 'No feedback provided'
+                    ).substring(0, 500);
+
+                    // Call API to store question score
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const sessionId = (window as any).__interviewSessionId;
+                    if (sessionId) {
+                      fetch('/api/interview/submit-question-score', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          sessionId,
+                          questionText,
+                          score,
+                          feedback,
+                        }),
+                      })
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data.success && data.scoreData) {
+                            // Emit event for LiveFeedbackPanel with scoreData
+                            window.dispatchEvent(
+                              new CustomEvent('interview:question_score', {
+                                detail: data.scoreData,
+                              })
+                            );
+                            // eslint-disable-next-line no-console
+                            console.log(
+                              '[RTC] Question score emitted:',
+                              data.scoreData
+                            );
+                          }
+                        })
+                        .catch(err => {
+                          // eslint-disable-next-line no-console
+                          console.error('[RTC] Failed to submit score:', err);
+                        });
+                    }
+                    return; // Don't map to RTC event
+                  }
+
+                  if (name === 'generate_final_feedback' && parsedArgs) {
+                    // Update state with detailed feedback and transition to completed
+                    update({
+                      interviewPhase: 'completed',
+                      finalScore: parsedArgs.overallScore as number,
+                      finalScoreBreakdown: {
+                        clarity: 0, // deprecated but keep for compatibility
+                        correctness: 0,
+                        depth: 0,
+                        summary: parsedArgs.summary as string,
+                      },
+                      detailedFeedback: {
+                        strengths: parsedArgs.strengths as string[],
+                        improvements: parsedArgs.improvements as string[],
+                        summary: parsedArgs.summary as string,
+                      },
+                    });
+
+                    // Emit completion event
+                    window.dispatchEvent(
+                      new CustomEvent('interview:completed', {
+                        detail: {
+                          score: parsedArgs.overallScore,
+                          feedback: parsedArgs,
+                        },
+                      })
+                    );
+                    return; // Don't map to RTC event
+                  }
+
                   // eslint-disable-next-line no-console
                   console.log('[RTC] Event type mapped:', {
                     name,
@@ -480,14 +564,14 @@ export async function startRealtimeInterview(
           );
         }
       }
-      // Transition to intro phase when first audio arrives (AI is greeting)
+      // Transition to started phase when first audio arrives (AI is greeting)
       if (!hasReceivedFirstAudio && current.interviewPhase === 'pre_start') {
         hasReceivedFirstAudio = true;
-        update({ interviewPhase: 'intro' });
+        update({ interviewPhase: 'started' });
         if (DEBUG) {
           // eslint-disable-next-line no-console
           console.log(
-            '[Interview DEBUG] AI audio started - transitioned to intro phase'
+            '[Interview DEBUG] AI audio started - transitioned to started phase'
           );
         }
       }
@@ -767,20 +851,9 @@ export function applyInterviewRTCEvent(
     case 'question.ready': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       partial.currentQuestionIndex = (evt.payload as any)?.idx;
-      // First question transitions from intro to conducting
-      if (prev.interviewPhase === 'intro') {
-        partial.interviewPhase = 'conducting';
-        // eslint-disable-next-line no-console
-        console.log(
-          '[RTC] Phase transition: intro → conducting (question.ready received)'
-        );
-      } else {
-        // eslint-disable-next-line no-console
-        console.log(
-          '[RTC] question.ready received but phase is not intro:',
-          prev.interviewPhase
-        );
-      }
+      // Note: With EP5-S21 simplification, we stay in 'started' phase throughout
+      // eslint-disable-next-line no-console
+      console.log('[RTC] question.ready received, phase:', prev.interviewPhase);
       break;
     }
     case 'ai.state': {

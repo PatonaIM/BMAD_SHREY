@@ -27,7 +27,6 @@ export interface InterviewFeedItem {
 export interface InterviewController {
   state: RealtimeSessionState;
   feed: InterviewFeedItem[];
-  targetQuestions: number;
   begin: () => void;
   endAndScore: () => void;
   elapsedMs: number;
@@ -38,7 +37,7 @@ export interface InterviewController {
 export function useInterviewController(
   opts: UseInterviewControllerOptions
 ): InterviewController {
-  const { applicationId, targetQuestionCount = 6 } = opts;
+  const { applicationId } = opts;
   const [state, setState] = useState<RealtimeSessionState>({
     phase: 'idle',
     interviewPhase: 'pre_start',
@@ -365,7 +364,8 @@ export function useInterviewController(
     if (!handles || scoreRequestedRef.current) return;
     scoreRequestedRef.current = true;
     requestInterviewScore(handles.controlChannel);
-    setState(s => ({ ...s, interviewPhase: 'scoring' }));
+    // EP5-S21: AI will call generate_final_feedback tool which transitions to 'completed'
+    // No need to set 'scoring' phase manually
     pushFeed({
       ts: Date.now(),
       type: 'info',
@@ -394,7 +394,6 @@ export function useInterviewController(
   return {
     state,
     feed,
-    targetQuestions: targetQuestionCount,
     begin,
     endAndScore,
     elapsedMs,

@@ -167,45 +167,12 @@ export const RealtimeSessionBootstrap: React.FC<
 
   // Auto-start now performed inside realtimeInterview.ts when connection established.
 
-  // Synthetic greet fallback retained but shorter (1.5s) if no real greet
-  useEffect(() => {
-    if (state.interviewPhase === 'intro') {
-      if (DEBUG) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '[Interview DEBUG] interviewPhase=intro, waiting for greeting'
-        );
-      }
-      const timer = setTimeout(() => {
-        if (state.currentQuestionIndex == null) {
-          if (DEBUG) {
-            // eslint-disable-next-line no-console
-            console.warn(
-              '[Interview DEBUG] synthetic greet fallback triggered'
-            );
-          }
-          window.dispatchEvent(
-            new CustomEvent('interview:rtc_interview_greet', {
-              detail: {
-                type: 'interview.greet',
-                ts: Date.now(),
-                payload: { message: 'Hello, please introduce yourself.' },
-              },
-            })
-          );
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [state.interviewPhase, state.currentQuestionIndex]);
+  // No longer need synthetic greet fallback with EP5-S21 - AI handles greeting naturally
+  // Removed greeting logic
 
-  // Stop recorder when scoring or completed
+  // Stop recorder when interview completes
   useEffect(() => {
-    if (
-      recorderRef.current &&
-      (state.interviewPhase === 'scoring' ||
-        state.interviewPhase === 'completed')
-    ) {
+    if (recorderRef.current && state.interviewPhase === 'completed') {
       if (DEBUG) {
         // eslint-disable-next-line no-console
         console.warn('[Interview DEBUG] stopping recorder', {
@@ -239,7 +206,8 @@ export const RealtimeSessionBootstrap: React.FC<
       });
     }
     requestInterviewScore(handles.controlChannel);
-    setState(s => ({ ...s, interviewPhase: 'scoring' }));
+    // Note: With EP5-S21, AI calls generate_final_feedback tool which transitions to 'completed'
+    // No need to set 'scoring' phase anymore
     // Fallback local scoring placeholder if remote never returns after timeout
     setTimeout(() => {
       setState(s => {
@@ -314,14 +282,6 @@ export const RealtimeSessionBootstrap: React.FC<
           }
         />
         <Info
-          label="Question #"
-          value={
-            state.currentQuestionIndex != null
-              ? state.currentQuestionIndex.toString()
-              : '—'
-          }
-        />
-        <Info
           label="AI Speaking"
           value={
             state.aiSpeaking == null ? '—' : state.aiSpeaking ? 'YES' : 'NO'
@@ -359,12 +319,7 @@ export const RealtimeSessionBootstrap: React.FC<
           Start Interview
         </button>
       )}
-      {state.interviewPhase === 'intro' && (
-        <div className="text-xs text-neutral-700 dark:text-neutral-200">
-          AI greeting in progress. Prepare your introduction...
-        </div>
-      )}
-      {state.interviewPhase === 'conducting' && (
+      {state.interviewPhase === 'started' && (
         <button
           onClick={endAndScore}
           disabled={scoreRequested}
@@ -372,11 +327,6 @@ export const RealtimeSessionBootstrap: React.FC<
         >
           End & Score Interview
         </button>
-      )}
-      {state.interviewPhase === 'scoring' && (
-        <div className="text-xs text-neutral-700 dark:text-neutral-200">
-          Scoring interview...
-        </div>
       )}
       {state.interviewPhase === 'completed' && (
         <div className="text-xs font-semibold">

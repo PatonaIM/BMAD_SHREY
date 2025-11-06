@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useInterviewController } from './useInterviewController';
 import { useCompositeRecording } from './useCompositeRecording';
 import { uploadRecording } from '../../../services/interview/recordingUpload';
@@ -68,10 +68,10 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   // Start recording after WebRTC connection is established (SDP exchange complete)
   const recordingStartedRef = useRef(false);
   useEffect(() => {
-    // Start recording when phase transitions to 'intro' or 'conducting'
+    // EP5-S21: Start recording when phase transitions to 'started'
     // This happens after SDP negotiation is complete
     if (
-      (phase === 'intro' || phase === 'conducting') &&
+      phase === 'started' &&
       !recordingStartedRef.current &&
       interviewRootRef.current
     ) {
@@ -169,9 +169,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   // Update starting stage based on controller phase
   useEffect(() => {
     if (isStarting) {
-      if (phase === 'intro') {
-        setStartingStage('starting_session');
-      } else if (phase === 'conducting') {
+      if (phase === 'started') {
         setStartingStage('start_recording');
       }
     }
@@ -244,16 +242,6 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
     }
   }, [phase]);
 
-  const progressPct = useMemo(() => {
-    if (
-      controller.state.currentQuestionIndex == null ||
-      controller.targetQuestions <= 0
-    )
-      return 0;
-    const answered = controller.state.currentQuestionIndex + 1;
-    return Math.min(100, (answered / controller.targetQuestions) * 100);
-  }, [controller.state.currentQuestionIndex, controller.targetQuestions]);
-
   const elapsedSeconds = (controller.elapsedMs / 1000).toFixed(1);
 
   const difficulty = controller.state.difficultyTier ?? 3;
@@ -317,7 +305,6 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           elapsedSeconds={elapsedSeconds}
           phase={phase}
           difficulty={difficulty}
-          progressPct={progressPct}
           onEndInterview={() => setShowEndModal(true)}
           onToggleDiagnostics={() => setShowDiagnostics(prev => !prev)}
           isRecording={recording.isRecording}
@@ -351,13 +338,12 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   );
 };
 
-// Header with progress + status + action buttons
+// Header with status + action buttons
 const HeaderBar: React.FC<{
   applicationId: string;
   elapsedSeconds: string;
   phase: string;
   difficulty: number;
-  progressPct: number;
   onEndInterview: () => void;
   onToggleDiagnostics: () => void;
   isRecording?: boolean;
@@ -367,7 +353,6 @@ const HeaderBar: React.FC<{
   elapsedSeconds,
   phase,
   difficulty,
-  progressPct,
   onEndInterview,
   onToggleDiagnostics,
   isRecording = false,
@@ -447,12 +432,6 @@ const HeaderBar: React.FC<{
           )}
         </div>
       </div>
-      <div className="h-1.5 w-full bg-neutral-800 relative overflow-hidden">
-        <div
-          className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-pink-400 transition-all"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
     </div>
   );
 };
@@ -485,7 +464,7 @@ const CandidatePanel: React.FC<{ phase: string }> = ({ phase }) => {
       <div className="absolute left-4 top-4 bg-neutral-900/70 backdrop-blur px-3 py-1 rounded-md text-[10px] uppercase tracking-wide text-neutral-200 ring-1 ring-white/10">
         You
       </div>
-      {(phase === 'conducting' || phase === 'intro') && (
+      {phase === 'started' && (
         <div className="absolute left-4 bottom-4 bg-green-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-green-400/30 flex items-center gap-2">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
           Recording
@@ -898,7 +877,7 @@ const InterviewerPanel: React.FC<{
   phase: string;
   isSpeaking: boolean;
   audioStream?: MediaStream | null;
-}> = ({ phase, isSpeaking, audioStream }) => {
+}> = ({ isSpeaking, audioStream }) => {
   return (
     <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10">
       {/* 3D Avatar Canvas */}
@@ -910,12 +889,6 @@ const InterviewerPanel: React.FC<{
       </div>
 
       {/* Status indicator overlay */}
-      {(phase === 'conducting' || phase === 'intro') && (
-        <div className="absolute left-4 bottom-4 bg-indigo-600/80 backdrop-blur px-3 py-1 rounded-md text-[10px] font-medium text-white ring-1 ring-indigo-400/30 flex items-center gap-2 pointer-events-none z-10">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          {phase === 'intro' ? 'Starting...' : 'Active'}
-        </div>
-      )}
     </div>
   );
 };
@@ -925,13 +898,77 @@ const LiveFeedbackPanel: React.FC<{
   controller: ReturnType<typeof useInterviewController>;
   phase: string;
 }> = ({ controller, phase }) => {
+  // EP5-S21: Live question scoring state
+  const [latestScore, setLatestScore] = useState<{
+    questionText: string;
+    score: number;
+    feedback: string;
+  } | null>(null);
+  const [scoreHistory, setScoreHistory] = useState<
+    Array<{ questionText: string; score: number; feedback: string }>
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Listen for question score events from AI
+  useEffect(() => {
+    const handleQuestionScore = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        questionText: string;
+        score: number;
+        feedback: string;
+      };
+
+      // Validate score is a number
+      const validatedScore = {
+        questionText: detail.questionText || 'Question',
+        score:
+          typeof detail.score === 'number' && !isNaN(detail.score)
+            ? Math.round(detail.score)
+            : 0,
+        feedback: detail.feedback || 'No feedback',
+      };
+
+      setLatestScore(validatedScore);
+      setScoreHistory(prev => [...prev, validatedScore]);
+    };
+
+    window.addEventListener(
+      'interview:question_score',
+      handleQuestionScore as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        'interview:question_score',
+        handleQuestionScore as EventListener
+      );
+    };
+  }, []);
+
+  // Calculate running average
+  const runningAverage =
+    scoreHistory.length > 0
+      ? Math.round(
+          scoreHistory.reduce((sum, s) => sum + s.score, 0) /
+            scoreHistory.length
+        )
+      : null;
+
+  // Helper to get score color
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
   if (phase === 'completed') {
     return (
-      <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-emerald-600/10 ring-1 ring-emerald-500/30 border border-emerald-500/30 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-6">
-          <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold mb-2">
+      <div className="relative w-full h-1/2 min-h-0 max-h-[50%] rounded-xl overflow-hidden bg-emerald-600/10 ring-1 ring-emerald-500/30 border border-emerald-500/30 flex flex-col">
+        <div className="flex-none px-6 pt-6 pb-3 border-b border-emerald-500/20">
+          <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold">
             Final Score
           </p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
           <div className="flex items-baseline gap-2 mb-3">
             <span className="text-4xl font-bold text-white">
               {controller.state.finalScore ?? '—'}
@@ -970,37 +1007,100 @@ const LiveFeedbackPanel: React.FC<{
   }
 
   return (
-    <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10 flex flex-col">
-      <div className="flex-1 overflow-y-auto p-6">
-        <h3 className="text-sm font-semibold text-white mb-3">Live Feedback</h3>
+    <div className="relative w-full h-1/2 min-h-0 max-h-[50%] rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10 flex flex-col">
+      <div className="flex-none px-6 pt-6 pb-3 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">Live Feedback</h3>
+
+          {/* Running Average & History Toggle in Header */}
+          {phase === 'started' && latestScore && (
+            <div className="flex items-center gap-3">
+              {/* Running Average */}
+              {runningAverage !== null && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-neutral-400">Avg:</span>
+                  <span
+                    className={`text-sm font-semibold ${getScoreColor(runningAverage)}`}
+                  >
+                    {runningAverage}
+                  </span>
+                </div>
+              )}
+
+              {/* History Toggle Button */}
+              {scoreHistory.length > 1 && (
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20"
+                >
+                  {showHistory ? '▼' : '▶'} History ({scoreHistory.length})
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6 min-h-0">
         {phase === 'pre_start' && (
           <p className="text-xs text-neutral-400">
             Feedback will appear here during the interview.
           </p>
         )}
-        {(phase === 'intro' || phase === 'conducting') && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-400">Clarity</span>
-              <span className="text-neutral-200 font-medium">—</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-400">Correctness</span>
-              <span className="text-neutral-200 font-medium">—</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-400">Depth</span>
-              <span className="text-neutral-200 font-medium">—</span>
-            </div>
-            <p className="text-[10px] text-neutral-500 mt-4">
-              Real-time scoring coming soon...
-            </p>
-          </div>
-        )}
-        {phase === 'scoring' && (
-          <div className="flex items-center gap-2 text-xs text-neutral-300">
-            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            Calculating your score...
+        {phase === 'started' && (
+          <div className="space-y-4 max-h-full overflow-y-auto">
+            {/* Latest Score */}
+            {latestScore ? (
+              <>
+                <div className="bg-neutral-900/60 rounded-lg p-4 border border-white/5 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wide text-neutral-400">
+                      Latest Answer
+                    </span>
+                    <span
+                      className={`text-2xl font-bold ${getScoreColor(latestScore.score)}`}
+                    >
+                      {latestScore.score}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-300 mb-2 line-clamp-2">
+                    {latestScore.questionText}
+                  </p>
+                  <p className="text-xs text-neutral-400 italic line-clamp-2">
+                    {latestScore.feedback}
+                  </p>
+                </div>
+
+                {/* History List - only shown when expanded */}
+                {showHistory && scoreHistory.length > 1 && (
+                  <div className="space-y-2 flex-shrink-0">
+                    {scoreHistory.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-neutral-900/40 rounded p-2 border border-white/5"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-neutral-500">
+                            Q{idx + 1}
+                          </span>
+                          <span
+                            className={`text-sm font-semibold ${getScoreColor(s.score)}`}
+                          >
+                            {s.score}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-neutral-400 line-clamp-2">
+                          {s.feedback}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-neutral-400">
+                Answer scores will appear here as you respond to questions...
+              </p>
+            )}
           </div>
         )}
       </div>

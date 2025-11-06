@@ -46,6 +46,7 @@ async function getSessionUserEmail(): Promise<string | null> {
  *    - finalScore?: number
  *    - scoreBreakdown?: object
  *    - videoUrl?: string
+ *    - detailedFeedback?: { strengths: string[], improvements: string[], summary: string } (EP5-S21)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
         finalScore,
         scoreBreakdown,
         videoUrl,
+        detailedFeedback,
       } = body;
 
       if (!sessionId) {
@@ -94,6 +96,27 @@ export async function POST(req: NextRequest) {
           },
           400
         );
+      }
+
+      // Validate detailedFeedback if provided (EP5-S21)
+      if (detailedFeedback) {
+        if (
+          !Array.isArray(detailedFeedback.strengths) ||
+          !Array.isArray(detailedFeedback.improvements) ||
+          typeof detailedFeedback.summary !== 'string'
+        ) {
+          return json(
+            {
+              ok: false,
+              error: {
+                code: 'INVALID_REQUEST',
+                message:
+                  'detailedFeedback must have strengths[], improvements[], and summary string',
+              },
+            },
+            400
+          );
+        }
       }
 
       // Fetch session
@@ -142,6 +165,7 @@ export async function POST(req: NextRequest) {
           duration,
           scores,
           videoRecordingUrl: videoUrl ?? session.videoRecordingUrl,
+          detailedFeedback, // EP5-S21: Store detailed feedback
           metadata: {
             ...session.metadata,
             endedBy: endedBy || 'candidate',

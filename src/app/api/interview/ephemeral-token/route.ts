@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   // Model & voice can be parameterized later; keep minimal for now.
   const model =
     process.env.INTERVIEW_REALTIME_MODEL || 'gpt-realtime-2025-08-28';
-  const voice = process.env.INTERVIEW_REALTIME_VOICE || 'alloy';
+  const voice = process.env.INTERVIEW_REALTIME_VOICE || 'ash';
 
   try {
     // Fetch application and job data to build personalized persona
@@ -274,6 +274,64 @@ DO NOT:
           parameters: {
             type: 'object',
             properties: {},
+            additionalProperties: false,
+          },
+        },
+        {
+          type: 'function',
+          name: 'submit_answer_score',
+          description:
+            'Submit score and feedback for a candidate answer. Call this after substantial answers to provide real-time feedback to the candidate.',
+          parameters: {
+            type: 'object',
+            properties: {
+              questionText: {
+                type: 'string',
+                description: 'The question you asked',
+              },
+              score: {
+                type: 'number',
+                description: 'Score from 0-100 evaluating the answer quality',
+              },
+              feedback: {
+                type: 'string',
+                description:
+                  'Brief feedback (1-2 sentences) on the answer quality',
+              },
+            },
+            required: ['questionText', 'score', 'feedback'],
+            additionalProperties: false,
+          },
+        },
+        {
+          type: 'function',
+          name: 'generate_final_feedback',
+          description:
+            'Generate comprehensive final interview feedback with overall assessment, strengths, and improvement areas. Call this when you have completed your evaluation.',
+          parameters: {
+            type: 'object',
+            properties: {
+              overallScore: {
+                type: 'number',
+                description: 'Overall interview score from 0-100',
+              },
+              strengths: {
+                type: 'array',
+                items: { type: 'string' },
+                description:
+                  'List of candidate strengths demonstrated (2-7 points)',
+              },
+              improvements: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of areas for improvement (2-7 points)',
+              },
+              summary: {
+                type: 'string',
+                description: 'Overall assessment summary (2-4 sentences)',
+              },
+            },
+            required: ['overallScore', 'strengths', 'improvements', 'summary'],
             additionalProperties: false,
           },
         },
