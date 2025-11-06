@@ -236,6 +236,12 @@ export class CompositeRecorder {
           currentChunkIndex,
         });
 
+        // eslint-disable-next-line no-console
+        console.log(
+          '[Recording] Restarting MediaRecorder to add AI audio',
+          currentChunkIndex
+        );
+
         // Temporarily disable onstop callback to prevent metadata emission during restart
         this.recorder.onstop = null;
 
@@ -253,6 +259,11 @@ export class CompositeRecorder {
               event: 'composite_recording_restarted_after_audio_update',
               chunkIndex: this.chunkIndex,
             });
+            // eslint-disable-next-line no-console
+            console.log(
+              '[Recording] MediaRecorder restarted, continuing with chunk index',
+              { chunkIndex: this.chunkIndex }
+            );
           }
         }, 100);
       }

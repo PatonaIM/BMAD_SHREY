@@ -26,6 +26,13 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
 
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [startingStage, setStartingStage] = useState<
+    | 'checking_device'
+    | 'getting_token'
+    | 'starting_session'
+    | 'start_recording'
+    | null
+  >(null);
   const [localReady, setLocalReady] = useState(false);
   const [remoteAudioStream, setRemoteAudioStream] =
     useState<MediaStream | null>(null);
@@ -51,18 +58,56 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   useEffect(() => {
     if (phase !== 'pre_start' && isStarting) {
       setIsStarting(false);
+      setStartingStage(null);
     }
   }, [phase, isStarting]);
 
+  // Start recording after WebRTC connection is established (SDP exchange complete)
+  const recordingStartedRef = useRef(false);
+  useEffect(() => {
+    // Start recording when phase transitions to 'intro' or 'conducting'
+    // This happens after SDP negotiation is complete
+    if (
+      (phase === 'intro' || phase === 'conducting') &&
+      !recordingStartedRef.current &&
+      interviewRootRef.current
+    ) {
+      recordingStartedRef.current = true;
+      setStartingStage('start_recording');
+
+      // eslint-disable-next-line no-console
+      console.log('[Recording] Starting recording after SDP negotiation');
+
+      recording.startRecording(interviewRootRef.current);
+
+      // Clear the stage indicator after a brief moment
+      setTimeout(() => {
+        setStartingStage(null);
+      }, 500);
+    }
+  }, [phase, recording]);
+
   const handleBegin = () => {
     setIsStarting(true);
-    controller.begin();
+    setStartingStage('checking_device');
 
-    // Start recording when interview begins
-    if (interviewRootRef.current) {
-      recording.startRecording(interviewRootRef.current);
-    }
+    // Progress through stages with timing
+    setTimeout(() => setStartingStage('getting_token'), 300);
+    setTimeout(() => setStartingStage('starting_session'), 600);
+
+    controller.begin();
   };
+
+  // Update starting stage based on controller phase
+  useEffect(() => {
+    if (isStarting) {
+      if (phase === 'intro') {
+        setStartingStage('starting_session');
+      } else if (phase === 'conducting') {
+        setStartingStage('start_recording');
+      }
+    }
+  }, [phase, isStarting]);
 
   // Add AI audio stream to recording when it becomes available
   useEffect(() => {
@@ -141,6 +186,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           applicationId={applicationId}
           localReady={localReady}
           isStarting={isStarting}
+          startingStage={startingStage}
           onBegin={handleBegin}
         />
       )}
@@ -569,8 +615,28 @@ const DeviceCheckModal: React.FC<{
   applicationId: string;
   localReady: boolean;
   isStarting: boolean;
+  startingStage:
+    | 'checking_device'
+    | 'getting_token'
+    | 'starting_session'
+    | 'start_recording'
+    | null;
   onBegin: () => void;
-}> = ({ applicationId, localReady, isStarting, onBegin }) => {
+}> = ({ applicationId, localReady, isStarting, startingStage, onBegin }) => {
+  const stageMessages = {
+    checking_device: 'Checking Device',
+    getting_token: 'Getting Token',
+    starting_session: 'Starting Session',
+    start_recording: 'Start Recording',
+  };
+
+  const stages = [
+    'checking_device',
+    'getting_token',
+    'starting_session',
+    'start_recording',
+  ] as const;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-neutral-900 rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg mx-4 p-6">
@@ -578,13 +644,44 @@ const DeviceCheckModal: React.FC<{
         <div className="mb-6">
           <DevicePermissionGate applicationId={applicationId} />
         </div>
+
+        {/* 4-Stage Loading Progress */}
+        {isStarting && startingStage && (
+          <div className="mb-6 space-y-3">
+            <div className="flex gap-2">
+              {stages.map((stage, idx) => {
+                const currentIdx = stages.indexOf(startingStage);
+                const stageIdx = idx;
+                const isComplete = stageIdx < currentIdx;
+                const isCurrent = stageIdx === currentIdx;
+
+                return (
+                  <div
+                    key={stage}
+                    className={`flex-1 h-2 rounded-full transition-all duration-300 ${
+                      isComplete
+                        ? 'bg-emerald-500'
+                        : isCurrent
+                          ? 'bg-blue-500 animate-pulse'
+                          : 'bg-neutral-700'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-sm text-neutral-300 text-center">
+              {stageMessages[startingStage]}
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2">
           <PrimaryButton
             onClick={onBegin}
             disabled={!localReady || isStarting}
             label={
-              isStarting
-                ? 'Starting Interview...'
+              isStarting && startingStage
+                ? stageMessages[startingStage]
                 : localReady
                   ? 'Start Interview'
                   : 'Waiting for Devices…'
