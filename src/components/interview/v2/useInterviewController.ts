@@ -154,28 +154,129 @@ export function useInterviewController(
       return;
     }
 
-    startTsRef.current = performance.now();
-    startRealtimeInterview({
-      applicationId,
-      localStream,
-      onState: setState,
-      enableWebSocketFallback: true,
-      jobProfile: {
-        requiredSkills: [
-          'system design',
-          'algorithms',
-          'data structures',
-          'communication',
-        ],
-        roleType: 'technical',
-      },
-      initialDifficultyTier: 3,
-      maxContextTokens: 1200,
-    }).then(h => {
-      if (h) {
-        setHandles(h);
+    // NEW: Call start-session API before WebRTC initialization
+    (async () => {
+      try {
+        const metadata = {
+          deviceType: /Mobi/i.test(navigator.userAgent)
+            ? 'mobile'
+            : ('desktop' as const),
+          userAgent: navigator.userAgent,
+        };
+
+        pushFeed({
+          ts: Date.now(),
+          type: 'info',
+          text: 'Initializing interview session...',
+        });
+
+        const sessionRes = await fetch('/api/interview/start-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            applicationId,
+            metadata,
+          }),
+        });
+
+        if (sessionRes.ok) {
+          const { ok, value } = await sessionRes.json();
+          if (ok && value) {
+            const { sessionId, token, expiresAt } = value;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__interviewSessionId = sessionId;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__interviewSessionToken = token;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__interviewSessionExpiry = expiresAt;
+
+            // Log analytics event for successful session start
+            if (typeof window !== 'undefined' && 'gtag' in window) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (window as any).gtag('event', 'interview_session_started', {
+                event_category: 'interview',
+                session_id: sessionId,
+                application_id: applicationId,
+              });
+            }
+
+            if (process.env.NEXT_PUBLIC_DEBUG_INTERVIEW === '1') {
+              // eslint-disable-next-line no-console
+              console.log('[Interview] Session started:', sessionId);
+            }
+
+            pushFeed({
+              ts: Date.now(),
+              type: 'info',
+              text: `Session ${sessionId.slice(0, 8)} created`,
+            });
+          }
+        } else {
+          const error = await sessionRes.json();
+          // eslint-disable-next-line no-console
+          console.warn('[Interview] start-session API failed:', error);
+
+          // Log analytics event for API failure
+          if (typeof window !== 'undefined' && 'gtag' in window) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).gtag('event', 'interview_session_api_failed', {
+              event_category: 'interview',
+              application_id: applicationId,
+              error_code: error?.error?.code || 'UNKNOWN',
+            });
+          }
+
+          pushFeed({
+            ts: Date.now(),
+            type: 'info',
+            text: 'Running in offline mode',
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[Interview] start-session error:', err);
+
+        // Log analytics event for offline mode
+        if (typeof window !== 'undefined' && 'gtag' in window) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).gtag('event', 'interview_session_offline_mode', {
+            event_category: 'interview',
+            application_id: applicationId,
+            error: err instanceof Error ? err.message : 'Unknown',
+          });
+        }
+
+        pushFeed({
+          ts: Date.now(),
+          type: 'info',
+          text: 'Running in offline mode (API unavailable)',
+        });
       }
-    });
+
+      // Continue with existing WebRTC setup
+      startTsRef.current = performance.now();
+      startRealtimeInterview({
+        applicationId,
+        localStream,
+        onState: setState,
+        enableWebSocketFallback: true,
+        jobProfile: {
+          requiredSkills: [
+            'system design',
+            'algorithms',
+            'data structures',
+            'communication',
+          ],
+          roleType: 'technical',
+        },
+        initialDifficultyTier: 3,
+        maxContextTokens: 1200,
+      }).then(h => {
+        if (h) {
+          setHandles(h);
+        }
+      });
+    })();
   }, [applicationId, handles, state.phase, state.interviewPhase, pushFeed]);
 
   // Kick off greeting once connected - send when channel is ready

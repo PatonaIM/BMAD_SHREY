@@ -5,6 +5,7 @@ export interface FinalScoreBreakdown {
   clarity: number;
   correctness: number;
   depth: number;
+  summary?: string;
 }
 
 export interface RealtimeSessionState {
@@ -789,8 +790,19 @@ export function applyInterviewRTCEvent(
     }
     case 'interview.score': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const score = (evt.payload as any)?.score;
+      const payload = evt.payload as any;
+      const score = payload?.score;
+      const breakdown = payload?.breakdown;
+      const summary = payload?.summary;
       if (typeof score === 'number') partial.finalScore = score;
+      if (breakdown && typeof breakdown === 'object') {
+        partial.finalScoreBreakdown = {
+          clarity: breakdown.clarity || 0,
+          correctness: breakdown.correctness || 0,
+          depth: breakdown.depth || 0,
+          summary: summary || undefined,
+        };
+      }
       partial.interviewPhase = 'completed';
       break;
     }

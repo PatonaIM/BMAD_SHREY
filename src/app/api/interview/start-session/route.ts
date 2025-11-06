@@ -5,6 +5,7 @@ import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { interviewSessionRepo } from '../../../../data-access/repositories/interviewSessionRepo';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { logger } from '../../../../monitoring/logger';
+import { generateSessionToken } from '../../../../utils/sessionToken';
 import type { InterviewQuestion } from '../../../../shared/types/interview';
 
 interface SessionUser {
@@ -58,21 +59,63 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { jobId, applicationId, questions } = body;
+    const { jobId, applicationId, questions, metadata } = body;
 
     // Validate required fields
-    if (!jobId || !applicationId) {
+    if (!applicationId) {
       return json(
         {
           ok: false,
           error: {
             code: 'INVALID_REQUEST',
-            message: 'jobId and applicationId are required',
+            message: 'applicationId is required',
           },
         },
         400
       );
     }
+
+    // Fetch application to get jobId if not provided
+    const application = await applicationRepo.findById(applicationId);
+    if (!application) {
+      logger.warn({
+        event: 'start_session_application_not_found',
+        applicationId,
+      });
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'APPLICATION_NOT_FOUND',
+            message: 'Application not found',
+          },
+        },
+        404
+      );
+    }
+
+    // Verify user owns this application
+    if (application.userId !== user._id) {
+      logger.warn({
+        event: 'start_session_unauthorized_application',
+        userId: user._id,
+        applicationId,
+        applicationUserId: application.userId,
+      });
+      return json(
+        {
+          ok: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Not authorized to start session for this application',
+          },
+        },
+        403
+      );
+    }
+
+    // Use jobId from application if not provided in request
+    const finalJobId = jobId || application.jobId;
 
     // Questions are now optional - AI generates them dynamically during interview
     const questionsList = Array.isArray(questions) ? questions : [];
@@ -80,7 +123,7 @@ export async function POST(req: NextRequest) {
     logger.info({
       event: 'start_session_creating',
       userId: user._id,
-      jobId,
+      jobId: finalJobId,
       applicationId,
       questionCount: questionsList.length,
     });
@@ -97,10 +140,11 @@ export async function POST(req: NextRequest) {
     // Create interview session
     const session = await interviewSessionRepo.create({
       userId: user._id,
-      jobId,
+      jobId: finalJobId,
       applicationId,
       questions: questionsList as InterviewQuestion[],
       estimatedDuration,
+      metadata,
     });
 
     // Link interview session to application
@@ -108,6 +152,10 @@ export async function POST(req: NextRequest) {
       applicationId,
       session.sessionId
     );
+
+    // Generate session token for authentication
+    const token = generateSessionToken(session.sessionId, applicationId);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 min
 
     logger.info({
       event: 'start_session_success',
@@ -120,6 +168,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       value: {
         sessionId: session.sessionId,
+        token,
+        expiresAt,
         status: session.status,
         questions: session.questions,
         createdAt: session.createdAt,

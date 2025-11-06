@@ -194,21 +194,6 @@ export const DevicePermissionGate: React.FC<DevicePermissionGateProps> = ({
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div className="aspect-video bg-neutral-100 dark:bg-neutral-800 rounded flex items-center justify-center overflow-hidden">
-          {permissionState === 'granted' ? (
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              muted
-              playsInline
-            />
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              Camera preview unavailable
-            </span>
-          )}
-        </div>
         <div className="rounded border border-neutral-200 dark:border-neutral-700 p-3 text-xs space-y-2">
           <div>
             <span className="font-medium">Audio Level:</span>

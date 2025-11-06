@@ -638,65 +638,83 @@ const LiveFeedbackPanel: React.FC<{
 }> = ({ controller, phase }) => {
   if (phase === 'completed') {
     return (
-      <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-emerald-600/10 ring-1 ring-emerald-500/30 border border-emerald-500/30 p-6">
-        <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold mb-2">
-          Final Score
-        </p>
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-4xl font-bold text-white">
-            {controller.state.finalScore ?? '—'}
-          </span>
-          <span className="text-sm text-emerald-200">/100</span>
-        </div>
-        {controller.scoreBreakdown && (
-          <div className="grid grid-cols-3 gap-3 text-xs text-neutral-200">
-            {Object.entries(controller.scoreBreakdown).map(([k, v]) => (
-              <div key={k} className="flex flex-col">
-                <span className="uppercase tracking-wide opacity-70 text-[10px]">
-                  {k}
-                </span>
-                <span className="font-medium text-base">{v}</span>
-              </div>
-            ))}
+      <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-emerald-600/10 ring-1 ring-emerald-500/30 border border-emerald-500/30 flex flex-col">
+        <div className="flex-1 overflow-y-auto p-6">
+          <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold mb-2">
+            Final Score
+          </p>
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="text-4xl font-bold text-white">
+              {controller.state.finalScore ?? '—'}
+            </span>
+            <span className="text-sm text-emerald-200">/100</span>
           </div>
-        )}
+          {controller.scoreBreakdown && (
+            <>
+              <div className="grid grid-cols-3 gap-3 text-xs text-neutral-200 mb-4">
+                {Object.entries(controller.scoreBreakdown)
+                  .filter(([k]) => k !== 'summary')
+                  .map(([k, v]) => (
+                    <div key={k} className="flex flex-col">
+                      <span className="uppercase tracking-wide opacity-70 text-[10px]">
+                        {k}
+                      </span>
+                      <span className="font-medium text-base">{v}</span>
+                    </div>
+                  ))}
+              </div>
+              {controller.scoreBreakdown.summary && (
+                <div className="mt-4 pt-4 border-t border-emerald-500/20">
+                  <p className="text-xs uppercase tracking-wide text-emerald-300/70 font-semibold mb-2">
+                    Feedback
+                  </p>
+                  <p className="text-sm text-neutral-200 leading-relaxed">
+                    {controller.scoreBreakdown.summary}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10 p-6">
-      <h3 className="text-sm font-semibold text-white mb-3">Live Feedback</h3>
-      {phase === 'pre_start' && (
-        <p className="text-xs text-neutral-400">
-          Feedback will appear here during the interview.
-        </p>
-      )}
-      {(phase === 'intro' || phase === 'conducting') && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-400">Clarity</span>
-            <span className="text-neutral-200 font-medium">—</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-400">Correctness</span>
-            <span className="text-neutral-200 font-medium">—</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-400">Depth</span>
-            <span className="text-neutral-200 font-medium">—</span>
-          </div>
-          <p className="text-[10px] text-neutral-500 mt-4">
-            Real-time scoring coming soon...
+    <div className="relative w-full h-1/2 min-h-0 rounded-xl overflow-hidden bg-neutral-800/60 ring-1 ring-white/5 border border-white/10 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6">
+        <h3 className="text-sm font-semibold text-white mb-3">Live Feedback</h3>
+        {phase === 'pre_start' && (
+          <p className="text-xs text-neutral-400">
+            Feedback will appear here during the interview.
           </p>
-        </div>
-      )}
-      {phase === 'scoring' && (
-        <div className="flex items-center gap-2 text-xs text-neutral-300">
-          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-          Calculating your score...
-        </div>
-      )}
+        )}
+        {(phase === 'intro' || phase === 'conducting') && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-400">Clarity</span>
+              <span className="text-neutral-200 font-medium">—</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-400">Correctness</span>
+              <span className="text-neutral-200 font-medium">—</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-400">Depth</span>
+              <span className="text-neutral-200 font-medium">—</span>
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-4">
+              Real-time scoring coming soon...
+            </p>
+          </div>
+        )}
+        {phase === 'scoring' && (
+          <div className="flex items-center gap-2 text-xs text-neutral-300">
+            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            Calculating your score...
+          </div>
+        )}
+      </div>
     </div>
   );
 };
