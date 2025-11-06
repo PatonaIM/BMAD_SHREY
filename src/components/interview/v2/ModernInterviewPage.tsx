@@ -7,6 +7,7 @@ import { DevicePermissionGate } from './DevicePermissionGate';
 import { applyLegacyTheme } from '../../../styles/legacyInterviewTheme';
 import { RealtimeSessionBootstrap } from './RealtimeSessionBootstrap';
 import { AIAvatarCanvas } from './AIAvatarCanvas';
+import { EndInterviewModal } from './EndInterviewModal';
 
 interface ModernInterviewPageProps {
   applicationId: string;
@@ -25,6 +26,8 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   });
 
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showEndModal, setShowEndModal] = useState(false);
+  const [isEndingInterview, setIsEndingInterview] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [startingStage, setStartingStage] = useState<
     | 'checking_device'
@@ -96,6 +99,71 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
     setTimeout(() => setStartingStage('starting_session'), 600);
 
     controller.begin();
+  };
+
+  const handleEndInterview = async () => {
+    setShowEndModal(false);
+    setIsEndingInterview(true);
+
+    try {
+      // Step 1: Stop recording and wait for all pending uploads
+      // eslint-disable-next-line no-console
+      console.log('[Interview] Stopping recording and waiting for uploads...');
+      await recording.stopRecording();
+      await recording.waitForCompletion();
+
+      // Step 2: Get session ID and finalize video
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sessionId = (window as any).__interviewSessionId;
+      let videoUrl: string | null = null;
+
+      if (sessionId) {
+        // eslint-disable-next-line no-console
+        console.log('[Interview] Finalizing video...');
+        videoUrl = await recording.finalizeAndGetUrl(sessionId);
+      }
+
+      // Step 3: Trigger scoring to calculate final score
+      // eslint-disable-next-line no-console
+      console.log('[Interview] Calculating score...');
+      controller.endAndScore();
+
+      // Step 4: Wait for score to be calculated
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Step 5: Update session status and persist scores + video URL via API
+      if (sessionId) {
+        const finalScore = controller.state.finalScore;
+        const scoreBreakdown = controller.state.finalScoreBreakdown;
+
+        // eslint-disable-next-line no-console
+        console.log('[Interview] Updating session...', {
+          finalScore,
+          videoUrl,
+        });
+
+        await fetch('/api/interview/end-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            endedBy: 'candidate',
+            reason: 'user_requested',
+            finalScore,
+            scoreBreakdown,
+            videoUrl,
+          }),
+        });
+      }
+
+      // eslint-disable-next-line no-console
+      console.log('[Interview] Interview ended successfully');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[Interview] Failed to end interview:', err);
+    } finally {
+      setIsEndingInterview(false);
+    }
   };
 
   // Update starting stage based on controller phase
@@ -200,6 +268,29 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
         />
       )}
 
+      {/* End Interview Confirmation Modal */}
+      {showEndModal && (
+        <EndInterviewModal
+          onConfirm={handleEndInterview}
+          onCancel={() => setShowEndModal(false)}
+        />
+      )}
+
+      {/* Loading Overlay During End Interview Process */}
+      {isEndingInterview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-neutral-900 rounded-2xl border border-white/10 shadow-2xl p-8 max-w-md mx-4 text-center">
+            <div className="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Ending Interview...
+            </h3>
+            <p className="text-sm text-neutral-400">
+              Finalizing video and calculating your score
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Fixed Header */}
       <div className="flex-none px-4 pt-4">
         <HeaderBar
@@ -208,7 +299,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
           phase={phase}
           difficulty={difficulty}
           progressPct={progressPct}
-          onEndInterview={controller.endAndScore}
+          onEndInterview={() => setShowEndModal(true)}
           onToggleDiagnostics={() => setShowDiagnostics(prev => !prev)}
           isRecording={recording.isRecording}
           recordingChunkCount={recording.chunkCount}

@@ -266,6 +266,18 @@ export class InterviewSessionRepository {
   }
 
   /**
+   * Update session with custom fields (public wrapper for update)
+   */
+  async updateSession(
+    sessionId: string,
+    updates: UpdateInterviewSessionParams
+  ): Promise<InterviewSession | null> {
+    const success = await this.update(sessionId, updates);
+    if (!success) return null;
+    return this.findBySessionId(sessionId);
+  }
+
+  /**
    * Get list view of sessions (lighter payload)
    */
   async getSessionsList(

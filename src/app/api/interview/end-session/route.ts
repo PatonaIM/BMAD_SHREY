@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../auth/options';
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { interviewSessionRepo } from '../../../../data-access/repositories/interviewSessionRepo';
+import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { AzureBlobInterviewStorage } from '../../../../services/storage/azureBlobStorage';
 import { logger } from '../../../../monitoring/logger';
 import type { InterviewSessionMetadata } from '../../../../shared/types/interview';
@@ -29,13 +30,22 @@ async function getSessionUserEmail(): Promise<string | null> {
  *
  * Finalize interview session and upload recording
  *
- * Body (FormData):
- * - recording: Blob (video file)
- * - sessionId: string
- * - duration: number (milliseconds)
- * - videoFormat: string
- * - videoResolution: string
- * - frameRate: string
+ * Body can be either:
+ * 1. FormData (legacy - full recording upload):
+ *    - recording: Blob (video file)
+ *    - sessionId: string
+ *    - duration: number (milliseconds)
+ *    - videoFormat: string
+ *    - videoResolution: string
+ *    - frameRate: string
+ *
+ * 2. JSON (progressive upload - already uploaded via chunks):
+ *    - sessionId: string
+ *    - endedBy: 'candidate' | 'system' | 'timeout'
+ *    - reason: 'user_requested' | 'timeout' | 'error' | 'completed'
+ *    - finalScore?: number
+ *    - scoreBreakdown?: object
+ *    - videoUrl?: string
  */
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +70,135 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse FormData
+    // Detect content type to determine which flow to use
+    const contentType = req.headers.get('content-type') || '';
+    const isJsonRequest = contentType.includes('application/json');
+
+    // Handle JSON request (progressive upload flow)
+    if (isJsonRequest) {
+      const body = await req.json();
+      const {
+        sessionId,
+        endedBy,
+        reason,
+        finalScore,
+        scoreBreakdown,
+        videoUrl,
+      } = body;
+
+      if (!sessionId) {
+        return json(
+          {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'sessionId required' },
+          },
+          400
+        );
+      }
+
+      // Fetch session
+      const session = await interviewSessionRepo.findBySessionId(sessionId);
+      if (!session) {
+        return json(
+          {
+            ok: false,
+            error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+          },
+          404
+        );
+      }
+
+      if (session.userId !== user._id) {
+        return json(
+          {
+            ok: false,
+            error: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
+          },
+          403
+        );
+      }
+
+      // Calculate duration
+      const completedAt = new Date();
+      const startedAt = session.startedAt || session.createdAt;
+      const duration = Math.floor(
+        (completedAt.getTime() - startedAt.getTime()) / 1000
+      );
+
+      // Map finalScore and scoreBreakdown to the scores structure
+      const scores = finalScore
+        ? {
+            overall: finalScore,
+            ...scoreBreakdown,
+          }
+        : undefined;
+
+      // Update session with scores and video URL
+      const updatedSession = await interviewSessionRepo.updateSession(
+        sessionId,
+        {
+          status: 'completed',
+          endedAt: completedAt,
+          duration,
+          scores,
+          videoRecordingUrl: videoUrl ?? session.videoRecordingUrl,
+          metadata: {
+            ...session.metadata,
+            endedBy: endedBy || 'candidate',
+            reason: reason || 'user_requested',
+          },
+        }
+      );
+
+      // Update application status to 'completed'
+      try {
+        await applicationRepo.updateInterviewStatus(
+          session.applicationId,
+          'completed'
+        );
+        logger.info({
+          event: 'application_interview_status_updated',
+          applicationId: session.applicationId,
+          status: 'completed',
+        });
+      } catch (appUpdateError) {
+        // Log error but don't fail the request
+        logger.error({
+          event: 'application_interview_status_update_failed',
+          applicationId: session.applicationId,
+          error:
+            appUpdateError instanceof Error
+              ? appUpdateError.message
+              : 'Unknown',
+        });
+      }
+
+      logger.info({
+        event: 'interview_session_ended',
+        sessionId,
+        userId: user._id,
+        endedBy,
+        reason,
+        duration,
+        finalScore,
+        hasVideo: !!videoUrl,
+      });
+
+      return json({
+        ok: true,
+        value: {
+          sessionId,
+          status: 'completed',
+          finalScore,
+          scoreBreakdown,
+          duration,
+          videoUrl: updatedSession?.videoRecordingUrl || videoUrl,
+        },
+      });
+    }
+
+    // Handle FormData request (legacy full upload flow)
+
     const formData = await req.formData();
     const recordingFile = formData.get('recording') as Blob | null;
     const sessionId = formData.get('sessionId') as string | null;

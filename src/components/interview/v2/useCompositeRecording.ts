@@ -273,122 +273,8 @@ export function useCompositeRecording(options: UseCompositeRecordingOptions) {
     recorderRef.current.stop();
     setRecordingState(prev => ({ ...prev, isRecording: false }));
 
-    // Finalize progressive upload if enabled
-    if (progressiveUpload && blockIdsRef.current.length > 0) {
-      try {
-        // Get sessionId from window
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sessionId = (window as any).__interviewSessionId;
-
-        if (!sessionId) {
-          // eslint-disable-next-line no-console
-          console.warn('[Recording] Cannot finalize - no session ID');
-          logger.warn({
-            event: 'progressive_upload_finalize_skipped',
-            reason: 'no_session_id',
-            applicationId,
-          });
-        } else {
-          // Wait for all pending uploads to complete before finalizing
-          const maxWaitTime = 30000; // 30 seconds max wait
-          const startWait = Date.now();
-          const checkInterval = 100; // Check every 100ms
-
-          // eslint-disable-next-line no-console
-          console.log('[Recording] Waiting for pending uploads to complete', {
-            pendingCount: pendingUploadsRef.current.size,
-            blockCount: blockIdsRef.current.length,
-          });
-
-          while (
-            pendingUploadsRef.current.size > 0 &&
-            Date.now() - startWait < maxWaitTime
-          ) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-
-            // Log progress every second
-            if ((Date.now() - startWait) % 1000 < checkInterval) {
-              // eslint-disable-next-line no-console
-              console.log('[Recording] Still waiting for uploads...', {
-                pendingCount: pendingUploadsRef.current.size,
-                elapsed: Date.now() - startWait,
-              });
-            }
-          }
-
-          if (pendingUploadsRef.current.size > 0) {
-            // eslint-disable-next-line no-console
-            console.error('[Recording] Timed out waiting for uploads', {
-              pendingCount: pendingUploadsRef.current.size,
-              pendingIndices: Array.from(pendingUploadsRef.current),
-            });
-            logger.error({
-              event: 'progressive_upload_timeout',
-              applicationId,
-              pendingCount: pendingUploadsRef.current.size,
-            });
-          } else {
-            // eslint-disable-next-line no-console
-            console.log('[Recording] All uploads complete', {
-              waitTime: Date.now() - startWait,
-              blockCount: blockIdsRef.current.length,
-            });
-          }
-
-          // eslint-disable-next-line no-console
-          console.log('[Recording] Finalizing upload', {
-            sessionId,
-            blockCount: blockIdsRef.current.length,
-            blockIds: blockIdsRef.current, // Log all block IDs for debugging
-          });
-
-          // Calculate total file size
-          const totalSize = chunksRef.current.reduce(
-            (sum, chunk) => sum + chunk.size,
-            0
-          );
-
-          const response = await fetch('/api/interview/finalize-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId,
-              blockIds: blockIdsRef.current,
-              duration: recordingState.metadata?.durationMs || 0,
-              fileSize: totalSize,
-              videoFormat: 'video/webm',
-              videoResolution: `${recordingState.metadata?.resolution.width || 1280}x${recordingState.metadata?.resolution.height || 720}`,
-              frameRate: recordingState.metadata?.fpsTarget || 30,
-            }),
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            // eslint-disable-next-line no-console
-            console.error('[Recording] Finalize failed', error);
-            throw new Error(`Failed to finalize: ${JSON.stringify(error)}`);
-          }
-
-          const result = await response.json();
-          // eslint-disable-next-line no-console
-          console.log('[Recording] Upload finalized successfully', result);
-
-          // Clear refs after finalizing
-          blockIdsRef.current = [];
-          pendingUploadsRef.current.clear();
-          uploadQueueRef.current = [];
-          isUploadingRef.current = false;
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[Recording] Finalization error', err);
-        logger.error({
-          event: 'progressive_upload_finalize_failed',
-          applicationId,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
-      }
-    }
+    // Note: We don't finalize here anymore - that's done by finalizeAndGetUrl
+    // This allows the caller to control when finalization happens
 
     // Combine all chunks into single blob
     const finalBlob =
@@ -399,7 +285,7 @@ export function useCompositeRecording(options: UseCompositeRecordingOptions) {
     // Recording stopped - logging minimized for performance
 
     return finalBlob;
-  }, [applicationId]);
+  }, []);
 
   /**
    * Add AI audio stream after recording has started
@@ -418,6 +304,116 @@ export function useCompositeRecording(options: UseCompositeRecordingOptions) {
   const getChunks = useCallback((): Blob[] => {
     return [...chunksRef.current];
   }, []);
+
+  /**
+   * Wait for all pending uploads to complete
+   */
+  const waitForCompletion = useCallback(async () => {
+    // Wait for upload queue to be empty and no uploads in progress
+    const maxWaitMs = 30000; // 30 seconds max wait
+    const startTime = Date.now();
+
+    while (
+      (uploadQueueRef.current.length > 0 ||
+        pendingUploadsRef.current.size > 0 ||
+        isUploadingRef.current) &&
+      Date.now() - startTime < maxWaitMs
+    ) {
+      // eslint-disable-next-line no-console
+      console.log('[Recording] Waiting for uploads to complete', {
+        queueSize: uploadQueueRef.current.length,
+        pendingCount: pendingUploadsRef.current.size,
+        isUploading: isUploadingRef.current,
+      });
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    if (
+      uploadQueueRef.current.length > 0 ||
+      pendingUploadsRef.current.size > 0
+    ) {
+      logger.warn({
+        event: 'recording_wait_timeout',
+        queueSize: uploadQueueRef.current.length,
+        pendingCount: pendingUploadsRef.current.size,
+      });
+    }
+
+    // eslint-disable-next-line no-console
+    console.log('[Recording] All uploads complete');
+  }, []);
+
+  /**
+   * Finalize recording and get the video URL
+   */
+  const finalizeAndGetUrl = useCallback(
+    async (sessionId: string): Promise<string | null> => {
+      try {
+        // Wait for all uploads to complete
+        await waitForCompletion();
+
+        // Calculate total file size
+        const totalSize = chunksRef.current.reduce(
+          (sum, chunk) => sum + chunk.size,
+          0
+        );
+
+        // Commit blocks to finalize the video
+        // eslint-disable-next-line no-console
+        console.log('[Recording] Finalizing video with block IDs', {
+          blockCount: blockIdsRef.current.length,
+          sessionId,
+          totalSize,
+        });
+
+        const response = await fetch('/api/interview/finalize-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            blockIds: blockIdsRef.current,
+            duration: recordingState.metadata?.durationMs || 0,
+            fileSize: totalSize,
+            videoFormat: 'video/webm',
+            videoResolution: `${recordingState.metadata?.resolution.width || 1280}x${recordingState.metadata?.resolution.height || 720}`,
+            frameRate: recordingState.metadata?.fpsTarget || 30,
+          }),
+        });
+
+        if (!response.ok) {
+          logger.error({
+            event: 'finalize_upload_error',
+            status: response.status,
+            sessionId,
+          });
+          return null;
+        }
+
+        const data = await response.json();
+        const videoUrl = data.value?.videoUrl || data.value?.url;
+
+        // eslint-disable-next-line no-console
+        console.log('[Recording] Video finalized', { videoUrl });
+
+        // Clear refs after successful finalization
+        blockIdsRef.current = [];
+        pendingUploadsRef.current.clear();
+        uploadQueueRef.current = [];
+        isUploadingRef.current = false;
+
+        return videoUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown';
+        logger.error({
+          event: 'finalize_upload_exception',
+          error: message,
+          sessionId,
+        });
+        return null;
+      }
+    },
+    [waitForCompletion, recordingState.metadata]
+  );
 
   /**
    * Auto-start recording when enabled changes to true
@@ -450,6 +446,8 @@ export function useCompositeRecording(options: UseCompositeRecordingOptions) {
     stopRecording,
     addAiAudioStream,
     getChunks,
+    waitForCompletion,
+    finalizeAndGetUrl,
     isSupported: CompositeRecorder.isCompositeSupported(),
     progressiveUpload, // Expose progressive upload flag
   };

@@ -41,6 +41,8 @@ export interface InterviewSessionMetadata {
   hasScreenShare: boolean; // Future: screen recording capability
   browser?: string; // User agent info
   deviceType?: 'desktop' | 'mobile' | 'tablet';
+  endedBy?: 'candidate' | 'system' | 'timeout'; // Who/what ended the interview
+  reason?: 'user_requested' | 'timeout' | 'error' | 'completed'; // Why it ended
 }
 
 export interface InterviewSession {

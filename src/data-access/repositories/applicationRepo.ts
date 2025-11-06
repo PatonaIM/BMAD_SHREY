@@ -201,6 +201,25 @@ export class ApplicationRepository {
     });
   }
 
+  async updateInterviewStatus(
+    applicationId: string,
+    status: 'not_started' | 'in_progress' | 'completed'
+  ): Promise<UpdateResult> {
+    const collection = await this.getCollection();
+    const updates: Partial<Application> = {
+      interviewStatus: status,
+      updatedAt: new Date(),
+    };
+
+    if (status === 'completed') {
+      updates.interviewCompletedAt = new Date();
+    }
+
+    return collection.updateOne({ _id: applicationId } as Filter<Application>, {
+      $set: updates,
+    });
+  }
+
   async listForJob(jobId: string, limit = 100): Promise<Application[]> {
     const collection = await this.getCollection();
     return collection

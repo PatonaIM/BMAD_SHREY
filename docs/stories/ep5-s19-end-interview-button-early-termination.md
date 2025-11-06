@@ -10,6 +10,8 @@ So that I can gracefully exit if needed without closing the browser tab.
 - Trigger score calculation and session termination when clicked
 - Update session status to `completed` via API
 - **Persist final score and breakdown to database via end-session API**
+- **Store recorded video for later viewing**
+- **Add loading state during end-interview process**
 - Transition UI to score screen after end
 - Provide confirmation modal to prevent accidental clicks
 
@@ -21,9 +23,11 @@ So that I can gracefully exit if needed without closing the browser tab.
 4. Confirming modal calls `controller.endAndScore()`
 5. Session status updated to `completed` in database
 6. **Final score and breakdown (clarity, correctness, depth) persisted to database**
-7. UI transitions to score screen within 2 seconds of confirmation
-8. Canceling modal returns to interview without side effects
-9. **Duration calculated and stored** (completedAt - startedAt)
+7. **Recorded video finalized and stored with session for later viewing**
+8. **Loading state displayed during finalization process (scoring + video upload)**
+9. UI transitions to score screen within 2 seconds of confirmation
+10. Canceling modal returns to interview without side effects
+11. **Duration calculated and stored** (completedAt - startedAt)
 
 ## UI Placement
 
@@ -115,39 +119,50 @@ return (
 ### 2. End Interview Handler
 
 ```typescript
+const [isEndingInterview, setIsEndingInterview] = useState(false);
+
 const handleEndInterview = async () => {
   setShowEndModal(false);
+  setIsEndingInterview(true);
 
-  // Trigger scoring first to calculate final score
-  controller.endAndScore();
+  try {
+    // Step 1: Stop recording and finalize video
+    await recording.stopRecording();
 
-  // Wait for score to be calculated (state update may be async)
-  setTimeout(async () => {
+    // Step 2: Wait for all pending uploads to complete
+    await recording.waitForCompletion();
+
+    // Step 3: Trigger scoring to calculate final score
+    controller.endAndScore();
+
+    // Step 4: Wait for score to be calculated
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Step 5: Update session status and persist scores + video URL via API
     const sessionId = (window as any).__interviewSessionId;
     if (sessionId) {
-      try {
-        // Get final score from controller state
-        const finalScore = controller.state.finalScore;
-        const scoreBreakdown = controller.state.finalScoreBreakdown;
+      const finalScore = controller.state.finalScore;
+      const scoreBreakdown = controller.state.finalScoreBreakdown;
+      const videoUrl = recording.getVideoUrl();
 
-        // Update session status and persist scores via API
-        await fetch('/api/interview/end-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            endedBy: 'candidate',
-            reason: 'user_requested',
-            finalScore,
-            scoreBreakdown,
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to update session:', err);
-        // Continue anyway - score screen will fetch from state if DB update fails
-      }
+      await fetch('/api/interview/end-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          endedBy: 'candidate',
+          reason: 'user_requested',
+          finalScore,
+          scoreBreakdown,
+          videoUrl,
+        }),
+      });
     }
-  }, 1000); // Wait 1s for scoring to complete
+  } catch (err) {
+    console.error('Failed to end interview:', err);
+  } finally {
+    setIsEndingInterview(false);
+  }
 };
 ```
 
@@ -198,7 +213,7 @@ export const EndInterviewModal: React.FC<EndInterviewModalProps> = ({
 ```typescript
 // src/app/api/interview/end-session/route.ts
 export async function POST(req: NextRequest) {
-  const { sessionId, endedBy, reason, finalScore, scoreBreakdown } =
+  const { sessionId, endedBy, reason, finalScore, scoreBreakdown, videoUrl } =
     await req.json();
 
   if (!sessionId) {
@@ -230,6 +245,7 @@ export async function POST(req: NextRequest) {
         duration, // in seconds
         finalScore: finalScore ?? null,
         scoreBreakdown: scoreBreakdown ?? null,
+        videoUrl: videoUrl ?? null, // Store video URL for later viewing
         metadata: {
           ...existingSession.metadata,
           endedBy, // 'candidate' | 'system' | 'timeout'
@@ -254,6 +270,7 @@ export async function POST(req: NextRequest) {
       finalScore,
       scoreBreakdown,
       duration,
+      videoUrl,
     },
     { status: 200 }
   );
@@ -299,20 +316,25 @@ export async function POST(req: NextRequest) {
 
 ## Definition of Done
 
-"End Interview" button appears during intro/conducting phases. Clicking opens confirmation modal. Confirming triggers scoring, updates session status via API, and transitions to score screen. Modal can be canceled without side effects. Verified across desktop and mobile.
+"End Interview" button appears during intro/conducting phases. Clicking opens confirmation modal. Confirming triggers scoring, finalizes video using existing finalize-upload endpoint, updates session status via API, and transitions to score screen. Modal can be canceled without side effects. Verified across desktop and mobile.
 
 ## Tasks
 
-- [ ] Add "End Interview" button to VideoAndControls
-- [ ] Create EndInterviewModal component
-- [ ] Implement confirmation modal logic
-- [ ] Add keyboard navigation (Escape key)
-- [ ] Create `/api/interview/end-session` endpoint
-- [ ] Integrate API call in handleEndInterview
+- [x] Add "End Interview" button to VideoAndControls
+- [x] Create EndInterviewModal component
+- [x] Implement confirmation modal logic
+- [x] Add keyboard navigation (Escape key)
+- [x] Add loading state during end-interview process
+- [x] Implement video finalization on end interview
+- [x] Wait for all pending uploads to complete
+- [x] Store video URL with session
+- [x] Create `/api/interview/end-session` endpoint
+- [x] Integrate API call in handleEndInterview
 - [ ] Add analytics events
 - [ ] Add debouncing to prevent double-clicks
-- [ ] Test modal accessibility
-- [ ] Verify session status updates in database
+- [x] Test modal accessibility
+- [x] Verify session status updates in database
+- [x] Verify video URL is stored and retrievable
 
 ## Dependencies
 
