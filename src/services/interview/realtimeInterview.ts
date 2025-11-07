@@ -182,24 +182,10 @@ export async function startRealtimeInterview(
             type: 'server_vad',
             threshold: 0.5,
             prefix_padding_ms: 300,
-            silence_duration_ms: 500,
+            silence_duration_ms: 200,
+            create_response: true,
           },
           tools: [
-            {
-              type: 'function',
-              name: 'question_ready',
-              description:
-                'Signal that a new question is ready for the candidate',
-              parameters: {
-                type: 'object',
-                properties: {
-                  idx: {
-                    type: 'number',
-                    description: 'Question index (0-based)',
-                  },
-                },
-              },
-            },
             {
               type: 'function',
               name: 'submit_answer_score',

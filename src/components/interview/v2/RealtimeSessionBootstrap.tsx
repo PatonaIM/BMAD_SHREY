@@ -5,7 +5,6 @@ import {
   RealtimeSessionState,
   RealtimeInterviewHandles,
   requestInterviewScore,
-  sendInterviewStart,
   computeDeterministicScore,
 } from '../../../services/interview/realtimeInterview';
 import {
@@ -150,20 +149,20 @@ export const RealtimeSessionBootstrap: React.FC<
   }
 
   // After connection established, send greet start event (manual trigger)
-  useEffect(() => {
-    if (
-      handles &&
-      state.phase === 'connected' &&
-      startInitiated &&
-      state.interviewPhase === 'pre_start'
-    ) {
-      if (DEBUG) {
-        // eslint-disable-next-line no-console
-        console.warn('[Interview DEBUG] sending client.start', { handles });
-      }
-      sendInterviewStart(handles.controlChannel);
-    }
-  }, [handles, state.phase, startInitiated, state.interviewPhase]);
+  // useEffect(() => {
+  //   if (
+  //     handles &&
+  //     state.phase === 'connected' &&
+  //     startInitiated &&
+  //     state.interviewPhase === 'pre_start'
+  //   ) {
+  //     if (DEBUG) {
+  //       // eslint-disable-next-line no-console
+  //       console.warn('[Interview DEBUG] sending client.start', { handles });
+  //     }
+  //     sendInterviewStart(handles.controlChannel);
+  //   }
+  // }, [handles, state.phase, startInitiated, state.interviewPhase]);
 
   // Auto-start now performed inside realtimeInterview.ts when connection established.
 
