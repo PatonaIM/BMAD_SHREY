@@ -216,10 +216,10 @@ ENABLE_SESSION_TRACKING: true # S18, required for analytics
 
 ## Stakeholder Sign-Off
 
-- [ ] Product Lead: ****\*\*****\_\_\_****\*\*****
-- [ ] Engineering Lead: ****\*\*****\_\_\_****\*\*****
-- [ ] Design Lead: ****\*\*****\_\_\_****\*\*****
-- [ ] QA Lead: ****\*\*****\_\_\_****\*\*****
+- [ ] Product Lead: \***\*\*\*\*\***\_\_\_\***\*\*\*\*\***
+- [ ] Engineering Lead: \***\*\*\*\*\***\_\_\_\***\*\*\*\*\***
+- [ ] Design Lead: \***\*\*\*\*\***\_\_\_\***\*\*\*\*\***
+- [ ] QA Lead: \***\*\*\*\*\***\_\_\_\***\*\*\*\*\***
 
 ---
 
