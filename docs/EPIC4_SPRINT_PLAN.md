@@ -106,10 +106,11 @@ Per the UX specifications document, Epic 4 includes:
 - [ ] Set up environment variables
   ```env
   # Add to .env.local
+  # Reuse existing Google OAuth credentials (adds calendar scope for recruiters only)
+  GOOGLE_CLIENT_ID=your-existing-client-id.apps.googleusercontent.com
+  GOOGLE_CLIENT_SECRET=your-existing-client-secret
   GOOGLE_CHAT_ENABLED=true
-  GOOGLE_CALENDAR_CLIENT_ID=xxx
-  GOOGLE_CALENDAR_CLIENT_SECRET=xxx
-  GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+  GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/api/auth/callback/google
   GEMINI_API_KEY=xxx
   GEMINI_MODEL=gemini-1.5-pro
   REDIS_URL=redis://localhost:6379
@@ -814,19 +815,23 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
       recruiterId: string,
       event: CalendarEvent
     ): Promise<string> {
-      // Get OAuth client for recruiter
+      // Get OAuth client for recruiter (requires recruiterAccess + linked calendar)
       // Create calendar event with Google Meet link
+      // Add candidate as attendee (email only)
       // Return event ID
     }
 
     async syncAvailability(recruiterId: string): Promise<void> {
-      // Fetch freebusy from Google Calendar
+      // Fetch freebusy from recruiter's Google Calendar (if linked)
       // Update availabilitySlots collection
+      // Candidates select from available slots (they don't link calendars)
     }
 
     private async getOAuthClient(recruiterId: string): Promise<OAuth2Client> {
       // Load tokens from user.recruiterMetadata
-      // Refresh if expired
+      // Only users with recruiterAccess see "Link Calendar" option in UI
+      // Refresh tokens if expired
+      // Throw error if calendar not linked
     }
   }
   ```
@@ -834,16 +839,22 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
 - [ ] Add OAuth flow to NextAuth config
 
   ```typescript
-  // Add Google provider with calendar scopes
+  // Update existing Google provider with dynamic scopes
   GoogleProvider({
-    clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     authorization: {
       params: {
-        scope: 'openid email profile https://www.googleapis.com/auth/calendar',
+        scope: 'openid email profile',
+        // Calendar scope added dynamically for recruiters only
+        // See callbacks.signIn to conditionally request calendar scope
       },
     },
   });
+
+  // In callbacks.signIn:
+  // If user.recruiterAccess === true, prompt for calendar scope
+  // Otherwise, only basic profile scopes
   ```
 
 - [ ] Add scheduling procedures to recruiter router
@@ -867,8 +878,11 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
       duration: z.number().default(30) // minutes
     }))
     .mutation(async ({ ctx, input }) => {
+      // Verify recruiter has linked calendar (recruiterAccess + calendar token exists)
       // Book availabilitySlot
-      // Create Google Calendar event
+      // Create Google Calendar event on recruiter's calendar
+      // Add candidate as attendee (via email from application)
+      // Candidate receives email invite (they don't need to link calendar)
       // Create scheduledCall record
       // Add timeline event
       // Send notifications
@@ -882,7 +896,8 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
 
   ```typescript
   // components/recruiter/scheduling/SchedulingPanel.tsx
-  // Calendar view (week or day)
+  // Show "Link Calendar" button if recruiterAccess && !calendarLinked
+  // Calendar view (week or day) - only shows if calendar linked
   // Available slots highlighted
   // Click to book behavior
   ```
@@ -932,12 +947,14 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
 
 **Manual Test Day 5**:
 
-- [ ] OAuth flow connects calendar
-- [ ] Availability slots sync from Google
-- [ ] Call scheduling creates event
-- [ ] Meeting link generated
-- [ ] Candidate receives invite
-- [ ] Timeline event created
+- [ ] Both candidates and recruiters can login via OAuth
+- [ ] Only users with recruiterAccess see "Link Calendar" option
+- [ ] OAuth flow connects recruiter's calendar (with calendar scope)
+- [ ] Availability slots sync from recruiter's Google Calendar
+- [ ] Call scheduling creates event on recruiter's calendar
+- [ ] Meeting link generated (Google Meet)
+- [ ] Candidate receives email invite with calendar attachment (no linking required)
+- [ ] Timeline event created for both recruiter and candidate views
 
 ---
 
@@ -945,9 +962,12 @@ Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/archit
 
 - ✅ Google Chat notifications working
 - ✅ Webhook fallback to email functional
-- ✅ Google Calendar OAuth connected
-- ✅ Call scheduling creates events with Meet links
-- ✅ Availability syncs from Google Calendar
+- ✅ Both candidates and recruiters can OAuth login
+- ✅ Only recruiters with recruiterAccess see "Link Calendar" option
+- ✅ Google Calendar OAuth connected (for recruiters who link)
+- ✅ Call scheduling creates events with Meet links on recruiter calendars
+- ✅ Candidates receive email invites (no linking required)
+- ✅ Availability syncs from recruiter's Google Calendar
 - ✅ Manual testing checklist 100% complete
 
 **High Risk Items**:
@@ -987,8 +1007,14 @@ Reference: `docs/architecture-epic4/3-tech-stack-alignment.md` (Pattern 3), `doc
 - [ ] Set up Redis (Vercel KV or local)
 
   ```bash
-  # For local development
-  docker run -d -p 6379:6379 redis:7-alpine
+  # Redis will automatically start when running `npm run dev`
+  # Or start manually:
+  ./scripts/start-redis.sh
+
+  # Verify Redis is running:
+  docker ps | grep teammatch-redis
+
+  # See README_REDIS.md for troubleshooting
   ```
 
 - [ ] Implement GeminiTranscriptionService class
@@ -1511,3 +1537,29 @@ Reference: `docs/architecture-epic4/11-testing-strategy.md` (Post-MVP Plan)
 _This document provides a complete 5-week implementation roadmap for Epic 4 with daily tasks, architecture references, testing checklists, and deployment procedures. All stories are mapped to specific architecture sections for efficient development._
 
 **Questions or clarifications?** Refer to the architecture documents in `docs/architecture-epic4/` and `docs/frontend-architecture-epic4/` directories.
+
+# Epic 4 Developer Handoff
+
+## 📚 Essential Reading (in order):
+
+1. docs/EPIC4_SPRINT_PLAN.md - Start here (5-week roadmap)
+2. docs/architecture-epic4/index.md - Backend architecture navigation
+3. docs/frontend-architecture-epic4/index.md - Frontend architecture navigation
+4. docs/stories/epic-4/ep4-s9-recruiter-job-dashboard.md - First story details
+
+## 🚀 Sprint 1 Setup (Week 1, Days 1-2):
+
+- Install dependencies (see EPIC4_SPRINT_PLAN.md Sprint 1)
+- Run migration: `npm run migrate:epic4`
+- Set up environment variables (.env.local)
+- Test: MongoDB collections created, utilities work
+
+## 📂 File Creation Order:
+
+Follow Sprint 1 → Sprint 5 task lists in EPIC4_SPRINT_PLAN.md
+
+## ❓ Questions?
+
+- Architecture questions: Reference docs/architecture-epic4/
+- Frontend patterns: Reference docs/frontend-architecture-epic4/
+- Story details: Reference docs/stories/epic-4/
