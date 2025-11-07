@@ -113,7 +113,9 @@ export const callbacks = {
     return true;
   },
   async redirect({ url, baseUrl }: RedirectParams): Promise<string> {
+    // Allow any URL that starts with baseUrl (including callback URLs)
     if (url.startsWith(baseUrl)) return url;
+    // Default redirect to base URL
     return baseUrl;
   },
   async session({ session, token }: SessionParams): Promise<Session> {

@@ -4,6 +4,9 @@ import { ensureResumeIndexes } from './repositories/resumeRepo';
 import { ensureExtractedProfileIndexes } from './repositories/extractedProfileRepo';
 import { ensureResumeVectorIndexes } from './repositories/resumeVectorRepo';
 import { ensureProfileVersionIndexes } from './repositories/profileVersionRepo';
+import { ensureRecruiterSubscriptionIndexes } from './repositories/recruiterSubscriptionRepo';
+import { ensureCandidateMatchingIndexes } from './repositories/candidateMatchingRepo';
+import { ensureCandidateInvitationIndexes } from './repositories/candidateInvitationsRepo';
 import { logger } from '../monitoring/logger';
 
 export let client: MongoClient | null = null;
@@ -49,6 +52,9 @@ async function ensureIndexes(mongo: MongoClient) {
     await ensureExtractedProfileIndexes();
     await ensureResumeVectorIndexes();
     await ensureProfileVersionIndexes();
+    await ensureRecruiterSubscriptionIndexes();
+    await ensureCandidateMatchingIndexes();
+    await ensureCandidateInvitationIndexes();
   } catch (err) {
     logger.error({
       msg: 'Index creation failed',
