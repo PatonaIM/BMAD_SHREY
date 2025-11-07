@@ -5,8 +5,14 @@ import { recruiterSubscriptionRepo } from '../../data-access/repositories/recrui
 import { jobRepo } from '../../data-access/repositories/jobRepo';
 import { candidateMatchingRepo } from '../../data-access/repositories/candidateMatchingRepo';
 import { candidateInvitationsRepo } from '../../data-access/repositories/candidateInvitationsRepo';
+import { ApplicationRepository } from '../../data-access/repositories/applicationRepo';
+import { getMongoClient } from '../../data-access/mongoClient';
+import { ObjectId } from 'mongodb';
 
 const t = initTRPC.context<Context>().create();
+
+// Initialize repositories
+const applicationRepo = new ApplicationRepository();
 
 // Middleware to check if user is authenticated
 const isAuthed = t.middleware(({ ctx, next }) => {
@@ -78,6 +84,23 @@ const InviteCandidateSchema = z.object({
 
 const DismissSuggestionSchema = z.object({
   candidateId: z.string().min(1, 'Candidate ID is required'),
+});
+
+const GetApplicationsSchema = z.object({
+  jobId: z.string().optional(),
+  status: z
+    .enum([
+      'submitted',
+      'under_review',
+      'interview_scheduled',
+      'offer',
+      'rejected',
+      'withdrawn',
+    ])
+    .optional(),
+  minScore: z.number().min(0).max(100).optional(),
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(20),
 });
 
 export const recruiterRouter = t.router({
@@ -561,6 +584,121 @@ export const recruiterRouter = t.router({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to get invitations: ${(err as Error).message}`,
+        });
+      }
+    }),
+
+  /**
+   * Get applications with filtering and pagination
+   * Used for the Application Grid view
+   */
+  getApplications: t.procedure
+    .use(isAuthed)
+    .use(isRecruiter)
+    .input(GetApplicationsSchema)
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session?.user?.id;
+      if (!userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User ID not found in session',
+        });
+      }
+
+      try {
+        const collection = await applicationRepo['getCollection']();
+        const { page, limit, jobId, status, minScore } = input;
+        const skip = (page - 1) * limit;
+
+        // Get recruiter's subscribed jobs
+        const client = await getMongoClient();
+        const db = client.db();
+        const subscriptionsCollection = db.collection<{
+          _id: unknown;
+          jobId: { toString: () => string };
+          recruiterId: string;
+          isActive: boolean;
+        }>('recruiterSubscriptions');
+        const subscriptions = await subscriptionsCollection
+          .find({ recruiterId: userId, isActive: true })
+          .toArray();
+
+        const subscribedJobIds = subscriptions.map(sub => sub.jobId.toString());
+
+        // Debug logging
+        // eslint-disable-next-line no-console
+        console.log('[DEBUG getApplications]', {
+          userId,
+          subscriptionsCount: subscriptions.length,
+          subscribedJobIds,
+          requestedJobId: jobId,
+        });
+
+        // If no subscriptions, return empty
+        if (subscribedJobIds.length === 0) {
+          return {
+            applications: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+              hasMore: false,
+            },
+          };
+        }
+
+        // Build filter
+        const filter: Record<string, unknown> = {};
+
+        // Filter by specific job or all subscribed jobs
+        // Note: jobId in applications collection is stored as ObjectId
+        if (jobId) {
+          // Verify recruiter has access to this specific job
+          if (!subscribedJobIds.includes(jobId)) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: 'You do not have access to this job',
+            });
+          }
+          filter.jobId = new ObjectId(jobId);
+        } else {
+          // Filter by all subscribed jobs (convert strings to ObjectIds)
+          filter.jobId = { $in: subscribedJobIds.map(id => new ObjectId(id)) };
+        }
+
+        if (status) {
+          filter.status = status;
+        }
+        if (minScore !== undefined) {
+          filter.matchScore = { $gte: minScore };
+        }
+
+        // Get total count
+        const total = await collection.countDocuments(filter);
+
+        // Get applications
+        const applications = await collection
+          .find(filter)
+          .sort({ appliedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        return {
+          applications,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            hasMore: skip + applications.length < total,
+          },
+        };
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to get applications: ${(err as Error).message}`,
         });
       }
     }),

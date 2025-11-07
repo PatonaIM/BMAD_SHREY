@@ -15,6 +15,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@/*": ["src/*"],
       "@bmad/shared/*": ["src/shared/*"],
       "@bmad/config/*": ["src/config/*"],
       "@bmad/services/*": ["src/services/*"],
