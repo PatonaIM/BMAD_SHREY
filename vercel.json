@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/workable/cron-sync",
+      "schedule": "0,15,30,45 * * * *"
+    }
+  ]
+}

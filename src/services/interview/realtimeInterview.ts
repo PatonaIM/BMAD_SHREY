@@ -169,6 +169,93 @@ export async function startRealtimeInterview(
         // eslint-disable-next-line no-console
         console.warn('[Interview DEBUG] control channel opened');
       }
+
+      // Configure session with turn detection (VAD) for automatic conversation flow
+      const sessionConfig = {
+        type: 'session.update',
+        session: {
+          modalities: ['text', 'audio'],
+          voice: 'alloy',
+          input_audio_format: 'pcm16',
+          output_audio_format: 'pcm16',
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 500,
+          },
+          tools: [
+            {
+              type: 'function',
+              name: 'question_ready',
+              description:
+                'Signal that a new question is ready for the candidate',
+              parameters: {
+                type: 'object',
+                properties: {
+                  idx: {
+                    type: 'number',
+                    description: 'Question index (0-based)',
+                  },
+                },
+              },
+            },
+            {
+              type: 'function',
+              name: 'submit_answer_score',
+              description:
+                'Submit score and feedback for a candidate answer (0-100 scale)',
+              parameters: {
+                type: 'object',
+                properties: {
+                  questionText: { type: 'string' },
+                  score: { type: 'number' },
+                  feedback: { type: 'string' },
+                },
+                required: ['questionText', 'score', 'feedback'],
+              },
+            },
+            {
+              type: 'function',
+              name: 'generate_final_feedback',
+              description:
+                'Generate comprehensive final feedback with strengths and improvements',
+              parameters: {
+                type: 'object',
+                properties: {
+                  overallScore: { type: 'number' },
+                  strengths: {
+                    type: 'array',
+                    items: { type: 'string' },
+                  },
+                  improvements: {
+                    type: 'array',
+                    items: { type: 'string' },
+                  },
+                  summary: { type: 'string' },
+                },
+                required: [
+                  'overallScore',
+                  'strengths',
+                  'improvements',
+                  'summary',
+                ],
+              },
+            },
+          ],
+        },
+      };
+
+      try {
+        controlChannel.send(JSON.stringify(sessionConfig));
+        if (DEBUG) {
+          // eslint-disable-next-line no-console
+          console.log('[Interview DEBUG] Session configuration sent with VAD');
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[Interview] Failed to send session config:', err);
+      }
     };
     controlChannel.onmessage = ev => {
       if (DEBUG) {

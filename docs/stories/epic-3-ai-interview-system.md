@@ -1556,7 +1556,15 @@ So that I can focus on answering naturally while trusting system stability and q
 
 ## EP3-S12: Split-Panel Interview Interface Refactor (NEW - Major Refactoring)
 
-**Status:** 📋 Planned  
+## ⚠️ DEPRECATED - See EP5-S15 for Current Implementation
+
+**This story has been superseded by EP5-S15** which implements a cleaner split-panel architecture with improved state management and real-time coaching integration. The implementation in EP5 addresses the same goals with better separation of concerns and reduced complexity.
+
+**Refer to:** [ep5-s15-split-panel-refactor.md](./ep5-s15-split-panel-refactor.md)
+
+---
+
+**Status:** ⛔ Deprecated  
 **Story File:** [ep3-s12-split-panel-interview-refactor.md](./ep3-s12-split-panel-interview-refactor.md)  
 **Effort:** 8 Story Points  
 **Dependencies:** EP3-S15 (Component Extraction - should be done first)
@@ -1586,7 +1594,15 @@ So that the codebase is maintainabile, debuggable, and extensible for future enh
 
 ## EP3-S13: Canvas Recording Implementation (NEW - Recording Enhancement)
 
-**Status:** 📋 Planned  
+## ⚠️ DEPRECATED - See EP5-S4 for Current Implementation
+
+**This story has been superseded by EP5-S4** which implements canvas-based screen recording with improved video composition and Azure blob upload integration. The implementation in EP5 provides the complete recording solution with better error handling.
+
+**Refer to:** [ep5-s4-canvas-recording.md](./ep5-s4-canvas-recording.md)
+
+---
+
+**Status:** ⛔ Deprecated  
 **Story File:** [ep3-s13-canvas-recording-implementation.md](./ep3-s13-canvas-recording-implementation.md)  
 **Effort:** 5 Story Points  
 **Dependencies:** EP3-S12 (Split Panel Architecture)
