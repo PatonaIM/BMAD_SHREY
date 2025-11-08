@@ -1,3 +1,5 @@
+import { ApplicationStage } from './applicationStage';
+
 export type ApplicationStatus =
   | 'submitted'
   | 'ai_interview'
@@ -23,8 +25,20 @@ export interface Application {
   jobTitle: string;
   jobCompany: string;
 
-  // Status Management
+  // NEW: Stage-based timeline (Epic 5)
+  stages?: ApplicationStage[]; // Array of dynamic stages
+  currentStageId?: string; // ID of the active stage
+  isDisqualified?: boolean; // Whether application is disqualified
+  disqualificationReason?: string; // Reason for disqualification
+  disqualifiedAt?: Date; // When application was disqualified
+  disqualifiedBy?: string; // Who disqualified (recruiterId or 'system')
+  journeyStartedAt?: Date; // When application journey started (same as appliedAt)
+  journeyCompletedAt?: Date; // When journey completed (offer accepted or disqualified)
+
+  // LEGACY: Status Management (kept for backward compatibility during migration)
+  /** @deprecated Use stages array instead. Will be removed after migration. */
   status: ApplicationStatus;
+  /** @deprecated Use stages array instead. Will be removed after migration. */
   timeline: ApplicationTimelineEvent[];
 
   // Scoring
