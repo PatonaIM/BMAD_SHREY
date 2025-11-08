@@ -1,6 +1,8 @@
 'use client';
 
 import type { Application } from '@/shared/types/application';
+import { useTimeline } from '@/hooks/recruiter/useTimeline';
+import { TimelineView } from '@/components/recruiter/timeline/TimelineView';
 
 interface DetailPanelProps {
   application: Application;
@@ -21,6 +23,17 @@ export function DetailPanel({ application }: DetailPanelProps) {
       minute: '2-digit',
     });
   };
+
+  // Fetch timeline data with real-time updates
+  const { timeline, isLoading, refetch } = useTimeline(
+    application._id.toString()
+  );
+
+  // Convert timestamp strings to Date objects
+  const normalizedTimeline = timeline.map(event => ({
+    ...event,
+    timestamp: new Date(event.timestamp),
+  }));
 
   return (
     <div className="p-4 space-y-4">
@@ -80,39 +93,19 @@ export function DetailPanel({ application }: DetailPanelProps) {
         </div>
       )}
 
-      {/* Timeline Preview */}
-      {application.timeline && application.timeline.length > 0 && (
-        <div>
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-            Recent Activity
-          </h4>
-          <div className="space-y-2">
-            {application.timeline
-              .slice(-3)
-              .reverse()
-              .map((event, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start gap-2 text-sm border-l-2 border-gray-300 dark:border-gray-600 pl-3"
-                >
-                  <div className="flex-1">
-                    <div className="text-gray-900 dark:text-white font-medium capitalize">
-                      {event.status.replace(/_/g, ' ')}
-                    </div>
-                    <div className="text-gray-500 dark:text-gray-400 text-xs">
-                      {formatDate(event.timestamp)}
-                      {event.note && ` • ${event.note}`}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+      {/* Full Timeline with Enhanced Visuals */}
+      <div>
+        <TimelineView
+          applicationId={application._id.toString()}
+          timeline={normalizedTimeline}
+          isLoading={isLoading}
+          onRefresh={refetch}
+        />
+      </div>
 
       {/* Resume Link */}
       {application.resumeVersionId && (
-        <div>
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
           <a
             href={`/api/resume/${application.resumeVersionId}`}
             target="_blank"

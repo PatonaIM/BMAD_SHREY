@@ -215,6 +215,32 @@ export class ApplicationRepository {
       updates.interviewCompletedAt = new Date();
     }
 
+    // Add timeline event for interview completion
+    if (status === 'completed') {
+      const timelineEvent: ApplicationTimelineEvent = {
+        status: 'ai_interview',
+        timestamp: new Date(),
+        actorType: 'system',
+        note: 'AI interview completed successfully',
+      };
+
+      await collection.updateOne(
+        { _id: applicationId } as Filter<Application>,
+        {
+          $set: updates,
+          $push: { timeline: timelineEvent } as never,
+        }
+      );
+
+      return {
+        acknowledged: true,
+        matchedCount: 1,
+        modifiedCount: 1,
+        upsertedCount: 0,
+        upsertedId: null,
+      };
+    }
+
     return collection.updateOne({ _id: applicationId } as Filter<Application>, {
       $set: updates,
     });

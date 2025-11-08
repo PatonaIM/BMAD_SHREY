@@ -8,6 +8,7 @@ import { candidateInvitationsRepo } from '../../data-access/repositories/candida
 import { ApplicationRepository } from '../../data-access/repositories/applicationRepo';
 import { getMongoClient } from '../../data-access/mongoClient';
 import { ObjectId } from 'mongodb';
+import { TimelineService } from '../../services/timelineService';
 
 const t = initTRPC.context<Context>().create();
 
@@ -699,6 +700,90 @@ export const recruiterRouter = t.router({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to get applications: ${(err as Error).message}`,
+        });
+      }
+    }),
+
+  /**
+   * Get timeline for an application (role-based filtering)
+   */
+  getTimeline: t.procedure
+    .use(isAuthed)
+    .input(z.object({ applicationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session?.user?.id;
+      if (!userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User ID not found in session',
+        });
+      }
+
+      try {
+        const timelineService = new TimelineService();
+        const roles = (ctx.session.user as { roles?: string[] })?.roles || [];
+        const userRole =
+          roles.includes('RECRUITER') || roles.includes('ADMIN')
+            ? 'RECRUITER'
+            : 'CANDIDATE';
+
+        const timeline = await timelineService.getTimelineForRole(
+          input.applicationId,
+          userRole
+        );
+
+        return { timeline };
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to get timeline: ${(err as Error).message}`,
+        });
+      }
+    }),
+
+  /**
+   * Add an event to the application timeline
+   */
+  addTimelineEvent: t.procedure
+    .use(isAuthed)
+    .use(isRecruiter)
+    .input(
+      z.object({
+        applicationId: z.string(),
+        status: z.enum([
+          'submitted',
+          'ai_interview',
+          'under_review',
+          'interview_scheduled',
+          'offer',
+          'rejected',
+        ]),
+        note: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session?.user?.id;
+      if (!userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User ID not found in session',
+        });
+      }
+
+      try {
+        const timelineService = new TimelineService();
+        await timelineService.addEvent(input.applicationId, {
+          status: input.status,
+          actorType: 'recruiter',
+          actorId: userId,
+          note: input.note,
+        });
+
+        return { success: true };
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to add timeline event: ${(err as Error).message}`,
         });
       }
     }),
