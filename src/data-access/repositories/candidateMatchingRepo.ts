@@ -15,6 +15,7 @@ export interface CandidateSuggestion {
   location?: string;
   skills: string[];
   yearsOfExperience?: number;
+  applicationCount?: number;
   matchScore: number;
   matchBreakdown: {
     vectorSimilarity: number;
@@ -158,14 +159,100 @@ export async function findProactiveMatches(
     {
       $vectorSearch: {
         index: 'resume_vector_index',
-        path: 'embedding',
+        path: 'embeddings',
         queryVector: jobVector,
         numCandidates: 100,
         limit: limit * 2, // Get more initially for filtering
       },
     },
     {
+      $lookup: {
+        from: 'extracted_profiles',
+        localField: 'userId',
+        foreignField: 'userId',
+        as: 'extractedProfile',
+      },
+    },
+    {
+      $unwind: {
+        path: '$extractedProfile',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $addFields: {
+        extractedData: {
+          $mergeObjects: [
+            '$extractedProfile',
+            {
+              // Calculate current title from most recent current experience
+              currentTitle: {
+                $let: {
+                  vars: {
+                    currentExp: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: {
+                              $ifNull: ['$extractedProfile.experience', []],
+                            },
+                            as: 'exp',
+                            cond: { $eq: ['$$exp.isCurrent', true] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                  in: '$$currentExp.position',
+                },
+              },
+              // Calculate total years of experience
+              yearsOfExperience: {
+                $size: { $ifNull: ['$extractedProfile.experience', []] },
+              },
+              // Get location from current or most recent experience
+              location: {
+                $let: {
+                  vars: {
+                    currentExp: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: {
+                              $ifNull: ['$extractedProfile.experience', []],
+                            },
+                            as: 'exp',
+                            cond: { $eq: ['$$exp.isCurrent', true] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    recentExp: {
+                      $arrayElemAt: [
+                        { $ifNull: ['$extractedProfile.experience', []] },
+                        0,
+                      ],
+                    },
+                  },
+                  in: {
+                    $ifNull: ['$$currentExp.location', '$$recentExp.location'],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
       $match: matchConditions,
+    },
+    {
+      $addFields: {
+        vectorScore: { $meta: 'vectorSearchScore' }, // Capture vector score before grouping
+      },
     },
     {
       $lookup: {
@@ -203,6 +290,88 @@ export async function findProactiveMatches(
       },
     },
     {
+      $lookup: {
+        from: 'applications',
+        let: { candidateId: '$userId', currentJobId: new ObjectId(jobId) },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$candidateId', '$$candidateId'],
+              },
+            },
+          },
+          {
+            $facet: {
+              currentJobApplication: [
+                {
+                  $match: {
+                    $expr: {
+                      $eq: ['$jobId', '$$currentJobId'],
+                    },
+                  },
+                },
+              ],
+              allApplications: [{ $count: 'count' }],
+            },
+          },
+        ],
+        as: 'applicationData',
+      },
+    },
+    {
+      $unwind: {
+        path: '$applicationData',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $addFields: {
+        hasAppliedToThisJob: {
+          $gt: [
+            {
+              $size: {
+                $ifNull: ['$applicationData.currentJobApplication', []],
+              },
+            },
+            0,
+          ],
+        },
+        applicationCount: {
+          $ifNull: [
+            {
+              $arrayElemAt: ['$applicationData.allApplications.count', 0],
+            },
+            0,
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        hasAppliedToThisJob: false, // Exclude candidates who already applied to this job
+      },
+    },
+    {
+      $group: {
+        _id: '$userId', // Group by userId to remove duplicates
+        doc: { $first: '$$ROOT' },
+        maxVectorScore: { $max: '$vectorScore' }, // Use captured vectorScore field
+      },
+    },
+    {
+      $replaceRoot: {
+        newRoot: {
+          $mergeObjects: [
+            '$doc',
+            {
+              vectorScore: '$maxVectorScore',
+            },
+          ],
+        },
+      },
+    },
+    {
       $project: {
         _id: 1,
         candidateId: '$userId',
@@ -211,10 +380,29 @@ export async function findProactiveMatches(
         email: '$user.email',
         currentTitle: '$extractedData.currentTitle',
         location: '$extractedData.location',
-        skills: '$extractedData.skills',
+        skills: {
+          $cond: {
+            if: { $isArray: '$extractedData.skills' },
+            then: {
+              $map: {
+                input: '$extractedData.skills',
+                as: 'skill',
+                in: {
+                  $cond: {
+                    if: { $eq: [{ $type: '$$skill' }, 'object'] },
+                    then: '$$skill.name',
+                    else: '$$skill',
+                  },
+                },
+              },
+            },
+            else: [],
+          },
+        },
         yearsOfExperience: '$extractedData.yearsOfExperience',
+        applicationCount: 1,
         embedding: 1,
-        vectorScore: { $meta: 'vectorSearchScore' },
+        vectorScore: 1,
       },
     },
     {
@@ -253,6 +441,7 @@ export async function findProactiveMatches(
       location: result.location,
       skills: result.skills || [],
       yearsOfExperience: result.yearsOfExperience,
+      applicationCount: result.applicationCount || 0,
       matchScore: matchResult.total,
       matchBreakdown: {
         vectorSimilarity: matchResult.breakdown.semantic,
@@ -296,6 +485,87 @@ export async function findHighScoringCandidates(
   const pipeline = [
     {
       $lookup: {
+        from: 'extracted_profiles',
+        localField: 'userId',
+        foreignField: 'userId',
+        as: 'extractedProfile',
+      },
+    },
+    {
+      $unwind: {
+        path: '$extractedProfile',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $addFields: {
+        extractedData: {
+          $mergeObjects: [
+            '$extractedProfile',
+            {
+              // Calculate current title from most recent current experience
+              currentTitle: {
+                $let: {
+                  vars: {
+                    currentExp: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: {
+                              $ifNull: ['$extractedProfile.experience', []],
+                            },
+                            as: 'exp',
+                            cond: { $eq: ['$$exp.isCurrent', true] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                  in: '$$currentExp.position',
+                },
+              },
+              // Calculate total years of experience (simplified - count of jobs)
+              yearsOfExperience: {
+                $size: { $ifNull: ['$extractedProfile.experience', []] },
+              },
+              // Get location from current or most recent experience
+              location: {
+                $let: {
+                  vars: {
+                    currentExp: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: {
+                              $ifNull: ['$extractedProfile.experience', []],
+                            },
+                            as: 'exp',
+                            cond: { $eq: ['$$exp.isCurrent', true] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    recentExp: {
+                      $arrayElemAt: [
+                        { $ifNull: ['$extractedProfile.experience', []] },
+                        0,
+                      ],
+                    },
+                  },
+                  in: {
+                    $ifNull: ['$$currentExp.location', '$$recentExp.location'],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
+      $lookup: {
         from: 'users',
         localField: 'userId',
         foreignField: '_id',
@@ -309,7 +579,7 @@ export async function findHighScoringCandidates(
       $lookup: {
         from: 'applications',
         localField: 'userId',
-        foreignField: 'userId',
+        foreignField: 'candidateId',
         as: 'applications',
       },
     },
@@ -361,7 +631,25 @@ export async function findHighScoringCandidates(
         email: '$user.email',
         currentTitle: '$extractedData.currentTitle',
         location: '$extractedData.location',
-        skills: '$extractedData.skills',
+        skills: {
+          $cond: {
+            if: { $isArray: '$extractedData.skills' },
+            then: {
+              $map: {
+                input: '$extractedData.skills',
+                as: 'skill',
+                in: {
+                  $cond: {
+                    if: { $eq: [{ $type: '$$skill' }, 'object'] },
+                    then: '$$skill.name',
+                    else: '$$skill',
+                  },
+                },
+              },
+            },
+            else: [],
+          },
+        },
         yearsOfExperience: '$extractedData.yearsOfExperience',
         applicationCount: 1,
         profileCompleteness: 1,

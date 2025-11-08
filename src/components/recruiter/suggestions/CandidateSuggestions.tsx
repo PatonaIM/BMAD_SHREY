@@ -56,8 +56,11 @@ export function CandidateSuggestions({
     if (onViewProfile) {
       onViewProfile(userId);
     } else {
-      // Default: navigate to candidate profile or application
-      window.open(`/profile/${userId}`, '_blank');
+      // For now, show alert since we don't have a standalone candidate profile page
+      // TODO: Create /recruiter/candidates/[userId] page
+      alert(
+        'Profile view coming soon! For now, you can send an invitation and view the profile when they apply.'
+      );
     }
   };
 
@@ -139,13 +142,13 @@ export function CandidateSuggestions({
               key={suggestion.candidateId.toString()}
               userId={suggestion.candidateId.toString()}
               candidateEmail={suggestion.email}
-              candidateName={`${suggestion.firstName} ${suggestion.lastName}`}
               summary={suggestion.currentTitle}
               matchScore={suggestion.matchScore}
               matchReasons={suggestion.matchedSkills}
               skills={suggestion.skills}
               experienceYears={suggestion.yearsOfExperience}
               location={suggestion.location}
+              applicationCount={suggestion.applicationCount}
               onInvite={handleInvite}
               onViewProfile={handleViewProfile}
             />

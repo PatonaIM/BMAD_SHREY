@@ -19,6 +19,7 @@ interface SuggestionCardProps {
   skills?: string[];
   experienceYears?: number;
   location?: string;
+  applicationCount?: number;
   onInvite?: (_userId: string) => void;
   onViewProfile?: (_userId: string) => void;
 }
@@ -40,19 +41,17 @@ function getScoreColor(score: number) {
 export function SuggestionCard({
   userId,
   candidateEmail,
-  candidateName,
   summary,
   matchScore,
   matchReasons = [],
   skills = [],
   experienceYears,
   location,
+  applicationCount = 0,
   onInvite,
   onViewProfile,
 }: SuggestionCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const displayName =
-    candidateName || candidateEmail?.split('@')[0] || 'Anonymous';
   const topSkills = skills.slice(0, 5);
 
   return (
@@ -72,22 +71,28 @@ export function SuggestionCard({
       tabIndex={0}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-start gap-3 flex-1">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
           {/* Avatar */}
           <div className="flex-shrink-0 w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
             <User className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           </div>
 
-          {/* Name and Email */}
+          {/* Email and Info */}
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-              {displayName}
+              Anonymous Candidate
             </h3>
             {candidateEmail && (
               <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex items-center gap-1 mt-1">
-                <Mail className="w-3 h-3" />
-                {candidateEmail}
+                <Mail className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{candidateEmail}</span>
+              </p>
+            )}
+            {applicationCount !== undefined && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {applicationCount} active application
+                {applicationCount !== 1 ? 's' : ''}
               </p>
             )}
           </div>
@@ -96,11 +101,11 @@ export function SuggestionCard({
         {/* Match Score Badge */}
         <div
           className={cn(
-            'flex-shrink-0 px-3 py-1 rounded-full text-sm font-medium',
+            'flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap',
             getScoreColor(matchScore)
           )}
         >
-          {matchScore}% match
+          {Math.round(matchScore)}%
         </div>
       </div>
 
