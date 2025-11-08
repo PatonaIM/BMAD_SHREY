@@ -12,6 +12,7 @@ import { ProfileEditingService } from '../../services/profile/profileEditingServ
 import { ProfileCompletenessCard } from '../../components/dashboard/ProfileCompletenessCard';
 import { QuickActionsWidget } from '../../components/dashboard/QuickActionsWidget';
 import { QuickPicksWidgetContainer } from '../../components/dashboard/QuickPicksWidgetContainer';
+import { JobRecommendationsContainer } from '../../components/dashboard/JobRecommendationsContainer';
 // import { SkillsGapWidget } from '../../components/dashboard/SkillsGapWidget';
 // import { MatchDistributionChart } from '../../components/dashboard/MatchDistributionChart';
 import Link from 'next/link';
@@ -143,6 +144,9 @@ export default async function DashboardPage() {
 
       {/* Quick Picks - Top Matched Applications (EP3-S10) */}
       <QuickPicksWidgetContainer />
+
+      {/* AI-Powered Job Recommendations (EP4-S3) */}
+      <JobRecommendationsContainer limit={5} />
 
       {/* Top Widgets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

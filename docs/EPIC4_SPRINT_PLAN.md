@@ -427,24 +427,324 @@ Reference: `docs/frontend-architecture-epic4/4-inline-first-design-patterns.md`
 
 ---
 
-## 🎯 Sprint 3: Timeline & Candidate Suggestions (Week 3)
+## 🎯 Sprint 3: Vector Search & AI Matching (Week 3)
 
 ### Goals
 
-- Implement dual-perspective timeline with role-based filtering
-- Build AI-powered candidate suggestion system
-- Create timeline components and grouping logic
+- **CRITICAL**: Implement job vectorization for semantic search
+- Enable bidirectional AI matching (candidates→jobs, recruiters→candidates)
+- Build AI-powered recommendation systems
 
 ### Stories
 
-- **Story 4.4**: Dual-Perspective Application Timeline (Days 1-3)
-- **Story 4.3**: AI-Powered Candidate Suggestions (Days 4-5)
+- **Story EP4-S3**: Job Vectorization & Bidirectional Matching (Days 1-3) **[NEW - BLOCKER]**
+- **Story 4.4**: Dual-Perspective Application Timeline (Days 4-5) **[MOVED]**
+
+### ⚠️ Important: Sprint 3 Restructure
+
+Sprint 3 has been restructured to prioritize vector search infrastructure:
+
+**Why the Change?**
+
+- Current implementation: Job embeddings generated on-the-fly (SLOW)
+- Resume vectors exist, but job vectors missing
+- Semantic similarity disabled (0% weight) in matching
+- Cannot provide candidate job recommendations
+
+**New Priority Order**:
+
+1. **Days 1-3**: Implement job vectorization (EP4-S3)
+2. **Days 4-5**: Timeline system (4.4) - moved from original days 1-3
+3. **Sprint 4 Day 1**: AI Suggestions UI (4.3) - depends on EP4-S3
 
 ---
 
 ### 📋 Sprint 3 Backlog
 
-#### Day 1-3: Dual-Perspective Timeline (Story 4.4)
+#### Day 1-3: Job Vectorization & Bidirectional Matching (Story EP4-S3) **[CRITICAL]**
+
+**Reference**: `docs/stories/epic-4/ep4-s3-job-vectorization-bidirectional-matching.md`
+
+**Problem Statement**:
+
+- ❌ Jobs have NO cached embeddings (generated on-the-fly = slow)
+- ❌ Semantic similarity DISABLED (0% weight in matching)
+- ❌ Candidates cannot see AI-recommended jobs
+- ✅ Resume vectors exist (`resumeVectors` collection)
+
+**Solution**: Create `JobVectorizationService` + cache embeddings + enable bidirectional matching
+
+**Backend Work (Day 1)**
+
+- [ ] Create `JobVectorizationService` class
+
+  ```typescript
+  // src/services/ai/jobVectorization.ts
+  export class JobVectorizationService {
+    private readonly embeddingModel = 'text-embedding-3-small';
+
+    async vectorizeJob(jobId: string): Promise<Result<JobVector>> {
+      // 1. Fetch job from jobs collection
+      // 2. Prepare content (title + description + requirements + skills)
+      // 3. Call OpenAI embeddings API
+      // 4. Store in jobVectors collection
+      // 5. Return 1536-dim vector
+    }
+
+    async batchVectorizeJobs(jobIds: string[]): Promise<Result<Stats>> {
+      // Process in batches (10/minute for rate limits)
+    }
+  }
+  ```
+
+- [ ] Create `JobVectorRepository`
+
+  ```typescript
+  // src/data-access/repositories/jobVectorRepo.ts
+  export interface JobVector {
+    _id: string;
+    jobId: string;
+    embedding: number[]; // 1536 dimensions
+    version: number;
+    createdAt: Date;
+  }
+
+  export class JobVectorRepository {
+    async create(vector: JobVector): Promise<JobVector>;
+    async getByJobId(jobId: string): Promise<JobVector | null>;
+  }
+  ```
+
+- [ ] Create MongoDB vector search index
+
+  ```typescript
+  // scripts/migrations/create-vector-indexes.ts
+  // Create index on jobVectors.embedding
+  // MongoDB Atlas: vectorSearch index with 1536 dims, cosine similarity
+  ```
+
+- [ ] Update Job type
+
+  ```typescript
+  // src/shared/types/job.ts
+  export interface Job {
+    // ... existing fields ...
+    embedding?: number[]; // NEW: cached vector
+    embeddingVersion?: number;
+    lastVectorizedAt?: Date;
+  }
+  ```
+
+**Backend Work (Day 2)**
+
+- [ ] Add auto-vectorization to job lifecycle
+
+  ```typescript
+  // src/data-access/repositories/jobRepo.ts
+  async create(jobData): Promise<Job> {
+    const job = await collection.insertOne(jobData);
+
+    // Queue async vectorization
+    jobVectorizationService.vectorizeJob(job._id).catch(logger.error);
+
+    return job;
+  }
+
+  async update(workableId, updates): Promise<Job> {
+    const job = await collection.findOneAndUpdate(...);
+
+    // Re-vectorize if content changed
+    if (updates.description || updates.requirements || updates.skills) {
+      jobVectorizationService.vectorizeJob(job._id, { forceRefresh: true }).catch(logger.error);
+    }
+
+    return job;
+  }
+  ```
+
+- [ ] Batch vectorize existing jobs
+
+  ```typescript
+  // scripts/vectorize-existing-jobs.ts
+  const jobs = await jobRepo.findAll({ status: 'active' });
+  await jobVectorizationService.batchVectorizeJobs(
+    jobs.map(j => j._id),
+    { batchSize: 10, delayMs: 1000 } // Rate limit: 10/minute
+  );
+  ```
+
+- [ ] Update `candidateMatchingRepo` to use cached vectors
+
+  ```typescript
+  // src/data-access/repositories/candidateMatchingRepo.ts
+  async findProactiveMatches(jobId, filters, limit) {
+    // OLD: const jobVector = await generateOnTheFly(job); ❌
+    // NEW: const jobVector = await jobVectorRepo.getByJobId(jobId); ✅
+
+    const jobVector = await jobVectorRepo.getByJobId(jobId);
+
+    if (!jobVector) {
+      // Trigger async vectorization for future requests
+      jobVectorizationService.vectorizeJob(jobId).catch(logger.error);
+
+      // Fallback to non-semantic matching this time
+      return this.findWithoutVectors(jobId, filters, limit);
+    }
+
+    // Use cached vector for fast search
+    const pipeline = [
+      {
+        $vectorSearch: {
+          queryVector: jobVector.embedding, // Cached!
+          // ...
+        }
+      }
+    ];
+  }
+  ```
+
+- [ ] Enable semantic similarity in match scoring
+
+  ```typescript
+  // src/services/ai/jobCandidateMatching.ts
+  private readonly defaultWeights: MatchWeights = {
+    semantic: 0.35, // ENABLED! (was 0.0)
+    skills: 0.40,   // Adjusted
+    experience: 0.15,
+    other: 0.10,
+  };
+
+  private async calculateSemanticSimilarity(job, candidate) {
+    const jobVector = await jobVectorRepo.getByJobId(job._id); // Use cache
+
+    if (!jobVector) {
+      jobVectorizationService.vectorizeJob(job._id).catch(() => {});
+      return 0;
+    }
+
+    return this.cosineSimilarity(candidate.vector, jobVector.embedding);
+  }
+  ```
+
+**Frontend Work (Day 3)**
+
+- [ ] Create candidate job recommendations endpoint
+
+  ```typescript
+  // src/services/trpc/candidateRouter.ts
+  export const candidateRouter = t.router({
+    getRecommendedJobs: t.procedure
+      .use(isAuthed)
+      .input(z.object({ limit: z.number().default(10) }))
+      .query(async ({ ctx, input }) => {
+        const userId = ctx.session.user.id;
+
+        // Get candidate's resume vector
+        const resumeVector = await resumeVectorRepo.getByUserId(userId);
+
+        if (!resumeVector) {
+          return { jobs: [], message: 'Complete your profile first' };
+        }
+
+        // Vector search on jobVectors collection
+        const pipeline = [
+          {
+            $vectorSearch: {
+              index: 'job_vector_index',
+              path: 'embedding',
+              queryVector: resumeVector.embedding,
+              numCandidates: 100,
+              limit: input.limit,
+            },
+          },
+          {
+            $lookup: {
+              from: 'jobs',
+              localField: 'jobId',
+              foreignField: '_id',
+              as: 'job',
+            },
+          },
+          {
+            $match: { 'job.status': 'active' },
+          },
+        ];
+
+        const results = await jobVectors.aggregate(pipeline).toArray();
+
+        return {
+          jobs: results.map(r => ({
+            job: r.job,
+            matchScore: Math.round(r.matchScore * 100),
+          })),
+        };
+      }),
+  });
+  ```
+
+- [ ] Create `JobRecommendations` component
+
+  ```typescript
+  // src/components/candidate/recommendations/JobRecommendations.tsx
+  export function JobRecommendations() {
+    const { data } = trpc.candidate.getRecommendedJobs.useQuery({ limit: 10 });
+
+    return (
+      <div>
+        <h2>AI-Recommended Jobs for You</h2>
+        {data?.jobs.map(({ job, matchScore }) => (
+          <div key={job._id}>
+            <h3>{job.title} at {job.company}</h3>
+            <span className="badge">{matchScore}% match</span>
+            <button>View Details</button>
+            <button>Apply Now</button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  ```
+
+- [ ] Add to candidate dashboard
+
+  ```typescript
+  // src/app/candidate/dashboard/page.tsx
+  import { JobRecommendations } from '@/components/candidate/recommendations/JobRecommendations';
+
+  export default function CandidateDashboard() {
+    return (
+      <div>
+        {/* Existing sections */}
+        <JobRecommendations />
+      </div>
+    );
+  }
+  ```
+
+**Manual Test Day 3**:
+
+- [ ] Create new job → vector generated within 5 seconds
+- [ ] Update job → vector refreshed
+- [ ] Batch vectorize 50 existing jobs → all successful
+- [ ] Check `jobVectors` collection in MongoDB Compass
+- [ ] Recruiter suggestions use cached vectors (fast!)
+- [ ] Candidate dashboard shows job recommendations
+- [ ] Match scores include semantic component (>0%)
+- [ ] OpenAI API cost <$0.50 for 1000 jobs
+
+**Success Criteria Day 1-3**:
+
+- ✅ `jobVectors` collection created with vector index
+- ✅ All active jobs have cached embeddings
+- ✅ Semantic similarity enabled (35% weight)
+- ✅ Candidates see AI job recommendations
+- ✅ Recruiters get better candidate matches (using cached vectors)
+- ✅ Vector search <100ms (p95)
+- ✅ Zero OpenAI rate limit errors
+
+---
+
+#### Day 4-5: Dual-Perspective Timeline (Story 4.4) **[MOVED FROM DAYS 1-3]**
 
 Reference: `docs/architecture-epic4/3-tech-stack-alignment.md` (Pattern 5), `docs/architecture-epic4/4-data-models-schema-changes.md`
 
@@ -677,24 +977,61 @@ Reference: `docs/architecture-epic4/3-tech-stack-alignment.md`, `docs/architectu
 
 ---
 
-## 🎯 Sprint 4: Google Integrations (Week 4)
+## 🎯 Sprint 4: AI Suggestions & Google Integrations (Week 4)
 
 ### Goals
 
+- Complete AI-powered candidate suggestions UI (depends on Sprint 3 vectors)
 - Implement Google Chat webhook integration
 - Add Google Calendar OAuth and scheduling
-- Build scheduling panel and availability management
 
 ### Stories
 
-- **Story 4.2**: Google Chat Webhook Integration (Days 1-2)
-- **Story 4.7**: Call Scheduling with Google Calendar (Days 3-5)
+- **Story 4.3**: AI-Powered Candidate Suggestions UI (Day 1) **[MOVED FROM SPRINT 3]**
+- **Story 4.2**: Google Chat Webhook Integration (Days 2-3)
+- **Story 4.7**: Call Scheduling with Google Calendar (Days 4-5)
 
 ---
 
 ### 📋 Sprint 4 Backlog
 
-#### Day 1-2: Google Chat Integration (Story 4.2)
+#### Day 1: AI-Powered Candidate Suggestions UI (Story 4.3) **[DEPENDS ON SPRINT 3]**
+
+Reference: `docs/architecture-epic4/3-tech-stack-alignment.md`, `docs/architecture-epic4/6-api-design.md`
+
+**Prerequisites** ✅:
+
+- Sprint 3 completed: Job vectors cached in `jobVectors` collection
+- `recruiterRouter.getSuggestedCandidates` uses cached job vectors (fast!)
+- Semantic similarity enabled in matching
+
+**Frontend Work (Day 1)**
+
+- [ ] Verify `useSuggestions` hook works with new vector-powered backend
+- [ ] Verify `CandidateSuggestions` component renders match scores correctly
+- [ ] Verify `SuggestionCard` shows semantic similarity in scores
+- [ ] Test suggestions tab on job applications page
+
+**Manual Test Day 1**:
+
+- [ ] Navigate to `/recruiter/jobs/{jobId}/applications`
+- [ ] Click "AI Suggestions" tab
+- [ ] Verify suggestions load quickly (<1 second using cached vectors)
+- [ ] Verify match scores >0% (semantic similarity working!)
+- [ ] Check browser console: no "generating job embedding" logs
+- [ ] Test "Send Invitation" and "View Profile" buttons
+- [ ] Verify empty state and mobile responsive
+
+**Success Criteria Day 1**:
+
+- ✅ AI Suggestions tab functional with vector-powered matching
+- ✅ Match scores include semantic similarity component
+- ✅ Suggestions load in <1 second
+- ✅ All actions work correctly
+
+---
+
+#### Day 2-3: Google Chat Integration (Story 4.2)
 
 Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/architecture-epic4/3-tech-stack-alignment.md` (Pattern 1)
 
@@ -800,11 +1137,11 @@ Reference: `docs/frontend-architecture-epic4/2-project-structure-epic-4-addition
 
 ---
 
-#### Day 3-5: Google Calendar Scheduling (Story 4.7)
+#### Day 4-5: Google Calendar Scheduling (Story 4.7)
 
 Reference: `docs/architecture-epic4/7-external-api-integration.md`, `docs/architecture-epic4/4-data-models-schema-changes.md`
 
-**Backend Work (Day 3-4)**
+**Backend Work (Day 4)**
 
 - [ ] Implement GoogleCalendarService class
 

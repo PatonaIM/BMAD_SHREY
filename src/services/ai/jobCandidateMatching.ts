@@ -2,10 +2,10 @@
  * Job-Candidate Matching Algorithm
  *
  * Implements sophisticated matching with weighted scoring:
- * - 0% Semantic similarity (DISABLED - job embeddings not yet implemented)
- * - 60% Skills alignment (exact + fuzzy matching) - PRIMARY FACTOR
- * - 25% Experience match (level + domain + recency)
- * - 15% Other factors (location, employment type, salary, company fit)
+ * - 35% Semantic similarity (AI-powered with OpenAI embeddings)
+ * - 40% Skills alignment (exact + fuzzy matching)
+ * - 15% Experience match (level + domain + recency)
+ * - 10% Other factors (location, employment type, salary, company fit)
  *
  * Target: <500ms for single match calculation
  */
@@ -23,13 +23,15 @@ import type {
 } from '../../shared/types/matching';
 import type { Job } from '../../shared/types/job';
 import { skillNormalizationService } from './skillNormalization';
+import { jobVectorRepo } from '../../data-access/repositories/jobVectorRepo';
+import { jobVectorizationService } from './jobVectorization';
 
 export class JobCandidateMatchingService {
   private readonly defaultWeights: MatchWeights = {
-    semantic: 0.0, // Disabled until job embeddings are properly implemented
-    skills: 0.6, // Primary matching factor - exact skill alignment
-    experience: 0.25, // Experience level and domain relevance
-    other: 0.15, // Location, employment type, salary, etc.
+    semantic: 0.35, // NOW ENABLED with cached job embeddings
+    skills: 0.4, // Exact skill alignment (reduced from 60%)
+    experience: 0.15, // Experience level and domain relevance (reduced from 25%)
+    other: 0.1, // Location, employment type, salary, etc. (reduced from 15%)
   };
 
   private readonly performanceTarget = 500; // ms
@@ -177,26 +179,41 @@ export class JobCandidateMatchingService {
     try {
       // If candidate has no vector, return 0
       if (!candidate.vector || candidate.vector.length === 0) {
-        return 0;
-      }
-
-      // For now, we'll need to generate job embeddings on the fly
-      // In a production system, jobs would have pre-computed embeddings
-      const jobText = this.prepareJobTextForEmbedding(job);
-      const jobEmbeddingResult = await this.generateJobEmbedding(jobText);
-
-      if (!jobEmbeddingResult.ok) {
-        logger.warn({
-          msg: 'Failed to generate job embedding for matching',
-          jobId: job._id,
+        logger.debug({
+          msg: 'Candidate has no vector, skipping semantic similarity',
+          candidateId: candidate.userId,
         });
         return 0;
       }
 
-      // Calculate cosine similarity
+      // Get CACHED job vector from jobVectors collection
+      const jobVector = await jobVectorRepo.getByJobId(job._id!.toString());
+
+      if (!jobVector || !jobVector.embedding) {
+        logger.debug({
+          msg: 'Job has no cached vector - triggering async vectorization',
+          jobId: job._id,
+        });
+
+        // Trigger async vectorization for future requests (don't wait)
+        jobVectorizationService
+          .vectorizeJob(job._id!.toString())
+          .catch(error => {
+            logger.error({
+              msg: 'Failed to trigger job vectorization',
+              jobId: job._id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+
+        // Return 0 for now - semantic matching will work on next request
+        return 0;
+      }
+
+      // Calculate cosine similarity using cached embedding
       const similarity = this.cosineSimilarity(
         candidate.vector,
-        jobEmbeddingResult.value
+        jobVector.embedding
       );
 
       return Math.max(0, Math.min(1, similarity));
@@ -302,59 +319,6 @@ export class JobCandidateMatchingService {
       salaryAlignment,
       companyFit,
     };
-  }
-
-  /**
-   * Generate job embedding for semantic matching
-   */
-  private async generateJobEmbedding(
-    _jobText: string
-  ): Promise<Result<number[], string>> {
-    try {
-      // This would typically use the same embedding service as resumes
-      // For now, we'll create a simple implementation
-      // In production, jobs should have pre-computed embeddings
-
-      // Placeholder: return a dummy embedding for development
-      // This should be replaced with actual OpenAI embedding generation
-      const dummyEmbedding = new Array(1536)
-        .fill(0)
-        .map(() => Math.random() - 0.5);
-      return ok(dummyEmbedding);
-    } catch (error) {
-      return err(
-        'embedding_error',
-        `Failed to generate job embedding: ${error}`
-      );
-    }
-  }
-
-  /**
-   * Prepare job text for embedding generation
-   */
-  private prepareJobTextForEmbedding(job: Job): string {
-    const sections: string[] = [];
-
-    sections.push(`Title: ${job.title}`);
-    sections.push(`Company: ${job.company}`);
-
-    if (job.description) {
-      sections.push(`Description: ${job.description}`);
-    }
-
-    if (job.requirements) {
-      sections.push(`Requirements: ${job.requirements}`);
-    }
-
-    if (job.skills.length > 0) {
-      sections.push(`Skills: ${job.skills.join(', ')}`);
-    }
-
-    if (job.location) {
-      sections.push(`Location: ${job.location}`);
-    }
-
-    return sections.join('\n\n');
   }
 
   /**

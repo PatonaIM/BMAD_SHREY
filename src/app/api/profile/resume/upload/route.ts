@@ -6,6 +6,7 @@ import { validateResume } from '../../../../../services/profile/resumeValidation
 import { getResumeStorageAsync } from '../../../../../services/storage/resumeStorage';
 import { upsertResumeVersion } from '../../../../../data-access/repositories/resumeRepo';
 import { ErrorCodes } from '../../../../../shared/errors';
+import { logger } from '../../../../../monitoring/logger';
 
 interface SessionUser {
   id: string;
@@ -75,6 +76,15 @@ export async function POST(req: NextRequest) {
       storageKey: stored.storageKey,
       sha256: stored.sha256,
     });
+
+    logger.info({
+      event: 'resume_uploaded',
+      userId: userId.slice(0, 8),
+      versionId: doc.currentVersionId,
+      fileName: file.name,
+      fileSize: stored.bytes,
+    });
+
     return Response.json({
       ok: true,
       value: { currentVersionId: doc.currentVersionId },

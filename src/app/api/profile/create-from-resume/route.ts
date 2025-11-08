@@ -8,6 +8,7 @@ import {
   upsertExtractedProfile,
 } from '../../../../data-access/repositories/extractedProfileRepo';
 import { resumeExtractionService } from '../../../../services/ai/resumeExtraction';
+import { resumeVectorizationService } from '../../../../services/ai/resumeVectorization';
 import { logger } from '../../../../monitoring/logger';
 
 interface SessionUser {
@@ -160,6 +161,29 @@ export async function POST(req: NextRequest) {
       resumeVersion.versionId,
       extractedProfile
     );
+
+    // Trigger vectorization asynchronously (don't block response)
+    resumeVectorizationService
+      .vectorizeProfile(userId, resumeVersion.versionId, {
+        forceRefresh: false,
+      })
+      .then(() => {
+        logger.info({
+          event: 'resume_vectorization_triggered',
+          userId: userId.slice(0, 8),
+          resumeVersionId: resumeVersion.versionId,
+        });
+      })
+      .catch(err => {
+        logger.error({
+          event: 'resume_vectorization_failed',
+          userId: userId.slice(0, 8),
+          resumeVersionId: resumeVersion.versionId,
+          error: (err as Error).message,
+          errorStack: (err as Error).stack,
+          errorDetails: JSON.stringify(err, null, 2),
+        });
+      });
 
     const duration = Date.now() - startTime;
 

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../auth/options';
 import { getSessionUserId } from '../../../../auth/sessionHelpers';
 import { resumeExtractionService } from '../../../../services/ai/resumeExtraction';
+import { resumeVectorizationService } from '../../../../services/ai/resumeVectorization';
 import { upsertExtractedProfile } from '../../../../data-access/repositories/extractedProfileRepo';
 import { getResume } from '../../../../data-access/repositories/resumeRepo';
 import { logger } from '../../../../monitoring/logger';
@@ -96,6 +97,40 @@ export async function POST(req: NextRequest) {
       skillCount: extractedProfile.skills?.length || 0,
       experienceCount: extractedProfile.experience?.length || 0,
     });
+
+    // Trigger vectorization asynchronously (don't block response)
+    resumeVectorizationService
+      .vectorizeProfile(userId, resumeVersionId, {
+        forceRefresh: true,
+      })
+      .then(result => {
+        if (result.ok) {
+          logger.info({
+            event: 'resume_vectorization_success',
+            userId: userId.slice(0, 8),
+            resumeVersionId,
+            dimensions: result.value.dimensions,
+            model: result.value.model,
+          });
+        } else {
+          logger.error({
+            event: 'resume_vectorization_failed',
+            userId: userId.slice(0, 8),
+            resumeVersionId,
+            error: result.error.message,
+            errorCode: result.error.code,
+          });
+        }
+      })
+      .catch(err => {
+        logger.error({
+          event: 'resume_vectorization_exception',
+          userId: userId.slice(0, 8),
+          resumeVersionId,
+          error: (err as Error).message,
+          errorStack: (err as Error).stack,
+        });
+      });
 
     return NextResponse.json({
       ok: true,

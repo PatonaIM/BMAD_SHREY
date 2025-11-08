@@ -4,6 +4,7 @@ import { requireRole } from '../../auth/roleGuard';
 import { scoringRouter } from './scoringRouter';
 import { jobsRouter } from './jobsRouter';
 import { recruiterRouter } from './recruiterRouter';
+import { candidateRouter } from './candidateRouter';
 import { performRegistration, RegistrationSchema } from '../auth/register';
 import {
   PasswordResetRequestSchema,
@@ -69,6 +70,7 @@ export const appRouter = t.router({
   scoring: scoringRouter,
   jobs: jobsRouter,
   recruiter: recruiterRouter,
+  candidate: candidateRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -2,6 +2,8 @@ import { getMongoClient } from '../mongoClient';
 import { ObjectId } from 'mongodb';
 import { logger } from '../../monitoring/logger';
 import { calculateProactiveMatchScore } from '../../services/candidateMatching';
+import { jobVectorRepo } from './jobVectorRepo';
+import { jobVectorizationService } from '../../services/ai/jobVectorization';
 
 export interface CandidateSuggestion {
   _id: ObjectId;
@@ -87,7 +89,7 @@ export async function findProactiveMatches(
   const client = await getMongoClient();
   const db = client.db();
   const jobs = db.collection('jobs');
-  const resumeVectors = db.collection('resumeVectors');
+  const resumeVectors = db.collection('resume_vectors');
 
   // Get job details with required qualifications
   const job = await jobs.findOne({ _id: new ObjectId(jobId) });
@@ -96,12 +98,30 @@ export async function findProactiveMatches(
     return [];
   }
 
-  // Get job's vector embedding (from job description or requirements)
-  const jobVector = job.embedding;
-  if (!jobVector || !Array.isArray(jobVector)) {
-    logger.warn({ msg: 'Job has no vector embedding', jobId });
+  // Get job's CACHED vector embedding from jobVectors collection
+  const jobVectorDoc = await jobVectorRepo.getByJobId(jobId);
+
+  if (!jobVectorDoc || !jobVectorDoc.embedding) {
+    logger.warn({
+      msg: 'Job has no cached vector embedding - triggering async vectorization',
+      jobId,
+    });
+
+    // Trigger async vectorization for future requests (don't wait)
+    jobVectorizationService.vectorizeJob(jobId).catch(err => {
+      logger.error({
+        msg: 'Failed to trigger job vectorization',
+        jobId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
+    // For now, return empty results (vector search requires embedding)
+    // Alternative: fall back to keyword-only matching
     return [];
   }
+
+  const jobVector = jobVectorDoc.embedding;
 
   // Build match conditions
   const matchConditions: Record<string, unknown> = {};
@@ -117,8 +137,11 @@ export async function findProactiveMatches(
     filters.maxYearsExperience !== undefined &&
     matchConditions['extractedData.yearsOfExperience']
   ) {
+    const existing = matchConditions[
+      'extractedData.yearsOfExperience'
+    ] as Record<string, number>;
     matchConditions['extractedData.yearsOfExperience'] = {
-      ...matchConditions['extractedData.yearsOfExperience'],
+      ...existing,
       $lte: filters.maxYearsExperience,
     };
   } else if (filters.maxYearsExperience !== undefined) {
@@ -204,26 +227,22 @@ export async function findProactiveMatches(
   // Calculate comprehensive match scores
   const suggestions: CandidateSuggestion[] = [];
   for (const result of results) {
+    // Use vectorScore from MongoDB's $vectorSearch (0-1 similarity)
+    const semanticSimilarity = result.vectorScore || 0;
+
     const matchResult = calculateProactiveMatchScore(
-      result.embedding || [],
-      jobVector,
+      semanticSimilarity, // MongoDB vector search score (already computed)
       result.skills || [],
       job.requirements?.skills || [],
       result.yearsOfExperience,
       job.requirements?.yearsOfExperience,
       result.location,
       job.location,
+      undefined, // candidateIsRemote - not in extractedData yet
       job.requirements?.isRemote || false
     );
 
-    // Apply minimum match score filter
-    if (
-      filters.minMatchScore !== undefined &&
-      matchResult.total < filters.minMatchScore
-    ) {
-      continue;
-    }
-
+    // Calculate match score but don't filter - just collect all candidates
     suggestions.push({
       _id: result._id,
       candidateId: result.candidateId,
@@ -246,16 +265,22 @@ export async function findProactiveMatches(
     });
   }
 
-  // Sort by match score descending
+  // Sort by match score descending (highest match first)
   suggestions.sort((a, b) => b.matchScore - a.matchScore);
+
+  // Apply minMatchScore filter AFTER sorting if specified
+  const filteredSuggestions =
+    filters.minMatchScore !== undefined
+      ? suggestions.filter(s => s.matchScore >= filters.minMatchScore!)
+      : suggestions;
 
   logger.info({
     msg: 'Proactive matches found',
     jobId,
-    count: suggestions.length,
+    count: filteredSuggestions.length,
   });
 
-  return suggestions;
+  return filteredSuggestions;
 }
 
 /**
@@ -266,7 +291,7 @@ export async function findHighScoringCandidates(
 ): Promise<CandidateSuggestion[]> {
   const client = await getMongoClient();
   const db = client.db();
-  const resumeVectors = db.collection('resumeVectors');
+  const resumeVectors = db.collection('resume_vectors');
 
   const pipeline = [
     {
