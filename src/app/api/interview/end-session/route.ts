@@ -9,6 +9,7 @@ import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import { AzureBlobInterviewStorage } from '../../../../services/storage/azureBlobStorage';
 import { logger } from '../../../../monitoring/logger';
 import { recruiterNotificationService } from '../../../../services/recruiterNotificationService';
+import { stageService } from '../../../../services/stageService';
 import type { InterviewSessionMetadata } from '../../../../shared/types/interview';
 
 interface SessionUser {
@@ -218,6 +219,53 @@ export async function POST(req: NextRequest) {
           applicationId: session.applicationId,
           status: 'completed',
         });
+
+        // Update AI interview stage to completed with interview data
+        try {
+          const aiInterviewStages = await stageService.getStagesByType(
+            session.applicationId,
+            'ai_interview'
+          );
+
+          if (aiInterviewStages.length > 0) {
+            const aiStage = aiInterviewStages[0];
+
+            if (aiStage) {
+              // Add interview completion data to stage
+              await stageService.addStageData(
+                aiStage.id,
+                {
+                  type: 'ai_interview',
+                  interviewSessionId: sessionId,
+                  interviewScore: finalScore,
+                  interviewCompletedAt: completedAt,
+                },
+                user._id
+              );
+
+              // Update stage status to completed
+              await stageService.updateStageStatus(
+                aiStage.id,
+                'completed',
+                user._id
+              );
+
+              logger.info({
+                event: 'ai_interview_stage_updated',
+                applicationId: session.applicationId,
+                stageId: aiStage.id,
+                interviewScore: finalScore,
+              });
+            }
+          }
+        } catch (error) {
+          logger.error({
+            event: 'ai_interview_stage_update_failed',
+            applicationId: session.applicationId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          // Don't fail the request if stage update fails
+        }
 
         // Notify recruiters about interview completion
         if (application && finalScore !== undefined) {

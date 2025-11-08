@@ -316,6 +316,22 @@ export class ApplicationRepository {
       interviewStatus: app.interviewStatus || 'not_started',
     }));
   }
+
+  /**
+   * Update current stage ID for an application (Epic 5)
+   */
+  async updateCurrentStage(
+    applicationId: string,
+    stageId: string
+  ): Promise<UpdateResult> {
+    const collection = await this.getCollection();
+    return collection.updateOne({ _id: applicationId } as Filter<Application>, {
+      $set: {
+        currentStageId: stageId,
+        updatedAt: new Date(),
+      },
+    });
+  }
 }
 
 export const applicationRepo = new ApplicationRepository();

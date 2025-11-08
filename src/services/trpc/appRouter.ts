@@ -5,6 +5,7 @@ import { scoringRouter } from './scoringRouter';
 import { jobsRouter } from './jobsRouter';
 import { recruiterRouter } from './recruiterRouter';
 import { candidateRouter } from './candidateRouter';
+import { stageRouter } from './stageRouter';
 import { performRegistration, RegistrationSchema } from '../auth/register';
 import {
   PasswordResetRequestSchema,
@@ -71,6 +72,7 @@ export const appRouter = t.router({
   jobs: jobsRouter,
   recruiter: recruiterRouter,
   candidate: candidateRouter,
+  stages: stageRouter,
 });
 
 export type AppRouter = typeof appRouter;

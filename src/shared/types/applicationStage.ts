@@ -16,6 +16,9 @@ export interface ApplicationStage {
   /** Unique identifier (UUID) */
   id: string;
 
+  /** Reference to the application this stage belongs to */
+  applicationId: string;
+
   /** Type of stage */
   type: StageType;
 
@@ -42,6 +45,12 @@ export interface ApplicationStage {
 
   /** Timestamp when stage was completed (if applicable) */
   completedAt?: Date;
+
+  /** User ID who created this stage */
+  createdBy: string;
+
+  /** User ID who last updated this stage */
+  updatedBy: string;
 
   /** Actions available to candidate in this stage */
   candidateActions?: CandidateAction[];

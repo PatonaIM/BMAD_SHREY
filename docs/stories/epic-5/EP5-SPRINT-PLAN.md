@@ -17,11 +17,11 @@ This sprint plan breaks down Epic 5 (Dynamic Multi-Stage Application Timeline Sy
 | Sprint   | Duration  | Focus Area                  | Stories       | Story Points |
 | -------- | --------- | --------------------------- | ------------- | ------------ |
 | Sprint 1 | Weeks 1-2 | Data Model & Services       | 5.1, 5.2      | 13           |
-| Sprint 2 | Weeks 3-4 | UI Foundation & Assignments | 5.3, 5.4      | 21           |
+| Sprint 2 | Weeks 3-4 | UI Foundation & Assignments | 5.3, 5.4      | 24           |
 | Sprint 3 | Weeks 5-6 | Live Interviews & Offers    | 5.5, 5.6      | 17           |
 | Sprint 4 | Weeks 7-8 | Onboarding & Polish         | 5.7, 5.8, 5.9 | 13           |
 
-**Total Story Points**: 64  
+**Total Story Points**: 67  
 **Estimated Team Velocity**: 15-17 points per sprint
 
 ---
@@ -207,11 +207,13 @@ class StageService {
 
 ### Stories
 
-#### Story 5.3: Timeline UI Component Refactor
+#### Story 5.3: Timeline UI Component Refactor & Page Integration
 
-**Story Points**: 8 | **Priority**: P0 | **Owner**: Frontend Dev
+**Story Points**: 11 | **Priority**: P0 | **Owner**: Frontend Dev
 
 **Deliverables**:
+
+**Timeline Components**:
 
 - [ ] `src/components/timeline/ApplicationTimeline.tsx` - Main container
 - [ ] `src/components/timeline/TimelineStage.tsx` - Individual stage component
@@ -224,7 +226,18 @@ class StageService {
 - [ ] Responsive design (mobile + desktop)
 - [ ] Dark mode support
 
+**Page Integration**:
+
+- [ ] Update `src/app/applications/[id]/page.tsx` - Integrate timeline in candidate view
+- [ ] Update `src/app/recruiter/applications/[id]/page.tsx` - Integrate timeline in recruiter view
+- [ ] Remove old status badge/display components
+- [ ] Add view role detection logic (candidate vs recruiter)
+- [ ] Feature flag implementation for gradual rollout
+- [ ] Backward compatibility during transition period
+
 **Acceptance Criteria**:
+
+**Component Level**:
 
 - ✅ Timeline displays all stages correctly for both candidate and recruiter views
 - ✅ Auto-scroll to active stage on page load
@@ -234,6 +247,16 @@ class StageService {
 - ✅ Mobile responsive (stacks vertically)
 - ✅ Accessibility: keyboard navigation, ARIA labels, focus management
 - ✅ Performance: <50ms render time for 10 stages
+
+**Integration Level**:
+
+- ✅ Timeline replaces old status display on candidate application page
+- ✅ Timeline replaces old status display on recruiter application detail page
+- ✅ Role-based filtering works (candidates see only visible stages)
+- ✅ Existing page functionality preserved (interview links, profile data, actions)
+- ✅ Feature flag controls timeline visibility (fallback to old UI if disabled)
+- ✅ No breaking changes to existing workflows
+- ✅ Proper error boundaries handle timeline failures gracefully
 
 **Dependencies**: Story 5.2 (Stage Service must provide API)
 
@@ -261,6 +284,40 @@ class StageService {
 </ApplicationTimeline>
 ```
 
+**Page Integration Examples**:
+
+```tsx
+// Candidate application page (src/app/applications/[id]/page.tsx)
+export default async function ApplicationDetailPage({ params }: PageProps) {
+  const application = await getApplication(params.id);
+
+  return (
+    <div>
+      <ApplicationHeader application={application} />
+      {/* Replace old status display with new timeline */}
+      <ApplicationTimeline applicationId={application._id} viewAs="candidate" />
+      <ApplicationDetails application={application} />
+    </div>
+  );
+}
+
+// Recruiter application detail page (src/app/recruiter/applications/[id]/page.tsx)
+export default async function RecruiterApplicationDetailPage({
+  params,
+}: PageProps) {
+  const application = await getApplication(params.id);
+
+  return (
+    <div>
+      <RecruiterApplicationHeader application={application} />
+      {/* Timeline with recruiter actions */}
+      <ApplicationTimeline applicationId={application._id} viewAs="recruiter" />
+      <RecruiterActions application={application} />
+    </div>
+  );
+}
+```
+
 **Design Requirements**:
 
 - Follow existing design system (colors, typography, spacing)
@@ -268,13 +325,31 @@ class StageService {
 - Reuse button and badge components
 - Mobile-first approach
 
+**Feature Flag Configuration**:
+
+```typescript
+// Feature flag check in both pages
+const isTimelineEnabled = await getFeatureFlag('dynamic-timeline');
+// Show new timeline if enabled, fallback to old UI if disabled
+```
+
 **Testing Checklist**:
+
+**Component Tests**:
 
 - [ ] Component unit tests with Vitest + React Testing Library
 - [ ] Visual regression tests with Chromatic
 - [ ] Accessibility tests (axe-core)
 - [ ] Responsive design tests (multiple viewports)
 - [ ] Performance tests (React DevTools Profiler)
+
+**Integration Tests**:
+
+- [ ] E2E test: Candidate views application page with timeline
+- [ ] E2E test: Recruiter views application page with timeline
+- [ ] Feature flag test (enabled/disabled states)
+- [ ] Error boundary test (timeline fails, page still works)
+- [ ] Backward compatibility test (old data structure support)
 
 ---
 
@@ -328,7 +403,7 @@ class StageService {
 - ✅ Can view feedback once provided
 - ✅ Receives notification when feedback added
 
-**Dependencies**: Story 5.3 (Timeline UI must be ready)
+**Dependencies**: Story 5.3 (Timeline UI components and page integration must be complete)
 
 **File Upload Flow**:
 

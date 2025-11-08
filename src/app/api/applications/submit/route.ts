@@ -9,6 +9,7 @@ import { recruiterSubscriptionRepo } from '../../../../data-access/repositories/
 import { getMongoClient } from '../../../../data-access/mongoClient';
 import { logger } from '../../../../monitoring/logger';
 import { recruiterNotificationService } from '../../../../services/recruiterNotificationService';
+import { stageService } from '../../../../services/stageService';
 
 interface SessionUser {
   id: string;
@@ -205,6 +206,15 @@ export async function POST(req: NextRequest) {
                   msg: 'Failed to match application document for score update',
                   applicationId: application._id,
                 });
+              } else {
+                // Update local application object with the new scores
+                application.matchScore = matchScore;
+                application.scoreBreakdown = {
+                  semanticSimilarity: matchScore,
+                  skillsAlignment: 0,
+                  experienceLevel: 0,
+                  otherFactors: 0,
+                };
               }
             }
           }
@@ -218,6 +228,56 @@ export async function POST(req: NextRequest) {
         jobId: job._id.toString(),
       });
       // Continue without score - not critical for application submission
+    }
+
+    // Create initial stages for the application (after match score is calculated)
+    try {
+      // 1. Submit Application stage (completed immediately)
+      await stageService.createStage(
+        application._id.toString(),
+        {
+          type: 'submit_application',
+          status: 'completed',
+          visibleToCandidate: true,
+          data: {
+            type: 'submit_application',
+            submittedAt: new Date(),
+            resumeUrl: resumeVersionId
+              ? `/resume/${resumeVersionId}`
+              : undefined,
+          },
+        },
+        userId
+      );
+
+      // 2. AI Interview stage (pending)
+      await stageService.createStage(
+        application._id.toString(),
+        {
+          type: 'ai_interview',
+          status: 'pending',
+          visibleToCandidate: true,
+          data: {
+            type: 'ai_interview',
+          },
+        },
+        userId
+      );
+
+      logger.info({
+        msg: 'Initial stages created after match score calculation',
+        applicationId: application._id,
+        matchScore,
+        stages: ['submit_application', 'ai_interview'],
+      });
+    } catch (stageError) {
+      logger.error({
+        msg: 'Failed to create initial stages',
+        error:
+          stageError instanceof Error ? stageError.message : 'Unknown error',
+        applicationId: application._id,
+      });
+      // Continue - stages can be created later if needed
     }
 
     // Send notifications to subscribed recruiters

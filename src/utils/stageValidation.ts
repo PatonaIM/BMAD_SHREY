@@ -442,3 +442,334 @@ export function canAddStageType(
     errors,
   };
 }
+
+/**
+ * Business rule limits for stage types
+ */
+const STAGE_LIMITS: Record<StageType, number> = {
+  submit_application: 1,
+  ai_interview: 1,
+  under_review: 1,
+  assignment: 3,
+  live_interview: 3,
+  offer: 1,
+  offer_accepted: 1,
+  disqualified: 1,
+};
+
+/**
+ * Validate business rules for stage limits
+ * Checks if adding a stage would exceed max allowed for that type
+ *
+ * @param stages - Existing stages
+ * @param type - Type to add
+ * @returns Validation result with detailed error message
+ */
+export function validateBusinessRules(
+  stages: ApplicationStage[],
+  type: StageType
+): ValidationResult {
+  const errors: string[] = [];
+
+  // Count existing stages of this type
+  const existingCount = stages.filter(s => s.type === type).length;
+  const maxAllowed = STAGE_LIMITS[type];
+
+  if (existingCount >= maxAllowed) {
+    errors.push(
+      `Maximum ${maxAllowed} ${type} stage${maxAllowed > 1 ? 's' : ''} allowed. Currently have ${existingCount}.`
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate stage order is sequential and logical
+ * Ensures stages follow proper progression order
+ *
+ * @param stages - Array of stages to validate
+ * @returns Validation result
+ */
+export function validateStageOrder(
+  stages: ApplicationStage[]
+): ValidationResult {
+  const errors: string[] = [];
+
+  if (stages.length === 0) {
+    return { valid: true, errors };
+  }
+
+  // Sort stages by order
+  const sorted = sortStagesByOrder(stages);
+
+  // First stage must be submit_application
+  if (sorted[0] && sorted[0].type !== 'submit_application') {
+    errors.push('First stage must be submit_application');
+  }
+
+  // Check for gaps in order numbers
+  const orders = sorted.map(s => s.order);
+  for (let i = 1; i < orders.length; i++) {
+    if (orders[i]! <= orders[i - 1]!) {
+      errors.push(
+        `Invalid stage order: stage ${i} has order ${orders[i]} but previous stage has order ${orders[i - 1]}`
+      );
+    }
+  }
+
+  // Terminal stages should be last
+  const terminalTypes: StageType[] = ['offer_accepted', 'disqualified'];
+  const terminalIndex = sorted.findIndex(s => terminalTypes.includes(s.type));
+
+  if (terminalIndex >= 0 && terminalIndex < sorted.length - 1) {
+    errors.push('Terminal stages (offer_accepted, disqualified) must be last');
+  }
+
+  // Cannot have both offer_accepted and disqualified
+  const hasOfferAccepted = sorted.some(s => s.type === 'offer_accepted');
+  const hasDisqualified = sorted.some(s => s.type === 'disqualified');
+
+  if (hasOfferAccepted && hasDisqualified) {
+    errors.push('Cannot have both offer_accepted and disqualified stages');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate required fields for each stage type
+ * Ensures stage data has all necessary fields before marking complete
+ *
+ * @param stage - Stage to validate
+ * @returns Validation result with specific field errors
+ */
+export function validateRequiredFields(
+  stage: ApplicationStage
+): ValidationResult {
+  const errors: string[] = [];
+
+  // Common required fields
+  if (!stage.id) errors.push('Stage ID is required');
+  if (!stage.applicationId) errors.push('Application ID is required');
+  if (!stage.type) errors.push('Stage type is required');
+  if (stage.order === undefined || stage.order === null) {
+    errors.push('Stage order is required');
+  }
+  if (!stage.status) errors.push('Stage status is required');
+  if (!stage.createdBy) errors.push('Created by user ID is required');
+
+  // Type-specific required fields when stage is completed
+  if (stage.status === 'completed') {
+    switch (stage.type) {
+      case 'submit_application':
+        if (isSubmitApplicationData(stage.data)) {
+          if (!stage.data.submittedAt) {
+            errors.push('Submit application stage requires submittedAt');
+          }
+        }
+        break;
+
+      case 'ai_interview':
+        if (isAiInterviewData(stage.data)) {
+          if (!stage.data.interviewCompletedAt) {
+            errors.push('Completed AI interview requires interviewCompletedAt');
+          }
+          if (
+            stage.data.interviewScore === undefined ||
+            stage.data.interviewScore === null
+          ) {
+            errors.push('Completed AI interview requires interviewScore');
+          }
+        }
+        break;
+
+      case 'assignment':
+        if (isAssignmentData(stage.data)) {
+          if (!stage.data.title) {
+            errors.push('Assignment stage requires title');
+          }
+          if (!stage.data.description) {
+            errors.push('Assignment stage requires description');
+          }
+          if (!stage.data.sentAt) {
+            errors.push('Assignment stage requires sentAt');
+          }
+          if (!stage.data.submittedAt) {
+            errors.push('Completed assignment requires submittedAt');
+          }
+          if (!stage.data.answerUrl) {
+            errors.push('Completed assignment requires answerUrl');
+          }
+        }
+        break;
+
+      case 'live_interview':
+        if (isLiveInterviewData(stage.data)) {
+          if (!stage.data.scheduledTime) {
+            errors.push('Completed live interview requires scheduledTime');
+          }
+          if (!stage.data.completedAt) {
+            errors.push('Completed live interview requires completedAt');
+          }
+          if (!stage.data.durationMinutes) {
+            errors.push('Live interview requires durationMinutes');
+          }
+        }
+        break;
+
+      case 'offer':
+        if (isOfferData(stage.data)) {
+          if (!stage.data.sentAt) {
+            errors.push('Offer stage requires sentAt');
+          }
+          if (!stage.data.offerLetterUrl) {
+            errors.push('Offer stage requires offerLetterUrl');
+          }
+          if (
+            stage.data.response !== 'accepted' &&
+            stage.data.response !== 'rejected'
+          ) {
+            errors.push(
+              'Completed offer requires response (accepted or rejected)'
+            );
+          }
+          if (!stage.data.respondedAt) {
+            errors.push('Completed offer requires respondedAt');
+          }
+        }
+        break;
+
+      case 'offer_accepted':
+        if (isOfferAcceptedData(stage.data)) {
+          if (!stage.data.acceptedAt) {
+            errors.push('Offer accepted stage requires acceptedAt');
+          }
+          if (!stage.data.startDate) {
+            errors.push('Offer accepted stage requires startDate');
+          }
+        }
+        break;
+
+      case 'disqualified':
+        if (isDisqualifiedData(stage.data)) {
+          if (!stage.data.disqualifiedAt) {
+            errors.push('Disqualified stage requires disqualifiedAt');
+          }
+          if (!stage.data.reason) {
+            errors.push('Disqualified stage requires reason');
+          }
+          if (!stage.data.disqualifiedBy) {
+            errors.push('Disqualified stage requires disqualifiedBy');
+          }
+          if (!stage.data.atStageType) {
+            errors.push('Disqualified stage requires atStageType');
+          }
+        }
+        break;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Comprehensive validation for stage creation
+ * Combines all validation rules for creating a new stage
+ *
+ * @param stages - Existing stages for the application
+ * @param newStageType - Type of stage being created
+ * @param newStageData - Data for the new stage
+ * @returns Validation result with all errors
+ */
+export function validateStageCreation(
+  stages: ApplicationStage[],
+  newStageType: StageType,
+  newStageData: Partial<ApplicationStage>
+): ValidationResult {
+  const errors: string[] = [];
+
+  // 1. Check business rules (max stages)
+  const businessRules = validateBusinessRules(stages, newStageType);
+  if (!businessRules.valid) {
+    errors.push(...businessRules.errors);
+  }
+
+  // 2. Check if stage type can be added
+  const canAdd = canAddStageType(stages, newStageType);
+  if (!canAdd.valid) {
+    errors.push(...canAdd.errors);
+  }
+
+  // 3. Validate stage progression if not first stage
+  if (stages.length > 0) {
+    const lastStage = sortStagesByOrder(stages)[stages.length - 1];
+    if (lastStage) {
+      const transition = validateStageTransition(lastStage, newStageType);
+      if (!transition.valid) {
+        errors.push(...transition.errors);
+      }
+    }
+  }
+
+  // 4. Validate required fields for new stage
+  if (newStageData.id && newStageData.type && newStageData.data) {
+    const requiredFields = validateRequiredFields(
+      newStageData as ApplicationStage
+    );
+    if (!requiredFields.valid) {
+      errors.push(...requiredFields.errors);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validate stage completion
+ * Ensures stage has all required data before marking as completed
+ *
+ * @param stage - Stage to validate for completion
+ * @returns Validation result
+ */
+export function validateStageCompletion(
+  stage: ApplicationStage
+): ValidationResult {
+  const errors: string[] = [];
+
+  // Must have completedAt timestamp
+  if (!stage.completedAt) {
+    errors.push(
+      'Stage must have completedAt timestamp when status is completed'
+    );
+  }
+
+  // Validate all required fields are present
+  const requiredFields = validateRequiredFields(stage);
+  if (!requiredFields.valid) {
+    errors.push(...requiredFields.errors);
+  }
+
+  // Validate stage data is complete
+  const dataValidation = validateStageData(stage);
+  if (!dataValidation.valid) {
+    errors.push(...dataValidation.errors);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}

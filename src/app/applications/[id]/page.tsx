@@ -4,22 +4,22 @@ import { authOptions } from '../../../auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { applicationRepo } from '../../../data-access/repositories/applicationRepo';
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
-import { getResume } from '../../../data-access/repositories/resumeRepo';
+// import { getResume } from '../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../data-access/repositories/userRepo';
 import { interviewSessionRepo } from '../../../data-access/repositories/interviewSessionRepo';
 import { resumeVectorRepo } from '../../../data-access/repositories/resumeVectorRepo';
 import { getMongoClient } from '../../../data-access/mongoClient';
 import { logger } from '../../../monitoring/logger';
 import Link from 'next/link';
-import { InterviewLauncher } from '../../../components/interview/InterviewLauncher';
+// import { InterviewLauncher } from '../../../components/interview/InterviewLauncher';
 import { InterviewPlayer } from '../../../components/interview/InterviewPlayer';
-import { ScoreComparisonCard } from '../../../components/application/ScoreComparisonCard';
-import { InterviewCompletionBadge } from '../../../components/application/InterviewCompletionBadge';
-import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
-import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
-import { TimelineView } from '../../../components/recruiter/timeline/TimelineView';
-import { CandidateScheduling } from '../../../components/candidate/scheduling';
-import { getEnv } from '../../../config/env';
+// import { ScoreComparisonCard } from '../../../components/application/ScoreComparisonCard';
+// import { InterviewCompletionBadge } from '../../../components/application/InterviewCompletionBadge';
+// import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
+// import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
+// import { CandidateScheduling } from '../../../components/candidate/scheduling';
+import { ApplicationTimeline } from '../../../components/timeline';
+// import { getEnv } from '../../../config/env';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -152,27 +152,27 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   }
 
   // Fetch resume details if resumeVersionId exists
-  let resumeInfo = null;
+  // let resumeInfo = null;
   if (app.resumeVersionId) {
     // For OAuth users, we need to get their actual user ID, not from the application
-    let userId: string = app.userId; // Default to app.userId
+    // let userId: string = app.userId; // Default to app.userId
     // If the user has an ID in session (OAuth), use that instead
     if (userSession.id) {
-      userId = userSession.id;
+      // userId = userSession.id;
     } else {
       // For credential users, look up by email to get the correct user ID
       const user = await findUserByEmail(userSession.email);
       if (user) {
-        userId = user._id;
+        // userId = user._id;
       }
     }
 
-    const resumeDoc = await getResume(userId);
-    if (resumeDoc) {
-      resumeInfo = resumeDoc.versions.find(
-        v => v.versionId === app.resumeVersionId
-      );
-    }
+    // const resumeDoc = await getResume(userId);
+    // if (resumeDoc) {
+    //   resumeInfo = resumeDoc.versions.find(
+    //     v => v.versionId === app.resumeVersionId
+    //   );
+    // }
   }
 
   // Fetch interview session if exists
@@ -184,13 +184,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   }
 
   // Feature flag for new interview page (v2)
-  const env = getEnv();
-  const interviewV2Enabled = env.ENABLE_INTERVIEW_V2_PAGE;
-
-  // Filter timeline events for candidate view (they should only see system and candidate events)
-  const candidateTimeline = (app.timeline || []).filter(
-    event => event.actorType === 'system' || event.actorType === 'candidate'
-  );
+  // const env = getEnv();
+  // const interviewV2Enabled = env.ENABLE_INTERVIEW_V2_PAGE;
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -296,164 +291,17 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             )}
           </div>
         )}
-
-        {/* AI Interview Section */}
-        <div className="border-t pt-4 mt-4">
-          <h3 className="text-sm font-semibold mb-3">AI Interview</h3>
-
-          {/* Show interview results if completed */}
-          {app.interviewStatus === 'completed' && interviewSession ? (
-            <div className="space-y-4">
-              {/* Interview Completion Badge */}
-              <InterviewCompletionBadge
-                scoreBoost={
-                  app.scoreBeforeInterview && app.scoreAfterInterview
-                    ? app.scoreAfterInterview - app.scoreBeforeInterview
-                    : undefined
-                }
-                variant="detailed"
-              />
-
-              {/* Score Comparison Card (NEW - EP3-S7) */}
-              {app.scoreBeforeInterview !== undefined &&
-                app.scoreAfterInterview !== undefined && (
-                  <ScoreComparisonCard
-                    scoreBefore={app.scoreBeforeInterview}
-                    scoreAfter={app.scoreAfterInterview}
-                    scoreBoost={
-                      app.scoreAfterInterview - app.scoreBeforeInterview
-                    }
-                    showCelebration={true}
-                  />
-                )}
-
-              {/* Interview Score Display */}
-              {interviewSession.scores && (
-                <div className="bg-gradient-to-br from-brand-primary/10 to-brand-secondary/10 rounded-lg p-4 border border-brand-primary/20">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium">
-                      Interview Performance
-                    </span>
-                    <span className="text-2xl font-bold text-brand-primary">
-                      {interviewSession.scores.overall}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 text-xs mb-3">
-                    <div>
-                      <span className="text-muted-foreground block mb-1">
-                        Technical
-                      </span>
-                      <span className="font-semibold text-sm">
-                        {interviewSession.scores.technical}%
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block mb-1">
-                        Communication
-                      </span>
-                      <span className="font-semibold text-sm">
-                        {interviewSession.scores.communication}%
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block mb-1">
-                        Experience
-                      </span>
-                      <span className="font-semibold text-sm">
-                        {interviewSession.scores.experience}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Interview Details */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-muted-foreground">Duration:</span>{' '}
-                  <span className="font-medium">
-                    {interviewSession.duration
-                      ? `${Math.floor(interviewSession.duration / 60)}m ${interviewSession.duration % 60}s`
-                      : 'N/A'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Completed:</span>{' '}
-                  <span className="font-medium">
-                    {interviewSession.endedAt
-                      ? new Date(interviewSession.endedAt).toLocaleDateString()
-                      : 'N/A'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : app.interviewStatus === 'in_progress' ? (
-            <div className="space-y-3">
-              <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                <svg
-                  className="w-4 h-4 animate-pulse"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Interview in progress...
-              </p>
-              {app.interviewSessionId && (
-                <Link
-                  href={`/interview/${app.interviewSessionId}`}
-                  className="btn-primary px-4 py-2 text-sm inline-flex items-center gap-2"
-                >
-                  Continue Interview →
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Take an AI-powered interview to showcase your skills and improve
-                your application match score.
-                {matchScore !== undefined &&
-                  matchScore !== null &&
-                  matchScore < 70 && (
-                    <span className="block mt-2 text-amber-600 dark:text-amber-400">
-                      💡 Your match score is below 70%. An interview can help
-                      boost your score!
-                    </span>
-                  )}
-              </p>
-              <InterviewLauncher
-                jobId={app.jobId.toString()}
-                applicationId={app._id.toString()}
-                useV2Route={interviewV2Enabled}
-              />
-            </div>
-          )}
-        </div>
       </div>
 
       {/* AI Interview CTA/Status Section (EP3-S10) */}
-      <AIInterviewCTA
+      {/* <AIInterviewCTA
         applicationId={app._id.toString()}
         jobId={app.jobId.toString()}
         matchScore={matchScore || 0}
         interviewStatus={app.interviewStatus}
         className="mb-6"
         useV2Route={interviewV2Enabled}
-      />
-      <InterviewStatusCard
-        interviewStatus={app.interviewStatus || 'not_started'}
-        interviewSessionId={app.interviewSessionId}
-        interviewCompletedAt={app.interviewCompletedAt}
-        scoreBeforeInterview={app.scoreBeforeInterview}
-        scoreAfterInterview={app.scoreAfterInterview}
-        interviewScore={app.interviewScore}
-        className="mb-6"
-      />
+      /> */}
 
       {/* Interview Recording Player */}
       {app.interviewStatus === 'completed' &&
@@ -470,8 +318,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </div>
         )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Resume Card */}
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {resumeInfo && (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -554,7 +401,6 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Cover Letter Card */}
         {app.coverLetter && (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -578,26 +424,39 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* Timeline Card */}
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
-        <TimelineView
+        <h3 className="text-lg font-semibold mb-4">Application Timeline</h3>
+        <ApplicationTimeline
           applicationId={app._id.toString()}
-          timeline={candidateTimeline}
-          isLoading={false}
+          jobId={app.jobId}
+          viewAs="candidate"
+          applicationData={{
+            candidateEmail: app.candidateEmail,
+            matchScore: app.matchScore ?? undefined,
+            scoreBreakdown: app.scoreBreakdown
+              ? {
+                  semanticSimilarity: app.scoreBreakdown.semanticSimilarity,
+                  skillsAlignment: app.scoreBreakdown.skillsAlignment,
+                  experienceLevel: app.scoreBreakdown.experienceLevel,
+                  otherFactors: app.scoreBreakdown.otherFactors,
+                }
+              : undefined,
+          }}
         />
       </div>
 
       {/* Candidate Self-Scheduling Section */}
-      {app.interviewStatus === 'completed' && (
+      {/* {app.interviewStatus === 'completed' && (
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-4">
             Schedule Follow-up Call
           </h2>
           <CandidateScheduling applicationId={app._id.toString()} />
         </div>
-      )}
+      )} */}
 
       {/* Job Description Card */}
       {job?.description && (

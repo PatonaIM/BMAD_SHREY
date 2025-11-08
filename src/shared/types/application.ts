@@ -10,10 +10,11 @@ export type ApplicationStatus =
 
 export interface ApplicationTimelineEvent {
   timestamp: Date;
-  status: ApplicationStatus;
+  status: ApplicationStatus | string; // Allow custom statuses for stage events
   note?: string;
   actorType: 'system' | 'recruiter' | 'candidate';
   actorId?: string;
+  metadata?: Record<string, unknown>; // Additional event data
 }
 
 export interface Application {
