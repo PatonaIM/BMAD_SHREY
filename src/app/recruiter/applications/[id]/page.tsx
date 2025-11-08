@@ -38,10 +38,10 @@ export default async function RecruiterApplicationDetailPage({
     redirect(`/login?redirect=/recruiter/applications/${id}`);
   }
 
-  // Check if user has recruiter access
-  const user = session?.user as { recruiterAccess?: boolean } | undefined;
-  if (!user?.recruiterAccess) {
-    redirect('/dashboard');
+  // Check if user has recruiter role
+  const user = session?.user as { roles?: string[] } | undefined;
+  if (!user?.roles?.includes('RECRUITER')) {
+    redirect('/dashboard?error=insufficient_permissions');
   }
 
   const app = await applicationRepo.findById(id);

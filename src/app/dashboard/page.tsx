@@ -11,7 +11,6 @@ import { computeCompleteness } from '../../services/profile/completenessScoring'
 import { ProfileEditingService } from '../../services/profile/profileEditingService';
 import { ProfileCompletenessCard } from '../../components/dashboard/ProfileCompletenessCard';
 import { QuickActionsWidget } from '../../components/dashboard/QuickActionsWidget';
-import { QuickPicksWidgetContainer } from '../../components/dashboard/QuickPicksWidgetContainer';
 import { JobRecommendationsContainer } from '../../components/dashboard/JobRecommendationsContainer';
 // import { SkillsGapWidget } from '../../components/dashboard/SkillsGapWidget';
 // import { MatchDistributionChart } from '../../components/dashboard/MatchDistributionChart';
@@ -141,9 +140,6 @@ export default async function DashboardPage() {
           Track your applications and explore new opportunities.
         </p>
       </header>
-
-      {/* Quick Picks - Top Matched Applications (EP3-S10) */}
-      <QuickPicksWidgetContainer />
 
       {/* AI-Powered Job Recommendations (EP4-S3) */}
       <JobRecommendationsContainer limit={5} />

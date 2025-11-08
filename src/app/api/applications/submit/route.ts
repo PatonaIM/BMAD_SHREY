@@ -4,13 +4,9 @@ import { authOptions } from '../../../../auth/options';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { jobRepo } from '../../../../data-access/repositories/jobRepo';
-import { matchScoreCache } from '../../../../services/ai/matchScoreCache';
-import { getExtractedProfile } from '../../../../data-access/repositories/extractedProfileRepo';
-import { jobCandidateMatchingService } from '../../../../services/ai/jobCandidateMatching';
 import { resumeVectorRepo } from '../../../../data-access/repositories/resumeVectorRepo';
-import { extractedProfileToCandidateProfile } from '../../../../components/matching/profileTransformer';
+import { getMongoClient } from '../../../../data-access/mongoClient';
 import { logger } from '../../../../monitoring/logger';
-import type { CandidateProfile } from '../../../../shared/types/matching';
 
 interface SessionUser {
   id: string;
@@ -83,61 +79,143 @@ export async function POST(req: NextRequest) {
       resumeVersionId
     );
 
-    // Calculate match score for post-application guidance (EP3-S9)
+    // Calculate match score using vector similarity (same as AI recommendations)
     let matchScore = 0;
     let scoreBreakdown = null;
 
     try {
-      // Check cache first
-      const cachedMatch = matchScoreCache.get(userId, job._id);
-      if (cachedMatch) {
-        matchScore = cachedMatch.score.overall;
-        scoreBreakdown = {
-          skills: cachedMatch.score.skills,
-          experience: cachedMatch.score.experience,
-          semantic: cachedMatch.score.semantic,
-          other: cachedMatch.score.other,
-        };
-      } else {
-        // Calculate fresh if not in cache
-        const extractedProfile = await getExtractedProfile(userId);
-        if (extractedProfile) {
-          // Build candidate profile for matching
-          const resumeVectors = await resumeVectorRepo.getByUserId(userId);
-          const resumeVector = resumeVectors[0];
-          const candidateProfile: CandidateProfile =
-            extractedProfileToCandidateProfile(
-              userId,
-              extractedProfile,
-              resumeVector?.embeddings
-            );
+      // Get candidate's resume vector
+      const resumeVectors = await resumeVectorRepo.getByUserId(userId);
 
-          // Calculate match
-          const matchResult = await jobCandidateMatchingService.calculateMatch(
-            job,
-            candidateProfile
-          );
+      logger.info({
+        msg: 'Resume vector check',
+        userId,
+        hasVectors: !!resumeVectors && resumeVectors.length > 0,
+        vectorCount: resumeVectors?.length || 0,
+      });
 
-          if (matchResult.ok) {
-            matchScore = matchResult.value.score.overall;
-            scoreBreakdown = {
-              skills: matchResult.value.score.skills,
-              experience: matchResult.value.score.experience,
-              semantic: matchResult.value.score.semantic,
-              other: matchResult.value.score.other,
-            };
+      if (resumeVectors && resumeVectors.length > 0) {
+        // Use the most recent resume vector
+        const candidateVector = resumeVectors.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
 
-            // Cache for future use
-            matchScoreCache.set(userId, job._id, matchResult.value);
+        if (
+          candidateVector?.embeddings &&
+          Array.isArray(candidateVector.embeddings) &&
+          candidateVector.embeddings.length > 0
+        ) {
+          // Get job vector and calculate similarity
+          const client = await getMongoClient();
+          const db = client.db();
+          const jobVectors = db.collection('jobVectors');
+
+          // First, try to get the job vector directly
+          const jobVector = await jobVectors.findOne({
+            jobId: job._id.toString(),
+          });
+
+          if (!jobVector) {
+            logger.warn({
+              msg: 'No job vector found',
+              jobId: job._id.toString(),
+            });
+          } else if (candidateVector.embeddings) {
+            // Calculate similarity using vector search without filter
+            const pipeline = [
+              {
+                $vectorSearch: {
+                  index: 'job_vector_index',
+                  path: 'embedding',
+                  queryVector: candidateVector.embeddings,
+                  numCandidates: 100,
+                  limit: 50, // Get more results to find our specific job
+                },
+              },
+              {
+                $addFields: {
+                  vectorScore: { $meta: 'vectorSearchScore' },
+                },
+              },
+              // Filter for our specific job after vector search
+              {
+                $match: {
+                  jobId: job._id.toString(),
+                },
+              },
+              {
+                $limit: 1,
+              },
+            ];
+
+            const results = (await jobVectors
+              .aggregate(pipeline)
+              .toArray()) as {
+              vectorScore?: number;
+            }[];
+
+            logger.info({
+              msg: 'Vector search results',
+              jobId: job._id.toString(),
+              resultsCount: results.length,
+              hasScore: !!results?.[0]?.vectorScore,
+            });
+
+            if (results?.[0]?.vectorScore) {
+              const vectorScore = results[0].vectorScore;
+              matchScore = Math.round(vectorScore * 1000) / 10; // Convert to percentage with 1 decimal
+              scoreBreakdown = {
+                skills: 0, // Not calculated separately in vector matching
+                experience: 0,
+                semantic: matchScore, // All score comes from vector similarity
+                other: 0,
+              };
+
+              // Store the match score in the application immediately
+              const updateResult = await applicationRepo.updateMatchScore(
+                application._id,
+                matchScore,
+                {
+                  semanticSimilarity: matchScore,
+                  skillsAlignment: 0,
+                  experienceLevel: 0,
+                  otherFactors: 0,
+                }
+              );
+
+              logger.info({
+                msg: 'Vector-based match score calculated and stored',
+                userId,
+                jobId: job._id.toString(),
+                applicationId: application._id,
+                matchScore,
+                updateResult: {
+                  acknowledged: updateResult.acknowledged,
+                  matchedCount: updateResult.matchedCount,
+                  modifiedCount: updateResult.modifiedCount,
+                },
+              });
+
+              // Verify the update worked
+              if (updateResult.matchedCount === 0) {
+                logger.error({
+                  msg: 'Failed to match application document for score update',
+                  applicationId: application._id,
+                });
+              }
+            }
           }
         }
       }
     } catch (error) {
       logger.error({
-        msg: 'Failed to calculate match score',
+        msg: 'Failed to calculate vector-based match score',
         error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        jobId: job._id.toString(),
       });
-      // Continue without score - not critical
+      // Continue without score - not critical for application submission
     }
 
     return NextResponse.json(

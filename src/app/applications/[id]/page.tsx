@@ -6,10 +6,9 @@ import { applicationRepo } from '../../../data-access/repositories/applicationRe
 import { jobRepo } from '../../../data-access/repositories/jobRepo';
 import { getResume } from '../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../data-access/repositories/userRepo';
-import { getExtractedProfile } from '../../../data-access/repositories/extractedProfileRepo';
-import { jobCandidateMatchingService } from '../../../services/ai/jobCandidateMatching';
-import { extractedProfileToCandidateProfile } from '../../../components/matching/profileTransformer';
 import { interviewSessionRepo } from '../../../data-access/repositories/interviewSessionRepo';
+import { resumeVectorRepo } from '../../../data-access/repositories/resumeVectorRepo';
+import { getMongoClient } from '../../../data-access/mongoClient';
 import { logger } from '../../../monitoring/logger';
 import Link from 'next/link';
 import { InterviewLauncher } from '../../../components/interview/InterviewLauncher';
@@ -18,6 +17,7 @@ import { ScoreComparisonCard } from '../../../components/application/ScoreCompar
 import { InterviewCompletionBadge } from '../../../components/application/InterviewCompletionBadge';
 import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
 import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
+import { TimelineView } from '../../../components/recruiter/timeline/TimelineView';
 import { getEnv } from '../../../config/env';
 
 interface PageProps {
@@ -65,47 +65,88 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   let scoreBreakdown = app.scoreBreakdown;
 
   if (!matchScore || !scoreBreakdown) {
-    // Fetch candidate profile
-    const profile = await getExtractedProfile(userId);
+    // Use vector-based matching (same as AI recommendations)
+    try {
+      const resumeVectors = await resumeVectorRepo.getByUserId(userId);
 
-    if (profile && job) {
-      // Convert to CandidateProfile format
-      const candidateProfile = extractedProfileToCandidateProfile(
-        userId,
-        profile
-      );
+      if (resumeVectors && resumeVectors.length > 0 && job) {
+        // Use the most recent resume vector
+        const candidateVector = resumeVectors.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
 
-      // Calculate match score
-      const matchResult = await jobCandidateMatchingService.calculateMatch(
-        job,
-        candidateProfile
-      );
+        if (
+          candidateVector?.embeddings &&
+          Array.isArray(candidateVector.embeddings) &&
+          candidateVector.embeddings.length > 0
+        ) {
+          // Get job vector and calculate similarity
+          const client = await getMongoClient();
+          const db = client.db();
+          const jobVectors = db.collection('jobVectors');
 
-      if (matchResult.ok) {
-        const match = matchResult.value;
-        matchScore = match.score.overall;
-        scoreBreakdown = {
-          semanticSimilarity: match.score.semantic,
-          skillsAlignment: match.score.skills,
-          experienceLevel: match.score.experience,
-          otherFactors: match.score.other,
-        };
+          const pipeline = [
+            {
+              $vectorSearch: {
+                index: 'job_vector_index',
+                path: 'embedding',
+                queryVector: candidateVector.embeddings,
+                numCandidates: 100,
+                limit: 50, // Get more results to filter
+              },
+            },
+            {
+              $addFields: {
+                vectorScore: { $meta: 'vectorSearchScore' },
+              },
+            },
+            // Filter for our specific job after vector search
+            {
+              $match: {
+                jobId: app.jobId.toString(),
+              },
+            },
+            {
+              $limit: 1,
+            },
+          ];
 
-        // Update application with calculated score
-        try {
-          await applicationRepo.updateMatchScore(
-            app._id.toString(),
-            matchScore,
-            scoreBreakdown
-          );
-        } catch (error) {
-          // Log error but continue - score is still available for display
-          logger.error('Failed to update application with match score', {
-            error,
-            applicationId: app._id.toString(),
-          });
+          const results = (await jobVectors.aggregate(pipeline).toArray()) as {
+            vectorScore?: number;
+          }[];
+
+          if (results?.[0]?.vectorScore) {
+            const vectorScore = results[0].vectorScore;
+            matchScore = Math.round(vectorScore * 1000) / 10; // Convert to percentage with 1 decimal
+            scoreBreakdown = {
+              semanticSimilarity: matchScore,
+              skillsAlignment: 0, // Not calculated separately in vector matching
+              experienceLevel: 0,
+              otherFactors: 0,
+            };
+
+            // Update application with calculated score
+            try {
+              await applicationRepo.updateMatchScore(
+                app._id.toString(),
+                matchScore,
+                scoreBreakdown
+              );
+            } catch (error) {
+              logger.error('Failed to update application with match score', {
+                error,
+                applicationId: app._id.toString(),
+              });
+            }
+          }
         }
       }
+    } catch (error) {
+      logger.error('Failed to calculate vector-based match score', {
+        error,
+        applicationId: app._id.toString(),
+      });
     }
   }
 
@@ -144,6 +185,11 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   // Feature flag for new interview page (v2)
   const env = getEnv();
   const interviewV2Enabled = env.ENABLE_INTERVIEW_V2_PAGE;
+
+  // Filter timeline events for candidate view (they should only see system and candidate events)
+  const candidateTimeline = (app.timeline || []).filter(
+    event => event.actorType === 'system' || event.actorType === 'candidate'
+  );
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -207,41 +253,44 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             {scoreBreakdown && (
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {scoreBreakdown.semanticSimilarity !== undefined && (
-                  <div>
+                  <div className="col-span-2">
                     <span className="text-muted-foreground">
-                      Semantic Match:
+                      AI Match Score (Vector Similarity):
                     </span>{' '}
                     <span className="font-medium">
                       {scoreBreakdown.semanticSimilarity}%
                     </span>
                   </div>
                 )}
-                {scoreBreakdown.skillsAlignment !== undefined && (
-                  <div>
-                    <span className="text-muted-foreground">Skills:</span>{' '}
-                    <span className="font-medium">
-                      {scoreBreakdown.skillsAlignment}%
-                    </span>
-                  </div>
-                )}
-                {scoreBreakdown.experienceLevel !== undefined && (
-                  <div>
-                    <span className="text-muted-foreground">Experience:</span>{' '}
-                    <span className="font-medium">
-                      {scoreBreakdown.experienceLevel}%
-                    </span>
-                  </div>
-                )}
-                {scoreBreakdown.otherFactors !== undefined && (
-                  <div>
-                    <span className="text-muted-foreground">
-                      Other Factors:
-                    </span>{' '}
-                    <span className="font-medium">
-                      {scoreBreakdown.otherFactors}%
-                    </span>
-                  </div>
-                )}
+                {scoreBreakdown.skillsAlignment !== undefined &&
+                  scoreBreakdown.skillsAlignment > 0 && (
+                    <div>
+                      <span className="text-muted-foreground">Skills:</span>{' '}
+                      <span className="font-medium">
+                        {scoreBreakdown.skillsAlignment}%
+                      </span>
+                    </div>
+                  )}
+                {scoreBreakdown.experienceLevel !== undefined &&
+                  scoreBreakdown.experienceLevel > 0 && (
+                    <div>
+                      <span className="text-muted-foreground">Experience:</span>{' '}
+                      <span className="font-medium">
+                        {scoreBreakdown.experienceLevel}%
+                      </span>
+                    </div>
+                  )}
+                {scoreBreakdown.otherFactors !== undefined &&
+                  scoreBreakdown.otherFactors > 0 && (
+                    <div>
+                      <span className="text-muted-foreground">
+                        Other Factors:
+                      </span>{' '}
+                      <span className="font-medium">
+                        {scoreBreakdown.otherFactors}%
+                      </span>
+                    </div>
+                  )}
               </div>
             )}
           </div>
@@ -532,43 +581,11 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
 
       {/* Timeline Card */}
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm mb-6">
-        <h3 className="text-sm font-semibold mb-4">Application Timeline</h3>
-        <div className="relative">
-          <div className="absolute left-2 top-0 bottom-0 w-px bg-neutral-200 dark:bg-neutral-700" />
-          <ul className="space-y-4">
-            {app.timeline.map((event, i) => (
-              <li key={i} className="relative pl-8">
-                <div className="absolute left-0 top-1 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 border-2 border-brand-primary" />
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        statusColors[event.status] || statusColors.submitted
-                      }`}
-                    >
-                      {event.status.replace('_', ' ').toUpperCase()}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {event.actorType}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {event.timestamp.toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                  {event.note && (
-                    <p className="text-sm mt-1 text-foreground">{event.note}</p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <TimelineView
+          applicationId={app._id.toString()}
+          timeline={candidateTimeline}
+          isLoading={false}
+        />
       </div>
 
       {/* Job Description Card */}
