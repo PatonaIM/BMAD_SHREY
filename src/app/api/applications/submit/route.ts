@@ -5,8 +5,10 @@ import { applicationRepo } from '../../../../data-access/repositories/applicatio
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import { resumeVectorRepo } from '../../../../data-access/repositories/resumeVectorRepo';
+import { recruiterSubscriptionRepo } from '../../../../data-access/repositories/recruiterSubscriptionRepo';
 import { getMongoClient } from '../../../../data-access/mongoClient';
 import { logger } from '../../../../monitoring/logger';
+import { recruiterNotificationService } from '../../../../services/recruiterNotificationService';
 
 interface SessionUser {
   id: string;
@@ -217,6 +219,53 @@ export async function POST(req: NextRequest) {
       });
       // Continue without score - not critical for application submission
     }
+
+    // Send notifications to subscribed recruiters
+    // Run asynchronously - don't block application submission response
+    setImmediate(async () => {
+      try {
+        const subscriptions =
+          await recruiterSubscriptionRepo.findActiveSubscriptionsByJob(job._id);
+
+        if (subscriptions.length > 0) {
+          await recruiterNotificationService.notifySubscribedRecruiters(
+            subscriptions,
+            {
+              application: {
+                ...application,
+                matchScore: matchScore || 0,
+              },
+              jobTitle: job.title,
+              candidateName: candidateEmail.split('@')[0] || 'Candidate', // Use email username as fallback
+              candidateEmail,
+            }
+          );
+
+          logger.info({
+            event: 'recruiter_notifications_sent',
+            applicationId: application._id,
+            jobId: job._id,
+            subscriberCount: subscriptions.length,
+          });
+        } else {
+          logger.info({
+            event: 'no_subscribers_for_job',
+            jobId: job._id,
+          });
+        }
+      } catch (notificationError) {
+        // Log but don't fail the application submission
+        logger.error({
+          event: 'notification_error',
+          error:
+            notificationError instanceof Error
+              ? notificationError.message
+              : 'Unknown error',
+          applicationId: application._id,
+          jobId: job._id,
+        });
+      }
+    });
 
     return NextResponse.json(
       {

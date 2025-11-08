@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { RecruiterDashboard } from '../../components/recruiter/dashboard/RecruiterDashboard';
+import { CalendarConnection } from '../../components/recruiter/dashboard/CalendarConnection';
 
 /**
  * Main recruiter dashboard page
@@ -19,6 +20,9 @@ export default function RecruiterPage(): React.ReactElement {
           Manage your job subscriptions and track applications
         </p>
       </div>
+
+      {/* Calendar Connection Section */}
+      <CalendarConnection />
 
       {/* Dashboard Content */}
       <RecruiterDashboard />

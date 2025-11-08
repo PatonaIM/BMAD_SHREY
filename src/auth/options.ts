@@ -45,6 +45,12 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: false,
+      authorization: {
+        params: {
+          scope: 'openid email profile',
+          // Note: Calendar scopes removed - use separate /api/auth/calendar-connect endpoint
+        },
+      },
     })
   );
 }

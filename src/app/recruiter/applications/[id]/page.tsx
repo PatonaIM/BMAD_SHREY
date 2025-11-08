@@ -8,6 +8,7 @@ import { getExtractedProfile } from '@/data-access/repositories/extractedProfile
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { TimelineView } from '@/components/recruiter/timeline/TimelineView';
+import SchedulingPanel from '@/components/recruiter/scheduling/SchedulingPanel';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -211,6 +212,11 @@ export default async function RecruiterApplicationDetailPage({
                 timeline={app.timeline || []}
                 isLoading={false}
               />
+            </div>
+
+            {/* Scheduling Panel */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-6 bg-white dark:bg-gray-800 shadow-sm">
+              <SchedulingPanel applicationId={app._id.toString()} />
             </div>
           </div>
 

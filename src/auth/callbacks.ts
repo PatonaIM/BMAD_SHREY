@@ -20,6 +20,8 @@ interface TokenShape {
   roles?: string[];
   sub?: string;
   provider?: string;
+  accessToken?: string;
+  refreshToken?: string;
   [k: string]: unknown;
 }
 
@@ -124,6 +126,17 @@ export const callbacks = {
     if (t.roles && sUser) sUser.roles = t.roles;
     if (t.sub && sUser) sUser.id = t.sub;
     if (t.provider && sUser) sUser.provider = t.provider;
+
+    // Add Google OAuth tokens to session for Calendar API access
+    if (t.accessToken) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (session as any).accessToken = t.accessToken;
+    }
+    if (t.refreshToken) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (session as any).refreshToken = t.refreshToken;
+    }
+
     return session;
   },
   async jwt({ token, user, account }: JwtParams): Promise<JWT> {
@@ -138,6 +151,19 @@ export const callbacks = {
     }
     if (account && account.provider && account.provider !== 'credentials') {
       t.provider = account.provider;
+
+      // Store Google OAuth tokens for Calendar API access
+      if (account.provider === 'google') {
+        if (account.access_token && typeof account.access_token === 'string') {
+          t.accessToken = account.access_token;
+        }
+        if (
+          account.refresh_token &&
+          typeof account.refresh_token === 'string'
+        ) {
+          t.refreshToken = account.refresh_token;
+        }
+      }
     }
     return t as JWT;
   },

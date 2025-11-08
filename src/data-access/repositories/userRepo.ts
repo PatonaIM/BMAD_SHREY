@@ -71,3 +71,57 @@ export async function anyAdminExists(): Promise<boolean> {
   );
   return !!admin;
 }
+
+/**
+ * Store Google Calendar OAuth tokens for a user
+ */
+export async function storeGoogleCalendarTokens(
+  userId: string,
+  tokens: User['googleCalendar']
+): Promise<void> {
+  const col = await usersCol();
+  const now = new Date().toISOString();
+
+  await col.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        googleCalendar: tokens,
+        updatedAt: now,
+      },
+    }
+  );
+}
+
+/**
+ * Get Google Calendar tokens for a user
+ */
+export async function getGoogleCalendarTokens(
+  userId: string
+): Promise<User['googleCalendar'] | null> {
+  const col = await usersCol();
+  const user = await col.findOne(
+    { _id: userId },
+    { projection: { googleCalendar: 1 } }
+  );
+
+  return user?.googleCalendar || null;
+}
+
+/**
+ * Remove Google Calendar tokens for a user (disconnect)
+ */
+export async function removeGoogleCalendarTokens(
+  userId: string
+): Promise<void> {
+  const col = await usersCol();
+  const now = new Date().toISOString();
+
+  await col.updateOne(
+    { _id: userId },
+    {
+      $unset: { googleCalendar: '' },
+      $set: { updatedAt: now },
+    }
+  );
+}

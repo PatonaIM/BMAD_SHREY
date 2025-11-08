@@ -311,10 +311,49 @@ export async function getSubscribedRecruiters(
   return results.map(r => r.recruiterId); // UUID strings
 }
 
+/**
+ * Get all active subscriptions for a specific job
+ * Used for sending notifications when new applications are submitted
+ */
+export async function findActiveSubscriptionsByJob(
+  jobId: string
+): Promise<JobSubscription[]> {
+  const client = await getMongoClient();
+  const db = client.db();
+  const subscriptions = db.collection<JobSubscription>(
+    'recruiterSubscriptions'
+  );
+
+  if (!ObjectId.isValid(jobId)) {
+    logger.warn({
+      msg: 'Invalid jobId format in findActiveSubscriptionsByJob',
+      jobId,
+    });
+    return [];
+  }
+
+  const results = await subscriptions
+    .find({
+      jobId: new ObjectId(jobId),
+      isActive: true,
+      // MVP: All active subscriptions receive notifications
+    })
+    .toArray();
+
+  logger.info({
+    msg: 'Retrieved active subscriptions for job',
+    jobId,
+    count: results.length,
+  });
+
+  return results;
+}
+
 export const recruiterSubscriptionRepo = {
   createSubscription,
   deleteSubscription,
   findActiveSubscriptionsByRecruiter,
+  findActiveSubscriptionsByJob,
   isSubscribed,
   getSubscriptionCount,
   getSubscribedRecruiters,

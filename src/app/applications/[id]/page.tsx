@@ -18,6 +18,7 @@ import { InterviewCompletionBadge } from '../../../components/application/Interv
 import { AIInterviewCTA } from '../../../components/AIInterviewCTA';
 import { InterviewStatusCard } from '../../../components/InterviewStatusCard';
 import { TimelineView } from '../../../components/recruiter/timeline/TimelineView';
+import { CandidateScheduling } from '../../../components/candidate/scheduling';
 import { getEnv } from '../../../config/env';
 
 interface PageProps {
@@ -587,6 +588,16 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           isLoading={false}
         />
       </div>
+
+      {/* Candidate Self-Scheduling Section */}
+      {app.interviewStatus === 'completed' && (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-4">
+            Schedule Follow-up Call
+          </h2>
+          <CandidateScheduling applicationId={app._id.toString()} />
+        </div>
+      )}
 
       {/* Job Description Card */}
       {job?.description && (

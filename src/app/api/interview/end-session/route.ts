@@ -4,8 +4,11 @@ import { authOptions } from '../../../../auth/options';
 import { findUserByEmail } from '../../../../data-access/repositories/userRepo';
 import { interviewSessionRepo } from '../../../../data-access/repositories/interviewSessionRepo';
 import { applicationRepo } from '../../../../data-access/repositories/applicationRepo';
+import { recruiterSubscriptionRepo } from '../../../../data-access/repositories/recruiterSubscriptionRepo';
+import { jobRepo } from '../../../../data-access/repositories/jobRepo';
 import { AzureBlobInterviewStorage } from '../../../../services/storage/azureBlobStorage';
 import { logger } from '../../../../monitoring/logger';
+import { recruiterNotificationService } from '../../../../services/recruiterNotificationService';
 import type { InterviewSessionMetadata } from '../../../../shared/types/interview';
 
 interface SessionUser {
@@ -215,6 +218,60 @@ export async function POST(req: NextRequest) {
           applicationId: session.applicationId,
           status: 'completed',
         });
+
+        // Notify recruiters about interview completion
+        if (application && finalScore !== undefined) {
+          setImmediate(async () => {
+            try {
+              const jobId = application.jobId;
+              const subscriptions =
+                await recruiterSubscriptionRepo.findActiveSubscriptionsByJob(
+                  jobId
+                );
+
+              if (subscriptions.length > 0) {
+                // Fetch job details for notification
+                const job = await jobRepo.findById(jobId);
+
+                if (job) {
+                  const candidateEmail = user.email || 'candidate@example.com';
+                  const candidateName =
+                    candidateEmail.split('@')[0] || 'Candidate';
+
+                  await recruiterNotificationService.notifySubscribedRecruitersInterviewComplete(
+                    subscriptions,
+                    {
+                      application: {
+                        ...application,
+                        matchScore: application.matchScore || 0,
+                      },
+                      jobTitle: job.title,
+                      candidateName,
+                      candidateEmail,
+                      interviewScore: finalScore,
+                      detailedFeedback,
+                    }
+                  );
+
+                  logger.info({
+                    event: 'interview_complete_notifications_sent',
+                    applicationId: session.applicationId,
+                    subscriberCount: subscriptions.length,
+                  });
+                }
+              }
+            } catch (notificationError) {
+              logger.error({
+                event: 'interview_notification_error',
+                error:
+                  notificationError instanceof Error
+                    ? notificationError.message
+                    : 'Unknown error',
+                applicationId: session.applicationId,
+              });
+            }
+          });
+        }
       } catch (appUpdateError) {
         // Log error but don't fail the request
         logger.error({

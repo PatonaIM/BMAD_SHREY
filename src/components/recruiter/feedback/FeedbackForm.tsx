@@ -4,17 +4,12 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { QuickRating } from './QuickRating';
 import { cn } from '@/utils/cn';
+import { useInlineAction } from '@/hooks/useInlineAction';
+import { trpc } from '@/services/trpc/client';
 
 interface FeedbackFormProps {
   applicationId: string;
-  onSubmit?: (_data: FeedbackData) => Promise<void>;
   onClose?: () => void;
-}
-
-interface FeedbackData {
-  rating: number;
-  notes: string;
-  tags: string[];
 }
 
 const FEEDBACK_TAGS = [
@@ -34,17 +29,41 @@ const FEEDBACK_TAGS = [
  * - Star rating (QuickRating component)
  * - Notes textarea
  * - Tag selector
- * - Auto-save draft behavior (future enhancement)
+ * - Optimistic updates with useInlineAction
  */
-export function FeedbackForm({
-  applicationId,
-  onSubmit,
-  onClose,
-}: FeedbackFormProps) {
+export function FeedbackForm({ applicationId, onClose }: FeedbackFormProps) {
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const utils = trpc.useUtils();
+
+  const feedbackAction = useInlineAction({
+    mutationFn: async (variables: {
+      rating: number;
+      notes: string;
+      tags: string[];
+    }) => {
+      return utils.client.recruiter.addFeedback.mutate({
+        applicationId,
+        rating: variables.rating,
+        notes: variables.notes,
+        tags: variables.tags,
+      });
+    },
+    invalidateKeys: [
+      ['recruiter', 'getApplications'],
+      ['recruiter', 'getTimeline'],
+    ],
+    onSuccess: () => {
+      onClose?.();
+    },
+    toastMessages: {
+      loading: 'Submitting feedback...',
+      success: 'Feedback submitted successfully',
+      error: 'Failed to submit feedback',
+    },
+  });
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev =>
@@ -60,22 +79,11 @@ export function FeedbackForm({
       return;
     }
 
-    if (!onSubmit) return;
-
-    setIsSubmitting(true);
-    try {
-      await onSubmit({
-        rating,
-        notes,
-        tags: selectedTags,
-      });
-      onClose?.();
-    } catch {
-      // Error handling - could add toast notification here
-      alert('Failed to submit feedback. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    await feedbackAction.executeAsync({
+      rating,
+      notes,
+      tags: selectedTags,
+    });
   };
 
   return (
@@ -161,7 +169,7 @@ export function FeedbackForm({
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={feedbackAction.isLoading}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50"
             >
               Cancel
@@ -169,7 +177,7 @@ export function FeedbackForm({
           )}
           <button
             type="submit"
-            disabled={isSubmitting || rating === 0}
+            disabled={feedbackAction.isLoading || rating === 0}
             className={cn(
               'px-4 py-2 text-sm font-medium rounded-md',
               'bg-indigo-600 text-white hover:bg-indigo-700',
@@ -178,7 +186,7 @@ export function FeedbackForm({
               'transition-colors'
             )}
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+            {feedbackAction.isLoading ? 'Submitting...' : 'Submit Feedback'}
           </button>
         </div>
       </form>
