@@ -66,6 +66,7 @@ export function ApplicationTimeline({
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
+  console.log('ApplicationTimeline stages:', stages);
   // Filter stages based on visibility
   const visibleStages =
     viewAs === 'candidate'

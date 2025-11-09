@@ -135,11 +135,13 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
       if (sessionId) {
         const finalScore = controller.state.finalScore;
         const scoreBreakdown = controller.state.finalScoreBreakdown;
+        const detailedFeedback = controller.state.detailedFeedback;
 
         // eslint-disable-next-line no-console
         console.log('[Interview] Updating session...', {
           finalScore,
           videoUrl,
+          detailedFeedback,
         });
 
         await fetch('/api/interview/end-session', {
@@ -152,6 +154,7 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
             finalScore,
             scoreBreakdown,
             videoUrl,
+            detailedFeedback,
           }),
         });
       }

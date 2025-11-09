@@ -183,7 +183,7 @@ export function useCompositeRecording(options: UseCompositeRecordingOptions) {
           localStream,
           aiAudioStream,
           fps: 30,
-          chunkMs: 5000, // 5-second chunks (reduced from 1s to minimize network overhead)
+          chunkMs: 1000, // 1-second chunks for progressive upload
           onChunk: async (blob, index) => {
             chunksRef.current.push(blob);
             setRecordingState(prev => ({ ...prev, chunkCount: index }));

@@ -92,6 +92,17 @@ export async function POST(req: NextRequest) {
         detailedFeedback,
       } = body;
 
+      logger.info({
+        event: 'end_session_request_received',
+        sessionId,
+        finalScore,
+        hasVideoUrl: !!videoUrl,
+        hasDetailedFeedback: !!detailedFeedback,
+        detailedFeedbackKeys: detailedFeedback
+          ? Object.keys(detailedFeedback)
+          : [],
+      });
+
       if (!sessionId) {
         return json(
           {
@@ -178,6 +189,19 @@ export async function POST(req: NextRequest) {
         }
       );
 
+      logger.info({
+        event: 'interview_session_updated',
+        sessionId,
+        hasDetailedFeedback: !!detailedFeedback,
+        detailedFeedback: detailedFeedback
+          ? {
+              strengthsCount: detailedFeedback.strengths?.length || 0,
+              improvementsCount: detailedFeedback.improvements?.length || 0,
+              hasSummary: !!detailedFeedback.summary,
+            }
+          : null,
+      });
+
       // Calculate and apply score boost to application
       try {
         const application = await applicationRepo.findById(
@@ -222,26 +246,78 @@ export async function POST(req: NextRequest) {
 
         // Update AI interview stage to completed with interview data
         try {
+          logger.info({
+            event: 'ai_interview_stage_update_start',
+            applicationId: session.applicationId,
+            sessionId,
+            finalScore,
+            hasDetailedFeedback: !!detailedFeedback,
+          });
+
           const aiInterviewStages = await stageService.getStagesByType(
             session.applicationId,
             'ai_interview'
           );
 
+          logger.info({
+            event: 'ai_interview_stages_fetched',
+            applicationId: session.applicationId,
+            stagesFound: aiInterviewStages.length,
+            stages: aiInterviewStages.map(s => ({
+              id: s.id,
+              status: s.status,
+              type: s.type,
+            })),
+          });
+
           if (aiInterviewStages.length > 0) {
             const aiStage = aiInterviewStages[0];
 
             if (aiStage) {
-              // Add interview completion data to stage
-              await stageService.addStageData(
-                aiStage.id,
-                {
-                  type: 'ai_interview',
-                  interviewSessionId: sessionId,
-                  interviewScore: finalScore,
-                  interviewCompletedAt: completedAt,
+              // Prepare stage data with all interview completion information
+              const stageData: {
+                type: 'ai_interview';
+                interviewSessionId: string;
+                interviewScore?: number;
+                interviewCompletedAt: Date;
+                detailedFeedback?: {
+                  strengths: string[];
+                  improvements: string[];
+                  summary: string;
+                };
+              } = {
+                type: 'ai_interview',
+                interviewSessionId: sessionId,
+                interviewScore: finalScore,
+                interviewCompletedAt: completedAt,
+              };
+
+              // Add detailed feedback if provided
+              if (detailedFeedback) {
+                stageData.detailedFeedback = {
+                  strengths: detailedFeedback.strengths || [],
+                  improvements: detailedFeedback.improvements || [],
+                  summary: detailedFeedback.summary || '',
+                };
+              }
+
+              logger.info({
+                event: 'ai_interview_stage_data_prepared',
+                stageId: aiStage.id,
+                stageData: {
+                  ...stageData,
+                  interviewCompletedAt:
+                    stageData.interviewCompletedAt.toISOString(),
                 },
-                user._id
-              );
+              });
+
+              // Add interview completion data to stage
+              await stageService.addStageData(aiStage.id, stageData, user._id);
+
+              logger.info({
+                event: 'ai_interview_stage_data_added',
+                stageId: aiStage.id,
+              });
 
               // Update stage status to completed
               await stageService.updateStageStatus(
@@ -255,14 +331,26 @@ export async function POST(req: NextRequest) {
                 applicationId: session.applicationId,
                 stageId: aiStage.id,
                 interviewScore: finalScore,
+                hasDetailedFeedback: !!detailedFeedback,
+              });
+            } else {
+              logger.warn({
+                event: 'ai_interview_stage_null',
+                applicationId: session.applicationId,
               });
             }
+          } else {
+            logger.warn({
+              event: 'ai_interview_stage_not_found',
+              applicationId: session.applicationId,
+            });
           }
         } catch (error) {
           logger.error({
             event: 'ai_interview_stage_update_failed',
             applicationId: session.applicationId,
             error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
           });
           // Don't fail the request if stage update fails
         }

@@ -250,12 +250,12 @@ export async function POST(req: NextRequest) {
         userId
       );
 
-      // 2. AI Interview stage (pending)
+      // 2. AI Interview stage (awaiting candidate)
       await stageService.createStage(
         application._id.toString(),
         {
           type: 'ai_interview',
-          status: 'pending',
+          status: 'awaiting_candidate',
           visibleToCandidate: true,
           data: {
             type: 'ai_interview',

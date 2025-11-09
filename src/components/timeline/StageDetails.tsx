@@ -326,6 +326,11 @@ function AIInterviewDetails({
     interviewSessionId?: string;
     interviewScore?: number;
     interviewCompletedAt?: Date | string;
+    detailedFeedback?: {
+      strengths?: string[];
+      improvements?: string[];
+      summary?: string;
+    };
     [key: string]: unknown;
   };
 
@@ -333,6 +338,25 @@ function AIInterviewDetails({
   const isPending =
     stage.status === 'pending' || stage.status === 'awaiting_candidate';
   const isCandidate = viewAs === 'candidate';
+
+  // Use feedback from stage data if interviewSession not provided
+  const feedback =
+    interviewSession?.interviewSummary || data.detailedFeedback
+      ? {
+          strengths:
+            interviewSession?.interviewSummary?.strengths ||
+            data.detailedFeedback?.strengths ||
+            [],
+          weaknesses:
+            interviewSession?.interviewSummary?.weaknesses ||
+            data.detailedFeedback?.improvements ||
+            [],
+          overallAssessment:
+            interviewSession?.interviewSummary?.overallAssessment ||
+            data.detailedFeedback?.summary ||
+            '',
+        }
+      : undefined;
 
   // Show CTA for candidate when pending
   if (isPending && isCandidate && applicationId && jobId && matchScore) {
@@ -393,67 +417,61 @@ function AIInterviewDetails({
             )}
 
             {/* Interview Feedback/Summary */}
-            {interviewSession?.interviewSummary && (
+            {feedback && (
               <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800">
-                {interviewSession.interviewSummary.overallAssessment && (
+                {feedback.overallAssessment && (
                   <div className="mb-3">
                     <h5 className="text-xs font-semibold text-foreground mb-1">
                       Overall Assessment:
                     </h5>
                     <p className="text-sm text-muted-foreground">
-                      {interviewSession.interviewSummary.overallAssessment}
+                      {feedback.overallAssessment}
                     </p>
                   </div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {interviewSession.interviewSummary.strengths &&
-                    interviewSession.interviewSummary.strengths.length > 0 && (
-                      <div>
-                        <h5 className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2">
-                          Strengths:
-                        </h5>
-                        <ul className="space-y-1">
-                          {interviewSession.interviewSummary.strengths.map(
-                            (strength, idx) => (
-                              <li
-                                key={idx}
-                                className="text-xs text-muted-foreground flex items-start gap-1"
-                              >
-                                <span className="text-green-600 dark:text-green-400 mt-0.5">
-                                  •
-                                </span>
-                                <span>{strength}</span>
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    )}
+                  {feedback.strengths && feedback.strengths.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2">
+                        Strengths:
+                      </h5>
+                      <ul className="space-y-1">
+                        {feedback.strengths.map((strength, idx) => (
+                          <li
+                            key={idx}
+                            className="text-xs text-muted-foreground flex items-start gap-1"
+                          >
+                            <span className="text-green-600 dark:text-green-400 mt-0.5">
+                              •
+                            </span>
+                            <span>{strength}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-                  {interviewSession.interviewSummary.weaknesses &&
-                    interviewSession.interviewSummary.weaknesses.length > 0 && (
-                      <div>
-                        <h5 className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2">
-                          Areas for Improvement:
-                        </h5>
-                        <ul className="space-y-1">
-                          {interviewSession.interviewSummary.weaknesses.map(
-                            (weakness, idx) => (
-                              <li
-                                key={idx}
-                                className="text-xs text-muted-foreground flex items-start gap-1"
-                              >
-                                <span className="text-amber-600 dark:text-amber-400 mt-0.5">
-                                  •
-                                </span>
-                                <span>{weakness}</span>
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    )}
+                  {feedback.weaknesses && feedback.weaknesses.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2">
+                        Areas for Improvement:
+                      </h5>
+                      <ul className="space-y-1">
+                        {feedback.weaknesses.map((weakness, idx) => (
+                          <li
+                            key={idx}
+                            className="text-xs text-muted-foreground flex items-start gap-1"
+                          >
+                            <span className="text-amber-600 dark:text-amber-400 mt-0.5">
+                              •
+                            </span>
+                            <span>{weakness}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

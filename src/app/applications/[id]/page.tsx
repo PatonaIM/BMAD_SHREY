@@ -431,7 +431,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         <h3 className="text-lg font-semibold mb-4">Application Timeline</h3>
         <ApplicationTimeline
           applicationId={app._id.toString()}
-          jobId={app.jobId}
+          jobId={app.jobId.toString()}
           viewAs="candidate"
           applicationData={{
             candidateEmail: app.candidateEmail,

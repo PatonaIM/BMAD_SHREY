@@ -10,7 +10,7 @@
     "setup:macos": "./template-setup/setup-macos.sh",
     "setup:linux": "./template-setup/setup-linux.sh",
     "predev": "bash scripts/start-redis.sh",
-    "dev": "next dev -p 3000",
+    "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev -p 3000 --turbopack",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",

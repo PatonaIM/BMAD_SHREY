@@ -115,6 +115,11 @@ export interface AiInterviewData {
   interviewSessionId?: string;
   interviewScore?: number;
   interviewCompletedAt?: Date;
+  detailedFeedback?: {
+    strengths: string[];
+    improvements: string[];
+    summary: string;
+  };
 }
 
 /**

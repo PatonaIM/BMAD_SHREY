@@ -36,7 +36,7 @@ const VALID_TRANSITIONS: Record<StageStatus, StageStatus[]> = {
     'awaiting_recruiter',
     'skipped',
   ],
-  awaiting_candidate: ['in_progress', 'awaiting_recruiter', 'skipped'],
+  awaiting_candidate: ['in_progress', 'completed', 'skipped'],
   in_progress: [
     'awaiting_recruiter',
     'awaiting_candidate',

@@ -78,7 +78,7 @@ export default async function RecruiterApplicationDetailPage({
         {/* Full-Width Timeline */}
         <ApplicationTimeline
           applicationId={app._id.toString()}
-          jobId={app.jobId}
+          jobId={app.jobId.toString()}
           viewAs="recruiter"
           applicationData={{
             candidateEmail: app.candidateEmail,
