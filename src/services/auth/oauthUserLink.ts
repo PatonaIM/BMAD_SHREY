@@ -51,7 +51,18 @@ export async function linkOrCreateOAuthUser(
     const env = getEnv();
     let roles = ['USER'];
     let elevated = false;
-    if (env.AUTO_ELEVATE_FIRST_OAUTH_ADMIN) {
+
+    // Check if email domain is teamified.com for recruiter role assignment
+    const emailDomain = emailLower.split('@')[1];
+    if (emailDomain === 'teamified.com') {
+      roles = ['RECRUITER'];
+      logger.info({
+        event: 'auth_oauth_recruiter_assigned',
+        provider: profile.provider,
+        email: emailLower,
+        reason: 'teamified_domain',
+      });
+    } else if (env.AUTO_ELEVATE_FIRST_OAUTH_ADMIN) {
       const exists = await anyAdminExists();
       if (!exists) {
         roles = ['ADMIN'];
