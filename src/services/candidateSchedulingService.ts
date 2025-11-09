@@ -10,7 +10,9 @@ import { findUserById } from '../data-access/repositories/userRepo';
 import { googleCalendarService } from './googleCalendarService';
 import { googleChatService } from './googleChatService';
 import { TimelineService } from './timelineService';
+import { stageService } from './stageService';
 import { logger } from '../monitoring/logger';
+import type { AiInterviewData } from '../shared/types/applicationStage';
 
 export interface TimeSlot {
   start: Date;
@@ -280,6 +282,32 @@ export class CandidateSchedulingService {
         googleCalendarEventId: calendarResult.data?.eventId,
         meetLink: calendarResult.data?.meetLink,
       });
+
+      // 5.5. Update AI interview stage with scheduling info
+      const recruiter = await findUserById(recruiterId);
+      const stages = await stageService.getStagesByApplicationId(applicationId);
+      const aiInterviewStage = stages.find(s => s.type === 'ai_interview');
+
+      if (aiInterviewStage) {
+        const updatedData: Partial<AiInterviewData> = {
+          schedulingInfo: {
+            hasScheduledCall: true,
+            scheduledCallId: scheduledCall._id.toString(),
+            scheduledAt: slotStart,
+            recruiterName: recruiter?.email.split('@')[0] || 'Recruiter',
+            recruiterEmail: recruiter?.email,
+            meetLink: calendarResult.data?.meetLink,
+            duration: 10,
+            status: 'scheduled',
+          },
+        };
+
+        await stageService.addStageData(
+          aiInterviewStage.id,
+          updatedData,
+          candidateId
+        );
+      }
 
       // 6. Add timeline event
       await this.timelineService.addEvent(applicationId, {

@@ -48,7 +48,7 @@ const ownsApplication = t.middleware(async ({ ctx, next, rawInput }) => {
 
   // Check if user is either the candidate or a recruiter for this job
   const userId = ctx.session.user.id;
-  const roles = (ctx.session as unknown as { roles?: string[] })?.roles || [];
+  const roles = (ctx.session.user as { roles?: string[] })?.roles || [];
 
   const isCandidate = application.userId === userId;
   const isRecruiter = roles.includes('RECRUITER') || roles.includes('ADMIN');

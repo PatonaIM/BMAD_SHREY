@@ -115,10 +115,26 @@ export interface AiInterviewData {
   interviewSessionId?: string;
   interviewScore?: number;
   interviewCompletedAt?: Date;
+  videoUrl?: string;
   detailedFeedback?: {
     strengths: string[];
     improvements: string[];
     summary: string;
+  };
+  schedulingInfo?: {
+    hasScheduledCall: boolean;
+    scheduledCallId?: string;
+    scheduledAt?: Date;
+    recruiterName?: string;
+    recruiterEmail?: string;
+    meetLink?: string;
+    duration?: number;
+    status?:
+      | 'scheduled'
+      | 'completed'
+      | 'cancelled'
+      | 'no_show'
+      | 'rescheduled';
   };
 }
 
@@ -187,6 +203,11 @@ export interface LiveInterviewData {
 
   /** Link to scheduledCalls collection (Epic 4 integration) */
   scheduledCallId?: string;
+
+  /** Recruiter who will conduct the interview */
+  recruiterId?: string;
+  recruiterName?: string;
+  recruiterEmail?: string;
 
   /** Google Meet link for interview */
   meetLink?: string;

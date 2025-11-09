@@ -7,6 +7,7 @@ import { jobRepo } from '@/data-access/repositories/jobRepo';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { ApplicationTimeline } from '@/components/timeline';
+import { RecruiterActions } from '@/components/recruiter/RecruiterActions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -73,6 +74,11 @@ export default async function RecruiterApplicationDetailPage({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Quick Actions for Recruiters */}
+        <div className="mb-6">
+          <RecruiterActions applicationId={app._id.toString()} />
         </div>
 
         {/* Full-Width Timeline */}

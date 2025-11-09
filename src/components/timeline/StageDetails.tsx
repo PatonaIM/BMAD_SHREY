@@ -326,10 +326,20 @@ function AIInterviewDetails({
     interviewSessionId?: string;
     interviewScore?: number;
     interviewCompletedAt?: Date | string;
+    videoUrl?: string;
     detailedFeedback?: {
       strengths?: string[];
       improvements?: string[];
       summary?: string;
+    };
+    schedulingInfo?: {
+      hasScheduledCall: boolean;
+      scheduledAt?: Date | string;
+      recruiterName?: string;
+      recruiterEmail?: string;
+      meetLink?: string;
+      duration?: number;
+      status?: string;
     };
     [key: string]: unknown;
   };
@@ -478,8 +488,9 @@ function AIInterviewDetails({
           </div>
         )}
 
-        {/* Video Recording Link */}
-        {isCandidate && interviewSession?.videoRecordingUrl && (
+        {/* Video Recording */}
+        {(interviewSession?.videoRecordingUrl ||
+          (data as { videoUrl?: string }).videoUrl) && (
           <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <svg
@@ -498,35 +509,189 @@ function AIInterviewDetails({
               Interview Recording
             </h4>
             <p className="text-sm text-muted-foreground mb-3">
-              Review your interview performance and responses.
+              {isCandidate
+                ? 'Review your interview performance and responses.'
+                : "View the candidate's interview recording and responses."}
             </p>
-            <Link
-              href={`/applications/${applicationId}`}
-              className="btn-outline px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="rounded-lg overflow-hidden bg-black">
+              <video
+                controls
+                className="w-full"
+                preload="metadata"
+                controlsList="nodownload"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                <source
+                  src={
+                    interviewSession?.videoRecordingUrl ||
+                    (data as { videoUrl?: string }).videoUrl
+                  }
+                  type="video/webm"
                 />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              Watch Interview Recording
-            </Link>
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </div>
         )}
+
+        {/* Scheduling Info for Recruiters */}
+        {!isCandidate &&
+          (() => {
+            const schedulingInfo = data.schedulingInfo;
+            return (
+              <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Scheduling Status
+                </h4>
+                {schedulingInfo?.hasScheduledCall ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg
+                        className="w-5 h-5 text-green-600 dark:text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="font-medium text-green-700 dark:text-green-300">
+                        Candidate has scheduled a follow-up call
+                      </span>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 p-3 space-y-2 text-sm">
+                      {schedulingInfo.scheduledAt && (
+                        <div>
+                          <span className="text-muted-foreground">
+                            Scheduled for:
+                          </span>{' '}
+                          <span className="font-medium text-foreground">
+                            {new Date(
+                              schedulingInfo.scheduledAt as string
+                            ).toLocaleString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {schedulingInfo.duration && (
+                        <div>
+                          <span className="text-muted-foreground">
+                            Duration:
+                          </span>{' '}
+                          <span className="font-medium text-foreground">
+                            {schedulingInfo.duration} minutes
+                          </span>
+                        </div>
+                      )}
+                      {schedulingInfo.recruiterName && (
+                        <div>
+                          <span className="text-muted-foreground">With:</span>{' '}
+                          <span className="font-medium text-foreground">
+                            {schedulingInfo.recruiterName}
+                            {schedulingInfo.recruiterEmail && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({schedulingInfo.recruiterEmail})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {schedulingInfo.status && (
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>{' '}
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              schedulingInfo.status === 'scheduled'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : schedulingInfo.status === 'completed'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300'
+                            }`}
+                          >
+                            {schedulingInfo.status
+                              .replace('_', ' ')
+                              .toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {schedulingInfo.meetLink && (
+                        <div className="pt-2">
+                          <a
+                            href={schedulingInfo.meetLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                          >
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
+                            Join Meeting
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 text-sm">
+                    <svg
+                      className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div>
+                      <p className="font-medium text-amber-700 dark:text-amber-300 mb-1">
+                        No follow-up call scheduled yet
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        The candidate hasn&apos;t booked a follow-up call.
+                        Consider reaching out to schedule one.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {/* Session Info */}
         {data.interviewSessionId && !isCandidate && (
@@ -693,37 +858,98 @@ function LiveInterviewDetails({
 }): JSX.Element {
   const data = stage.data as unknown as {
     type: 'live_interview';
+    scheduledTime?: Date | string;
     scheduledAt?: Date | string;
-    interviewerName?: string;
+    meetLink?: string;
     meetingLink?: string;
+    recruiterName?: string;
+    recruiterEmail?: string;
+    interviewerName?: string;
+    durationMinutes?: number;
+    title?: string;
     [key: string]: unknown;
   };
 
+  const scheduledDate = data.scheduledTime || data.scheduledAt;
+  const meetingUrl = data.meetLink || data.meetingLink;
+  const recruiterDisplayName = data.recruiterName || data.interviewerName;
+
   return (
-    <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-3 text-sm space-y-2">
-      {data.scheduledAt && (
+    <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4 space-y-3">
+      {data.title && (
         <div>
-          <span className="text-muted-foreground">Scheduled:</span>{' '}
-          <span className="font-medium">
-            {new Date(data.scheduledAt as string).toLocaleString()}
-          </span>
+          <h5 className="text-xs font-semibold text-muted-foreground mb-1">
+            Interview Type:
+          </h5>
+          <p className="text-sm font-medium text-foreground">
+            {data.title as string}
+          </p>
         </div>
       )}
-      {data.interviewerName && (
+      {scheduledDate && (
         <div>
-          <span className="text-muted-foreground">Interviewer:</span>{' '}
-          <span className="font-medium">{data.interviewerName as string}</span>
+          <h5 className="text-xs font-semibold text-muted-foreground mb-1">
+            Scheduled:
+          </h5>
+          <p className="text-sm font-medium text-foreground">
+            {new Date(scheduledDate as string).toLocaleString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </p>
         </div>
       )}
-      {data.meetingLink && (
+      {data.durationMinutes && (
         <div>
+          <h5 className="text-xs font-semibold text-muted-foreground mb-1">
+            Duration:
+          </h5>
+          <p className="text-sm font-medium text-foreground">
+            {data.durationMinutes} minutes
+          </p>
+        </div>
+      )}
+      {recruiterDisplayName && (
+        <div>
+          <h5 className="text-xs font-semibold text-muted-foreground mb-1">
+            Interviewer:
+          </h5>
+          <p className="text-sm font-medium text-foreground">
+            {recruiterDisplayName as string}
+            {data.recruiterEmail && (
+              <span className="text-xs text-muted-foreground ml-2">
+                ({data.recruiterEmail as string})
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+      {meetingUrl && (
+        <div className="pt-2">
           <Link
-            href={data.meetingLink as string}
+            href={meetingUrl as string}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-primary hover:underline"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
           >
-            Join Meeting →
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
+            </svg>
+            Join Meeting
           </Link>
         </div>
       )}

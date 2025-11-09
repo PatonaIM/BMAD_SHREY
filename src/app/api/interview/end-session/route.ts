@@ -280,6 +280,7 @@ export async function POST(req: NextRequest) {
                 interviewSessionId: string;
                 interviewScore?: number;
                 interviewCompletedAt: Date;
+                videoUrl?: string;
                 detailedFeedback?: {
                   strengths: string[];
                   improvements: string[];
@@ -290,6 +291,7 @@ export async function POST(req: NextRequest) {
                 interviewSessionId: sessionId,
                 interviewScore: finalScore,
                 interviewCompletedAt: completedAt,
+                videoUrl: videoUrl || undefined,
               };
 
               // Add detailed feedback if provided
