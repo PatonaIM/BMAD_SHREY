@@ -9,3 +9,4 @@ export { TimelineStage, TimelineStageSkeleton } from './TimelineStage';
 export { StageIcon, StageIconWithBackground } from './StageIcon';
 export { StageActions, StageActionsSkeleton } from './StageActions';
 export { StageProgress, StageProgressSkeleton } from './StageProgress';
+export { HorizontalTimelineHeader } from './HorizontalTimelineHeader';

@@ -39,33 +39,28 @@ export function RecruiterActions({
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-        Quick Actions
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={handleScheduleInterview}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-          <Calendar className="h-4 w-4" />
-          Schedule Interview
-        </button>
-        <button
-          onClick={handleGiveAssignment}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-        >
-          <FileText className="h-4 w-4" />
-          Give Assignment
-        </button>
-        <button
-          onClick={onAddStage}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-gray-900 dark:text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Stage
-        </button>
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        onClick={handleScheduleInterview}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+      >
+        <Calendar className="h-3.5 w-3.5" />
+        Schedule Interview
+      </button>
+      <button
+        onClick={handleGiveAssignment}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1"
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Give Assignment
+      </button>
+      <button
+        onClick={onAddStage}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-gray-900 dark:text-white border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-1"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add Stage
+      </button>
 
       {/* Modals will be implemented separately */}
       {isScheduleModalOpen && (

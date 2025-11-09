@@ -37,7 +37,24 @@ const config = {
       },
     },
   },
-  plugins: [typography, forms],
+  plugins: [
+    typography,
+    forms,
+    function ({ addUtilities }) {
+      addUtilities({
+        '.scrollbar-hide': {
+          /* Firefox */
+          'scrollbar-width': 'none',
+          /* IE and Edge */
+          '-ms-overflow-style': 'none',
+          /* Chrome, Safari, Opera */
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
+      });
+    },
+  ],
 };
 
 export default config;

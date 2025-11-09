@@ -37,9 +37,7 @@ export default async function RecruiterLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </div>
+      <div className="max-w-10xl mx-auto">{children}</div>
     </div>
   );
 }

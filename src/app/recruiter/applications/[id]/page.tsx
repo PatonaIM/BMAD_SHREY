@@ -4,10 +4,9 @@ import { authOptions } from '@/auth/options';
 import { notFound, redirect } from 'next/navigation';
 import { applicationRepo } from '@/data-access/repositories/applicationRepo';
 import { jobRepo } from '@/data-access/repositories/jobRepo';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { ApplicationTimeline } from '@/components/timeline';
 import { RecruiterActions } from '@/components/recruiter/RecruiterActions';
+import { CollapsibleApplicationHeader } from '@/components/application/CollapsibleApplicationHeader';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,67 +37,46 @@ export default async function RecruiterApplicationDetailPage({
   const job = await jobRepo.findById(app.jobId);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            href={`/recruiter/jobs/${app.jobId}/applications`}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-4"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Applications
-          </Link>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                {job?.title || 'Unknown Role'}
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {app.candidateEmail} • Applied{' '}
-                {app.appliedAt.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
-            {app.matchScore !== undefined && app.matchScore !== null && (
-              <div className="text-right">
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                  {Math.round(app.matchScore)}%
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Match Score
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900 -mx-4 sm:-mx-6 lg:-mx-8 -my-6 relative">
+      {/* Collapsible Header - Full Width */}
+      <CollapsibleApplicationHeader
+        backHref={`/recruiter/jobs/${app.jobId}/applications`}
+        backLabel="Back to Applications"
+        jobTitle={job?.title || 'Unknown Role'}
+        status={app.status}
+        matchScore={app.matchScore ?? undefined}
+        rightContent={<RecruiterActions applicationId={app._id.toString()} />}
+      />
 
-        {/* Quick Actions for Recruiters */}
-        <div className="mb-6">
-          <RecruiterActions applicationId={app._id.toString()} />
+      {/* Scrollable Timeline Container */}
+      <div
+        id="timeline-scroll-container"
+        className="flex-1 overflow-y-auto scrollbar-hide"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Full-Width Timeline */}
+          <ApplicationTimeline
+            applicationId={app._id.toString()}
+            jobId={app.jobId.toString()}
+            viewAs="recruiter"
+            applicationData={{
+              candidateEmail: app.candidateEmail,
+              matchScore: app.matchScore ?? undefined,
+              scoreBreakdown: app.scoreBreakdown
+                ? {
+                    semanticSimilarity: app.scoreBreakdown.semanticSimilarity,
+                    skillsAlignment: app.scoreBreakdown.skillsAlignment,
+                    experienceLevel: app.scoreBreakdown.experienceLevel,
+                    otherFactors: app.scoreBreakdown.otherFactors,
+                  }
+                : undefined,
+            }}
+          />
         </div>
-
-        {/* Full-Width Timeline */}
-        <ApplicationTimeline
-          applicationId={app._id.toString()}
-          jobId={app.jobId.toString()}
-          viewAs="recruiter"
-          applicationData={{
-            candidateEmail: app.candidateEmail,
-            matchScore: app.matchScore ?? undefined,
-            scoreBreakdown: app.scoreBreakdown
-              ? {
-                  semanticSimilarity: app.scoreBreakdown.semanticSimilarity,
-                  skillsAlignment: app.scoreBreakdown.skillsAlignment,
-                  experienceLevel: app.scoreBreakdown.experienceLevel,
-                  otherFactors: app.scoreBreakdown.otherFactors,
-                }
-              : undefined,
-          }}
-        />
       </div>
     </div>
   );

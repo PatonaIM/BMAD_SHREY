@@ -13,7 +13,8 @@
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { TimelineStage, TimelineStageSkeleton } from './TimelineStage';
-import { StageProgress, StageProgressSkeleton } from './StageProgress';
+import { StageProgressSkeleton } from './StageProgress';
+import { HorizontalTimelineHeader } from './HorizontalTimelineHeader';
 import { useStages } from '@/hooks/useStages';
 
 interface ApplicationTimelineProps {
@@ -73,8 +74,8 @@ export function ApplicationTimeline({
       ? stages.filter(stage => stage.visibleToCandidate)
       : stages;
 
-  // Sort stages by order
-  const sortedStages = [...visibleStages].sort((a, b) => a.order - b.order);
+  // Sort stages by order (reversed - higher order/later stages at top)
+  const sortedStages = [...visibleStages].sort((a, b) => b.order - a.order);
 
   // Find active stage
   const activeStage = sortedStages.find(
@@ -85,13 +86,13 @@ export function ApplicationTimeline({
   );
 
   // Calculate progress statistics
-  const stats = {
-    total: sortedStages.length,
-    completed: sortedStages.filter(s => s.status === 'completed').length,
-    inProgress: sortedStages.filter(s => s.status === 'in_progress').length,
-    pending: sortedStages.filter(s => s.status === 'pending').length,
-    skipped: sortedStages.filter(s => s.status === 'skipped').length,
-  };
+  // const stats = {
+  //   total: sortedStages.length,
+  //   completed: sortedStages.filter(s => s.status === 'completed').length,
+  //   inProgress: sortedStages.filter(s => s.status === 'in_progress').length,
+  //   pending: sortedStages.filter(s => s.status === 'pending').length,
+  //   skipped: sortedStages.filter(s => s.status === 'skipped').length,
+  // };
 
   // Auto-scroll to active stage on mount
   useEffect(() => {
@@ -185,31 +186,20 @@ export function ApplicationTimeline({
   }
 
   return (
-    <div className={`space-y-6 ${className}`} id={`timeline-${applicationId}`}>
-      {/* Progress Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 shadow-sm"
-      >
-        <h2 className="text-xl font-bold text-foreground mb-4">
-          Application Journey
-        </h2>
-        <StageProgress
-          total={stats.total}
-          completed={stats.completed}
-          inProgress={stats.inProgress}
-          pending={stats.pending}
-          skipped={stats.skipped}
-        />
-      </motion.div>
+    <div id={`timeline-${applicationId}`}>
+      {/* Horizontal Timeline Header */}
+      <HorizontalTimelineHeader stages={visibleStages} />
 
       {/* Timeline Stages */}
-      <div className="space-y-4">
+      <div className="space-y-4 pt-4">
         {sortedStages.map((stage, index) => {
-          const isActive = activeStage?.id === stage.id;
+          const isActive =
+            activeStage?.id === stage.id ||
+            stage.status === 'in_progress' ||
+            stage.status === 'awaiting_candidate' ||
+            stage.status === 'awaiting_recruiter';
           const isLast = index === sortedStages.length - 1;
+          const isFirst = index === 0;
 
           return (
             <div
@@ -222,6 +212,7 @@ export function ApplicationTimeline({
                 viewAs={viewAs}
                 isActive={isActive}
                 isLast={isLast}
+                isFirst={isFirst}
                 onAction={onAction}
                 applicationData={applicationData}
                 applicationId={applicationId}

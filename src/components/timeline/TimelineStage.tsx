@@ -31,6 +31,9 @@ interface TimelineStageProps {
   /** Whether this is the last stage in timeline */
   isLast?: boolean;
 
+  /** Whether this is the first stage in timeline */
+  isFirst?: boolean;
+
   /** Callback when action is clicked */
   onAction?: (_stageId: string, _actionType: string) => void;
 
@@ -91,13 +94,16 @@ export function TimelineStage({
   viewAs,
   isActive = false,
   isLast = false,
+  isFirst = false,
   onAction,
   className = '',
   applicationData,
   applicationId,
   jobId,
 }: TimelineStageProps): JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(isActive || isLast);
+  // Expand if: active, OR first stage, OR last stage
+  // Priority: active > first > last
+  const [isExpanded, setIsExpanded] = useState(isActive || isFirst || isLast);
 
   const statusLabel = STATUS_LABELS[stage.status] || stage.status;
   const badgeColor =
