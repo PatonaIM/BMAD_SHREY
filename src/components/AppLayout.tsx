@@ -15,11 +15,18 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  const linksPublic = [
-    { label: 'Home', path: '/' },
-    { label: 'Jobs', path: '/jobs' }, // distinct path for unique key
-  ];
+  const linksPublic = [{ label: 'Jobs', path: '/jobs' }];
   const linksAuthed = [{ label: 'Dashboard', path: '/dashboard' }];
+
+  // Check if user is recruiter or admin
+  const userRoles = (session?.user as { roles?: string[] })?.roles || [];
+  const isRecruiterOrAdmin =
+    userRoles.includes('RECRUITER') || userRoles.includes('ADMIN');
+
+  const linksRecruiter = isRecruiterOrAdmin
+    ? [{ label: 'Recruiter Dashboard', path: '/recruiter' }]
+    : [];
+
   const isActive = (p: string) => pathname === p;
 
   // Hide layout for interview pages
@@ -44,6 +51,21 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
               className="hidden md:flex items-center gap-2"
               aria-label="Main navigation"
             >
+              {session &&
+                linksAuthed.map(l => (
+                  <Link
+                    key={l.path}
+                    href={l.path}
+                    className={
+                      'btn-ghost px-3 py-2 text-sm font-medium rounded-md transition focus-visible:ring-2 focus-visible:ring-brand-primary ' +
+                      (isActive(l.path)
+                        ? 'bg-neutral-100 dark:bg-neutral-800'
+                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800')
+                    }
+                  >
+                    {l.label}
+                  </Link>
+                ))}
               {linksPublic.map(l => (
                 <Link
                   key={l.path}
@@ -59,7 +81,7 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
                 </Link>
               ))}
               {session &&
-                linksAuthed.map(l => (
+                linksRecruiter.map(l => (
                   <Link
                     key={l.path}
                     href={l.path}
@@ -131,7 +153,11 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
               className="container-responsive py-4 flex flex-col gap-2"
               role="menu"
             >
-              {[...linksPublic, ...(session ? linksAuthed : [])].map(l => (
+              {[
+                ...(session ? linksAuthed : []),
+                ...linksPublic,
+                ...(session ? linksRecruiter : []),
+              ].map(l => (
                 <Link
                   key={l.path}
                   href={l.path}

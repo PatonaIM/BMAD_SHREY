@@ -45,7 +45,39 @@ export function ScoreBreakdownModal({
   // Don't render if not open or no match data
   if (!isOpen || !match) return null;
 
-  const { score, factors } = match;
+  let score = match.score;
+  const { factors } = match;
+
+  // Check if we have a cached semantic score from vector search
+  const getCachedSemanticScore = (jobId: string): number | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = localStorage.getItem('semanticScores');
+      if (cached) {
+        const cacheData = JSON.parse(cached);
+        const jobScore = cacheData[jobId];
+        if (jobScore && jobScore.semantic !== undefined) {
+          // Check if cache is recent (within last hour)
+          const age = Date.now() - jobScore.timestamp;
+          if (age < 3600000) {
+            return jobScore.semantic;
+          }
+        }
+      }
+    } catch {
+      // Ignore cache errors
+    }
+    return null;
+  };
+
+  const cachedSemantic = getCachedSemanticScore(match.jobId);
+  if (cachedSemantic !== null) {
+    // Override semantic score with cached value from vector search
+    score = {
+      ...score,
+      semantic: Math.round(cachedSemantic),
+    };
+  }
 
   // Calculate overall score band
   const getScoreBand = (score: number) => {
@@ -218,27 +250,34 @@ export function ScoreBreakdownModal({
             </p>
             <div className="space-y-3">
               <ScoreBar
-                label="Skills Alignment (60% weight)"
+                label="Semantic Similarity (35% weight)"
+                value={score.semantic}
+              />
+              <ScoreBar
+                label="Skills Alignment (40% weight)"
                 value={score.skills}
               />
               <ScoreBar
-                label="Experience Match (25% weight)"
+                label="Experience Match (15% weight)"
                 value={score.experience}
               />
               <ScoreBar
-                label="Other Factors (15% weight)"
+                label="Other Factors (10% weight)"
                 value={score.other}
               />
             </div>
             <div className="mt-3 p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                <strong>Example:</strong> If Skills = 80% and Experience = 60%:
+                <strong>Example:</strong> If Semantic = 70%, Skills = 80%,
+                Experience = 60%:
                 <br />
-                Overall = (80 × 0.60) + (60 × 0.25) + (other × 0.15) ={' '}
+                Overall = (70 × 0.35) + (80 × 0.40) + (60 × 0.15) + (other ×
+                0.10) ={' '}
                 {Math.round(
-                  score.skills * 0.6 +
-                    score.experience * 0.25 +
-                    score.other * 0.15
+                  score.semantic * 0.35 +
+                    score.skills * 0.4 +
+                    score.experience * 0.15 +
+                    score.other * 0.1
                 )}
                 %
               </p>
