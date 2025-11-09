@@ -29,6 +29,7 @@
     "indexes:list": "tsx scripts/migrations/create-stage-indexes.ts list",
     "indexes:drop": "tsx scripts/migrations/create-stage-indexes.ts drop",
     "indexes:analyze": "tsx scripts/migrations/create-stage-indexes.ts analyze",
+    "seed:test-data": "tsx scripts/seed-test-data.ts",
     "clean": "rm -rf node_modules/ dist/ build/ .turbo __pycache__/ .pytest_cache/",
     "prepare": "husky install"
   },

@@ -387,6 +387,33 @@ function AIInterviewDetails({
   if (isCompleted) {
     return (
       <div className="space-y-4">
+        {/* Schedule Call Section (for candidate after completed interview) - MOVED TO TOP */}
+        {isCandidate && applicationId && (
+          <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
+            <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <svg
+                className="w-4 h-4 text-brand-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              Schedule Follow-up Call
+            </h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              Great job completing the AI interview! Schedule a follow-up call
+              with the hiring team to discuss next steps.
+            </p>
+            <CandidateScheduling applicationId={applicationId} />
+          </div>
+        )}
+
         {/* Interview Score Card */}
         {data.interviewScore !== undefined && (
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg border border-purple-200 dark:border-purple-800 p-4">
@@ -700,33 +727,6 @@ function AIInterviewDetails({
             <span className="font-medium font-mono text-xs">
               {data.interviewSessionId as string}
             </span>
-          </div>
-        )}
-
-        {/* Schedule Call Section (for candidate after completed interview) */}
-        {isCandidate && applicationId && (
-          <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
-            <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <svg
-                className="w-4 h-4 text-brand-primary"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              Schedule Follow-up Call
-            </h4>
-            <p className="text-sm text-muted-foreground mb-4">
-              Great job completing the AI interview! Schedule a follow-up call
-              with the hiring team to discuss next steps.
-            </p>
-            <CandidateScheduling applicationId={applicationId} />
           </div>
         )}
       </div>

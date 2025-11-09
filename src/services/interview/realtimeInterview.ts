@@ -595,6 +595,25 @@ export async function startRealtimeInterview(
                             '[Score Persistence] ✅ end-session API response:',
                             data
                           );
+
+                          // Store redirect URL globally for handleEndInterview to use
+                          if (data.success && data.redirectUrl) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (window as any).__interviewRedirectUrl =
+                              data.redirectUrl;
+                          }
+
+                          // Emit completion event with redirect URL
+                          window.dispatchEvent(
+                            new CustomEvent('interview:completed', {
+                              detail: {
+                                score: overallScore,
+                                feedback: parsedArgs,
+                                redirectUrl: data.redirectUrl,
+                                success: data.success,
+                              },
+                            })
+                          );
                         })
                         .catch(err => {
                           // eslint-disable-next-line no-console
@@ -602,18 +621,29 @@ export async function startRealtimeInterview(
                             '[Score Persistence] ❌ end-session API error:',
                             err
                           );
-                        });
-                    }
 
-                    // Emit completion event
-                    window.dispatchEvent(
-                      new CustomEvent('interview:completed', {
-                        detail: {
-                          score: overallScore,
-                          feedback: parsedArgs,
-                        },
-                      })
-                    );
+                          // Emit completion event even on error so UI doesn't hang
+                          window.dispatchEvent(
+                            new CustomEvent('interview:completed', {
+                              detail: {
+                                score: overallScore,
+                                feedback: parsedArgs,
+                                error: err.message,
+                              },
+                            })
+                          );
+                        });
+                    } else {
+                      // No sessionId - emit completion anyway
+                      window.dispatchEvent(
+                        new CustomEvent('interview:completed', {
+                          detail: {
+                            score: overallScore,
+                            feedback: parsedArgs,
+                          },
+                        })
+                      );
+                    }
                     return; // Don't map to RTC event
                   }
 
@@ -936,7 +966,7 @@ export function requestInterviewScore(control: RTCDataChannel): void {
       content: [
         {
           type: 'input_text',
-          text: '[CONTROL client.request_score] Please provide final numeric score (0-100) with clarity/correctness/depth breakdown JSON.',
+          text: '[CONTROL client.request_score] The interview is now complete. You MUST call the generate_final_feedback function with: overallScore (0-100), strengths array (list of candidate strengths), improvements array (areas for growth), and summary (brief overall assessment). Do not respond with text - call the function immediately.',
         },
       ],
     },

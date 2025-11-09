@@ -437,6 +437,8 @@ export async function POST(req: NextRequest) {
 
       return json({
         ok: true,
+        success: true,
+        redirectUrl: `/interview/score/${sessionId}`,
         value: {
           sessionId,
           status: 'completed',
@@ -603,6 +605,8 @@ export async function POST(req: NextRequest) {
 
     return json({
       ok: true,
+      success: true,
+      redirectUrl: `/interview/score/${sessionId}`,
       value: {
         sessionId: updatedSession?.sessionId || sessionId,
         status: updatedSession?.status || 'completed',

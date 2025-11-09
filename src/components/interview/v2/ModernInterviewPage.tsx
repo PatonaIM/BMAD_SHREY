@@ -132,37 +132,49 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
       console.log('[Interview] Calculating score...');
       controller.endAndScore();
 
-      // Step 4: Wait for completion event (API call happens in generate_final_feedback tool)
+      // Step 4: Wait for completion event with redirect URL from API
       // eslint-disable-next-line no-console
       console.log(
-        '[Interview] ⏳ Waiting for score calculation and persistence...'
+        '[Interview] ⏳ Waiting for score calculation and API completion...'
       );
 
-      await new Promise<void>(resolve => {
+      const redirectUrl = await new Promise<string | null>(resolve => {
         const timeout = setTimeout(() => {
           // eslint-disable-next-line no-console
           console.warn(
-            '[Interview] ⚠️ Timeout waiting for completion, proceeding anyway'
+            '[Interview] ⚠️ Timeout waiting for API response, using fallback redirect'
           );
-          resolve();
-        }, 10000); // 10 second timeout
+          resolve(sessionId ? `/interview/score/${sessionId}` : null);
+        }, 15000); // 15 second timeout
 
-        const handler = () => {
+        const handler = (e: Event) => {
           clearTimeout(timeout);
+          const detail = (e as CustomEvent).detail;
+
           // eslint-disable-next-line no-console
-          console.log('[Interview] ✅ Score and persistence completed');
-          // Small delay to ensure API call finishes
-          setTimeout(resolve, 1000);
+          console.log('[Interview] ✅ Score and persistence completed', detail);
+
+          // Use redirect URL from API response
+          if (detail.redirectUrl) {
+            resolve(detail.redirectUrl);
+          } else if (detail.success && sessionId) {
+            resolve(`/interview/score/${sessionId}`);
+          } else {
+            resolve(sessionId ? `/interview/score/${sessionId}` : null);
+          }
         };
 
         window.addEventListener('interview:completed', handler, { once: true });
       });
 
-      // Step 5: Navigate to score screen
-      if (sessionId) {
+      // Step 5: Navigate to score screen using URL from API
+      if (redirectUrl) {
         // eslint-disable-next-line no-console
-        console.log('[Navigation] Redirecting to score screen...');
-        window.location.href = `/interview/score/${sessionId}`;
+        console.log('[Navigation] Redirecting to:', redirectUrl);
+        window.location.href = redirectUrl;
+      } else {
+        // eslint-disable-next-line no-console
+        console.error('[Navigation] No redirect URL available');
       }
 
       // eslint-disable-next-line no-console
@@ -302,9 +314,30 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
             <h3 className="text-lg font-semibold text-white mb-2">
               Ending Interview...
             </h3>
-            <p className="text-sm text-neutral-400">
+            <p className="text-sm text-neutral-400 mb-3">
               Finalizing video and calculating your score
             </p>
+            <div className="pt-3 border-t border-white/10">
+              <p className="text-xs text-amber-300 font-medium flex items-center justify-center gap-2">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                Please don't refresh or close this tab
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">
+                This may take up to a minute
+              </p>
+            </div>
           </div>
         </div>
       )}
