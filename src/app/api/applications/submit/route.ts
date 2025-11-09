@@ -10,6 +10,7 @@ import { getMongoClient } from '../../../../data-access/mongoClient';
 import { logger } from '../../../../monitoring/logger';
 import { recruiterNotificationService } from '../../../../services/recruiterNotificationService';
 import { stageService } from '../../../../services/stageService';
+import { resumeVectorizationService } from '../../../../services/ai/resumeVectorization';
 
 interface SessionUser {
   id: string;
@@ -88,7 +89,47 @@ export async function POST(req: NextRequest) {
 
     try {
       // Get candidate's resume vector
-      const resumeVectors = await resumeVectorRepo.getByUserId(userId);
+      let resumeVectors = await resumeVectorRepo.getByUserId(userId);
+      let hasVectors = resumeVectors && resumeVectors.length > 0;
+
+      // If no vectors exist but user has a resume, trigger vectorization
+      if (!hasVectors && resumeVersionId) {
+        logger.info(
+          'No vectors found for user with resume, triggering vectorization',
+          {
+            userId,
+            resumeVersionId,
+          }
+        );
+
+        try {
+          await resumeVectorizationService.vectorizeProfile(
+            userId,
+            resumeVersionId
+          );
+          // Re-check vectors after vectorization
+          resumeVectors = await resumeVectorRepo.getByUserId(userId);
+          hasVectors = resumeVectors && resumeVectors.length > 0;
+
+          logger.info('Vectorization completed', {
+            userId,
+            hasVectors,
+            vectorCount: resumeVectors?.length ?? 0,
+          });
+        } catch (vectorError) {
+          logger.error(
+            'Failed to vectorize resume during application submission',
+            {
+              userId,
+              error:
+                vectorError instanceof Error
+                  ? vectorError.message
+                  : 'Unknown error',
+            }
+          );
+          // Continue with application submission even if vectorization fails
+        }
+      }
 
       logger.info({
         msg: 'Resume vector check',
