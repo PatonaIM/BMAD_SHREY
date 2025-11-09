@@ -11,29 +11,19 @@ interface JobsTabNavigationProps {
 
 const tabs: Array<{ id: TabType; label: string; description: string }> = [
   {
-    id: 'active',
-    label: 'Active Jobs',
-    description: 'Jobs you are subscribed to',
-  },
-  {
-    id: 'all',
-    label: 'All Jobs',
-    description: 'Browse all available positions',
+    id: 'open',
+    label: 'Open Jobs',
+    description: 'Active positions',
   },
   {
     id: 'closed',
     label: 'Closed Jobs',
-    description: 'Archived and completed positions',
-  },
-  {
-    id: 'suggestions',
-    label: 'AI Suggestions',
-    description: 'Discover matched candidates',
+    description: 'Archived positions',
   },
 ];
 
 /**
- * Tab navigation for switching between Active/All/Closed jobs
+ * Tab navigation for switching between Open/Closed jobs
  */
 export function JobsTabNavigation({
   activeTab,

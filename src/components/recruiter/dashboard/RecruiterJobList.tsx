@@ -18,25 +18,20 @@ export function RecruiterJobList({
   filters,
 }: RecruiterJobListProps): React.ReactElement {
   const [page, setPage] = React.useState(1);
+  const [notification, setNotification] = React.useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
   const limit = 20;
 
   // Select the appropriate query based on active tab
-  const activeJobsQuery = trpc.recruiter.getActiveJobs.useQuery(
+  const openJobsQuery = trpc.recruiter.getAllJobs.useQuery(
     {
       ...filters,
       page,
       limit,
     },
-    { enabled: activeTab === 'active' }
-  );
-
-  const allJobsQuery = trpc.recruiter.getAllJobs.useQuery(
-    {
-      ...filters,
-      page,
-      limit,
-    },
-    { enabled: activeTab === 'all' }
+    { enabled: activeTab === 'open' }
   );
 
   const closedJobsQuery = trpc.recruiter.getClosedJobs.useQuery(
@@ -48,15 +43,43 @@ export function RecruiterJobList({
     { enabled: activeTab === 'closed' }
   );
 
+  // Subscribe to all jobs mutation
+  const subscribeToAllMutation = trpc.recruiter.subscribeToAllJobs.useMutation({
+    onSuccess: data => {
+      // Refetch the job list to update subscription status
+      openJobsQuery.refetch();
+      setNotification({ message: data.message, type: 'success' });
+      setTimeout(() => setNotification(null), 5000);
+    },
+    onError: error => {
+      setNotification({
+        message: `Failed to subscribe: ${error.message}`,
+        type: 'error',
+      });
+      setTimeout(() => setNotification(null), 5000);
+    },
+  });
+
   // Get the appropriate query based on active tab
-  const query =
-    activeTab === 'active'
-      ? activeJobsQuery
-      : activeTab === 'all'
-        ? allJobsQuery
-        : closedJobsQuery;
+  const query = activeTab === 'open' ? openJobsQuery : closedJobsQuery;
 
   const { data, isLoading, isError, error } = query;
+
+  // Sort open jobs to show subscribed jobs first
+  const sortedJobs = React.useMemo(() => {
+    if (!data?.jobs || activeTab !== 'open') return data?.jobs || [];
+
+    return [...data.jobs].sort((a, b) => {
+      // Check if jobs have isSubscribed property
+      const aSubscribed = 'isSubscribed' in a ? a.isSubscribed : false;
+      const bSubscribed = 'isSubscribed' in b ? b.isSubscribed : false;
+
+      // Subscribed jobs come first
+      if (aSubscribed && !bSubscribed) return -1;
+      if (!aSubscribed && bSubscribed) return 1;
+      return 0;
+    });
+  }, [data?.jobs, activeTab]);
 
   // Loading state
   if (isLoading) {
@@ -111,11 +134,9 @@ export function RecruiterJobList({
           No jobs found
         </h3>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          {activeTab === 'active'
-            ? 'You have not subscribed to any jobs yet. Switch to "All Jobs" to browse available positions.'
-            : activeTab === 'closed'
-              ? 'No closed jobs found.'
-              : 'No jobs match your current filters.'}
+          {activeTab === 'open'
+            ? 'No jobs match your current filters.'
+            : 'No closed jobs found.'}
         </p>
       </div>
     );
@@ -123,8 +144,44 @@ export function RecruiterJobList({
 
   return (
     <div className="space-y-4">
+      {/* Notification */}
+      {notification && (
+        <div
+          className={`rounded-md p-4 ${
+            notification.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+          }`}
+        >
+          <p
+            className={`text-sm ${
+              notification.type === 'success'
+                ? 'text-green-800 dark:text-green-200'
+                : 'text-red-800 dark:text-red-200'
+            }`}
+          >
+            {notification.message}
+          </p>
+        </div>
+      )}
+
+      {/* Subscribe to All Jobs Button - Only show in Open Jobs tab */}
+      {activeTab === 'open' && sortedJobs.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => subscribeToAllMutation.mutate()}
+            disabled={subscribeToAllMutation.isPending}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            {subscribeToAllMutation.isPending
+              ? 'Subscribing...'
+              : 'Subscribe to All Jobs'}
+          </button>
+        </div>
+      )}
+
       {/* Job Cards */}
-      {data.jobs.map(job => (
+      {sortedJobs.map(job => (
         <RecruiterJobCard
           key={job._id.toString()}
           job={job}

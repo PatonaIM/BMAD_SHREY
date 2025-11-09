@@ -192,6 +192,78 @@ export const recruiterRouter = t.router({
     }),
 
   /**
+   * Subscribe to all open jobs
+   */
+  subscribeToAllJobs: t.procedure
+    .use(isAuthed)
+    .use(isRecruiter)
+    .mutation(async ({ ctx }) => {
+      const userId = ctx.session?.user?.id;
+      if (!userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User ID not found in session',
+        });
+      }
+
+      try {
+        // Get all open jobs
+        const jobResults = await jobRepo.search({
+          page: 1,
+          limit: 1000, // Get all jobs (or use a reasonable limit)
+        });
+
+        let subscribedCount = 0;
+        let alreadySubscribedCount = 0;
+        const errors: string[] = [];
+
+        // Subscribe to each job
+        for (const job of jobResults.jobs) {
+          try {
+            // Check if already subscribed
+            const isSubscribed = await recruiterSubscriptionRepo.isSubscribed(
+              job._id.toString(),
+              userId
+            );
+
+            if (!isSubscribed) {
+              await recruiterSubscriptionRepo.createSubscription({
+                jobId: job._id.toString(),
+                recruiterId: userId,
+                notificationsEnabled: true,
+              });
+              subscribedCount++;
+            } else {
+              alreadySubscribedCount++;
+            }
+          } catch (err) {
+            // Skip duplicates and continue
+            const errorMsg = (err as Error).message;
+            if (!errorMsg.includes('duplicate')) {
+              errors.push(`Failed to subscribe to job ${job._id}: ${errorMsg}`);
+            } else {
+              alreadySubscribedCount++;
+            }
+          }
+        }
+
+        return {
+          success: true,
+          subscribedCount,
+          alreadySubscribedCount,
+          totalJobs: jobResults.jobs.length,
+          message: `Successfully subscribed to ${subscribedCount} new job(s). ${alreadySubscribedCount} already subscribed.`,
+          errors: errors.length > 0 ? errors : undefined,
+        };
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to subscribe to all jobs: ${(err as Error).message}`,
+        });
+      }
+    }),
+
+  /**
    * Get active jobs (jobs the current recruiter is subscribed to)
    */
   getActiveJobs: t.procedure

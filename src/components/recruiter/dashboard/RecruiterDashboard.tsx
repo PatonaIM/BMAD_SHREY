@@ -4,9 +4,8 @@ import React, { useState } from 'react';
 import { JobsTabNavigation } from './JobsTabNavigation';
 import { RecruiterJobList } from './RecruiterJobList';
 import { JobSearchFilters } from './JobSearchFilters';
-import { SuggestedCandidatesTab } from './SuggestedCandidatesTab';
 
-export type TabType = 'active' | 'all' | 'closed' | 'suggestions';
+export type TabType = 'open' | 'closed';
 
 export interface FilterState {
   keyword: string;
@@ -26,7 +25,7 @@ export interface FilterState {
  * Manages tabs, filters, and displays job listings
  */
 export function RecruiterDashboard(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<TabType>('active');
+  const [activeTab, setActiveTab] = useState<TabType>('open');
   const [filters, setFilters] = useState<FilterState>({
     keyword: '',
     location: '',
@@ -42,21 +41,11 @@ export function RecruiterDashboard(): React.ReactElement {
       {/* Tab Navigation */}
       <JobsTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Conditional content based on active tab */}
-      {activeTab === 'suggestions' ? (
-        <SuggestedCandidatesTab />
-      ) : (
-        <>
-          {/* Search and Filters */}
-          <JobSearchFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-          />
+      {/* Search and Filters */}
+      <JobSearchFilters filters={filters} onFilterChange={handleFilterChange} />
 
-          {/* Job List */}
-          <RecruiterJobList activeTab={activeTab} filters={filters} />
-        </>
-      )}
+      {/* Job List */}
+      <RecruiterJobList activeTab={activeTab} filters={filters} />
     </div>
   );
 }
