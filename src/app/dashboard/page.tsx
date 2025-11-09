@@ -141,15 +141,194 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      {/* AI-Powered Job Recommendations (EP4-S3) */}
-      <JobRecommendationsContainer limit={5} />
-
-      {/* Top Widgets Row */}
+      {/* Top Widgets Row - Profile & Applications */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProfileCompletenessCard
           score={completenessResult}
           hasResume={!!resume}
         />
+
+        {/* Applications Summary Widget */}
+        <section
+          aria-labelledby="applications-summary-heading"
+          className="flex flex-col gap-4 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm"
+        >
+          <h2
+            id="applications-summary-heading"
+            className="text-xl font-semibold"
+          >
+            Applications
+          </h2>
+          {enriched.length === 0 ? (
+            <div>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                You haven&apos;t applied to any jobs yet. Browse roles and apply
+                to get started.
+              </p>
+              <Link
+                href="/jobs"
+                className="inline-flex mt-3 btn-primary px-4 py-2 text-sm"
+              >
+                Browse Jobs
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {enriched.slice(0, 3).map(app => (
+                <div
+                  key={app._id}
+                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 bg-white dark:bg-neutral-900 shadow-sm"
+                >
+                  <h3 className="font-medium text-neutral-900 dark:text-neutral-100 text-sm">
+                    {app.jobTitle}{' '}
+                    <span className="text-xs text-neutral-500">
+                      @ {app.company}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Applied {app.appliedAt.toLocaleDateString()} • Status:{' '}
+                    {app.status}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${app.status === 'submitted' ? 'bg-brand-primary/10 text-brand-primary ring-brand-primary/30' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-neutral-300 dark:ring-neutral-700'}`}
+                    >
+                      {app.status}
+                    </span>
+                    {typeof app.matchScore === 'number' && (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
+                          app.matchScore >= 85
+                            ? 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 ring-green-600/20'
+                            : app.matchScore >= 65
+                              ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 ring-blue-600/20'
+                              : app.matchScore >= 40
+                                ? 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 ring-yellow-600/20'
+                                : 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 ring-red-600/20'
+                        }`}
+                      >
+                        Match {app.matchScore}%
+                      </span>
+                    )}
+                    {app.interviewStatus === 'completed' &&
+                      app.interviewScore && (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 ring-purple-600/20">
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Interview: {app.interviewScore}%
+                        </span>
+                      )}
+                  </div>
+                  {app.lastEventStatus && (
+                    <p className="mt-2 text-[10px] text-neutral-500">
+                      Last update: {app.lastEventStatus} on{' '}
+                      {app.lastEventAt?.toLocaleDateString()}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      href={`/applications/${app._id}`}
+                      className="btn-outline px-3 py-1.5 text-xs"
+                    >
+                      View Details
+                    </Link>
+                    {app.interviewStatus === 'completed' ? (
+                      <Link
+                        href={`/applications/${app._id}#interview`}
+                        className="btn-primary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                      >
+                        <svg
+                          className="w-3 h-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                        View Interview
+                      </Link>
+                    ) : app.interviewStatus === 'in_progress' ? (
+                      <Link
+                        href={`/interview/${app.interviewSessionId}`}
+                        className="btn-primary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                      >
+                        <svg
+                          className="w-3 h-3 animate-pulse"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Continue Interview
+                      </Link>
+                    ) : (
+                      app.matchScore !== undefined &&
+                      app.matchScore >= 50 &&
+                      app.matchScore < 90 && (
+                        <Link
+                          href={`/applications/${app._id}#interview`}
+                          className="btn-secondary px-3 py-1.5 text-xs inline-flex items-center gap-1"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                            />
+                          </svg>
+                          Take AI Interview
+                        </Link>
+                      )
+                    )}
+                  </div>
+                </div>
+              ))}
+              {enriched.length > 3 && (
+                <Link
+                  href="#applications-detail"
+                  className="btn-outline w-full py-2 text-sm text-center block mt-3"
+                >
+                  View All {enriched.length} Applications
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Recommendations & Quick Actions Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <JobRecommendationsContainer limit={5} />
         <QuickActionsWidget
           profileCompleteness={completenessResult?.score || 0}
           hasResume={!!resume}
@@ -161,13 +340,14 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Applications Section */}
+      {/* Detailed Applications Section */}
       <section
+        id="applications-detail"
         aria-labelledby="applications-heading"
         className="flex flex-col gap-4"
       >
         <h2 id="applications-heading" className="text-xl font-semibold">
-          Applications
+          All Applications
         </h2>
         {enriched.length === 0 && (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 bg-white dark:bg-neutral-900 shadow-sm">

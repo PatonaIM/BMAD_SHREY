@@ -187,13 +187,19 @@ export function ProfileCompletenessCard({
         </div>
       )}
 
-      {/* Action Button */}
-      <div className="mt-6">
+      {/* Action Buttons */}
+      <div className="mt-6 flex gap-3">
         <Link
           href="/profile/edit"
-          className="btn-primary w-full justify-center px-4 py-2 text-sm"
+          className="btn-primary flex-1 justify-center px-4 py-2 text-sm"
         >
           {score.score < 85 ? 'Complete Profile' : 'Edit Profile'}
+        </Link>
+        <Link
+          href="/profile/recommendations"
+          className="btn-outline flex-1 justify-center px-4 py-2 text-sm"
+        >
+          View Detailed Recommendations
         </Link>
       </div>
     </div>
