@@ -55,16 +55,19 @@ export function createStage(
   type: StageType,
   data: StageData,
   options: {
+    applicationId: string;
+    createdBy: string;
     order?: number;
     status?: StageStatus;
     title?: string;
     visibleToCandidate?: boolean;
-  } = {}
+  }
 ): ApplicationStage {
   const now = new Date();
 
   return {
     id: uuidv4(),
+    applicationId: options.applicationId,
     type,
     order: options.order ?? 0,
     status: options.status ?? 'pending',
@@ -74,6 +77,8 @@ export function createStage(
     createdAt: now,
     updatedAt: now,
     completedAt: options.status === 'completed' ? now : undefined,
+    createdBy: options.createdBy,
+    updatedBy: options.createdBy,
     candidateActions: [],
     recruiterActions: [],
   };
