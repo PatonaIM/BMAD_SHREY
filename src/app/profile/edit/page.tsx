@@ -24,7 +24,6 @@ export default function ProfileEditPage() {
     null
   );
   const [showResumeUpload, setShowResumeUpload] = useState(false);
-  const [profileComplete, setProfileComplete] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
 
   // Redirect if not authenticated
@@ -254,37 +253,23 @@ export default function ProfileEditPage() {
               error={error}
             />
             <button
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+            >
+              Go to Dashboard
+            </button>
+            <button
+              onClick={() => router.push('/jobs')}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+            >
+              Browse Jobs
+            </button>
+            <button
               onClick={() => handleSave(true)}
               disabled={saving}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
             >
               Save Version
-            </button>
-          </div>
-        </div>
-
-        {/* Profile Complete Toggle */}
-        <div className="mb-6 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100 mb-2">
-                Profile Status
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-neutral-400">
-                {profileComplete
-                  ? 'Your profile is marked as complete. You can now focus on applying to jobs!'
-                  : "Mark your profile as complete when you're done editing to unlock full matching features."}
-              </p>
-            </div>
-            <button
-              onClick={() => setProfileComplete(!profileComplete)}
-              className={`px-6 py-3 rounded-md font-medium text-sm transition-colors ${
-                profileComplete
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {profileComplete ? '✓ Profile Complete' : 'Mark as Complete'}
             </button>
           </div>
         </div>
