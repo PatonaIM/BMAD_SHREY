@@ -135,7 +135,7 @@ export const candidateRouter = t.router({
                     $expr: {
                       $and: [
                         { $eq: ['$jobId', '$$jobId'] },
-                        { $eq: ['$candidateId', userId] }, // userId is already a string
+                        { $eq: ['$userId', userId] }, // Fixed: use userId field instead of candidateId
                       ],
                     },
                   },
