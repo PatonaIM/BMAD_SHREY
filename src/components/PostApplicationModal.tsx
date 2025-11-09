@@ -190,30 +190,30 @@ export function PostApplicationModal({
       onClick={handleBackdropClick}
     >
       <div
-        className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300"
+        className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header with Gradient */}
         <div
-          className={`bg-gradient-to-r ${currentContent.bgGradient} text-white p-6`}
+          className={`bg-gradient-to-r ${currentContent.bgGradient} text-white p-4`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <span className="text-4xl">{currentContent.icon}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-3xl">{currentContent.icon}</span>
               <div>
-                <h2 className="text-2xl font-bold">Application Submitted</h2>
-                <p className="text-sm opacity-90">
+                <h2 className="text-lg font-bold">Application Submitted</h2>
+                <p className="text-xs opacity-90">
                   {jobTitle} at {jobCompany}
                 </p>
               </div>
             </div>
             <button
               onClick={handleContinue}
-              className="text-white/80 hover:text-white hover:bg-white/20 rounded-full p-2 transition"
+              className="text-white/80 hover:text-white hover:bg-white/20 rounded-full p-1.5 transition"
               aria-label="Close"
             >
               <svg
-                className="w-6 h-6"
+                className="w-5 h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -230,52 +230,52 @@ export function PostApplicationModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 space-y-4">
           {/* Match Score Display */}
           <div className="text-center">
             <div
-              className={`inline-flex items-center justify-center w-24 h-24 rounded-full ${currentContent.badgeBg} mb-3`}
+              className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${currentContent.badgeBg} mb-2`}
             >
-              <div className={`text-4xl font-bold ${getScoreColor()}`}>
+              <div className={`text-3xl font-bold ${getScoreColor()}`}>
                 {matchScore}%
               </div>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full bg-gradient-to-r ${currentContent.bgGradient} transition-all duration-500`}
                 style={{ width: `${matchScore}%` }}
               />
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
               Match Score
             </p>
           </div>
 
           {/* Score Breakdown */}
           {scoreBreakdown && (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
                   {scoreBreakdown.skills}%
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  Skills Match
+                <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
+                  Skills
                 </div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+              <div className="text-center p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
                   {scoreBreakdown.experience}%
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
                   Experience
                 </div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <div className="text-center p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="text-xl font-bold text-green-600 dark:text-green-400">
                   {scoreBreakdown.semantic}%
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  Semantic Match
+                <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
+                  Semantic
                 </div>
               </div>
             </div>
@@ -283,14 +283,14 @@ export function PostApplicationModal({
 
           {/* Message */}
           <div
-            className={`${currentContent.badgeBg} rounded-lg p-4 border border-${currentContent.color}-200 dark:border-${currentContent.color}-800`}
+            className={`${currentContent.badgeBg} rounded-lg p-3 border border-${currentContent.color}-200 dark:border-${currentContent.color}-800`}
           >
             <h3
-              className={`font-semibold ${currentContent.badgeText} mb-2 text-lg`}
+              className={`font-semibold ${currentContent.badgeText} mb-1 text-sm`}
             >
               {currentContent.title}
             </h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="text-xs text-gray-700 dark:text-gray-300">
               {currentContent.message}
             </p>
           </div>
@@ -298,14 +298,14 @@ export function PostApplicationModal({
           {/* Recommendations */}
           {threshold === 'weak' && (
             <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-2 text-sm">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2 text-xs">
                 Recommended Actions:
               </h4>
               <ul className="space-y-1">
-                {currentContent.recommendations.map((rec, idx) => (
+                {currentContent.recommendations.slice(0, 3).map((rec, idx) => (
                   <li
                     key={idx}
-                    className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
+                    className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300"
                   >
                     <span className="text-yellow-500 mt-0.5">•</span>
                     <span>{rec}</span>
@@ -316,24 +316,24 @@ export function PostApplicationModal({
           )}
 
           {/* Timeline Estimate */}
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path
                 fillRule="evenodd"
                 d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
                 clipRule="evenodd"
               />
             </svg>
-            <span>Typically reviewed within 3-5 business days</span>
+            <span>Reviewed within 3-5 business days</span>
           </div>
 
-          {/* Action Buttons */}
-          <div className="space-y-3">
+          {/* Action Buttons - Side by Side */}
+          <div className="flex gap-2">
             {currentContent.actions.map((action, idx) => (
               <button
                 key={idx}
                 onClick={() => handleAction(action.path)}
-                className={`w-full py-3 px-4 rounded-lg font-medium transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-lg font-medium text-sm transition-all ${
                   action.primary
                     ? `bg-gradient-to-r ${currentContent.bgGradient} text-white hover:shadow-lg hover:scale-[1.02]`
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -346,9 +346,9 @@ export function PostApplicationModal({
 
           {/* Auto-close Timer */}
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <div className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span>Auto-closing in {timeRemaining}s</span>
-              <div className="w-16 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="w-12 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
                   style={{ width: `${progressPercent}%` }}
