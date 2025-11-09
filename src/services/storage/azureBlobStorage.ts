@@ -39,7 +39,11 @@ export class AzureBlobResumeStorage implements ResumeStorage {
     await blockBlobClient.upload(data, data.length, {
       blobHTTPHeaders: {
         blobContentType: mimeType,
-        blobContentDisposition: `attachment; filename="${fileName}"`,
+        // Use inline for PDFs to allow browser viewing, attachment for others
+        blobContentDisposition:
+          mimeType === 'application/pdf'
+            ? 'inline'
+            : `attachment; filename="${fileName}"`,
       },
       metadata: {
         userId,

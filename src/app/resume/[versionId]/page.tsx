@@ -97,7 +97,9 @@ export default async function ResumeViewerPage({ params }: PageProps) {
             src={resumeUrl}
             title={`Resume: ${resumeVersion.fileName}`}
             className="w-full h-[800px] border-0"
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-popups"
+            loading="lazy"
+            allow="fullscreen"
           />
         ) : (
           <div className="p-8 text-center">

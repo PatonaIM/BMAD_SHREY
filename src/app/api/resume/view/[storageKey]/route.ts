@@ -3,13 +3,18 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../../auth/options';
 import { getResume } from '../../../../../data-access/repositories/resumeRepo';
 import { findUserByEmail } from '../../../../../data-access/repositories/userRepo';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
-
-const BASE_DIR = join(process.cwd(), 'data', 'resumes');
+import { getResumeStorageAsync } from '../../../../../services/storage/resumeStorage';
 
 interface PageProps {
   params: Promise<{ storageKey: string }>;
+}
+
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 204 });
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  return response;
 }
 
 export async function GET(req: NextRequest, { params }: PageProps) {
@@ -52,28 +57,40 @@ export async function GET(req: NextRequest, { params }: PageProps) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Construct file path
-    const filePath = join(BASE_DIR, decodedStorageKey);
-    // Check if file exists
-    if (!existsSync(filePath)) {
-      return NextResponse.json(
-        { error: 'File not found on disk' },
-        { status: 404 }
+    // Get storage instance (will use Azure or local based on configuration)
+    const storage = await getResumeStorageAsync();
+
+    // Get file from storage (works with both Azure and local storage)
+    const fileBuffer = await storage.get(decodedStorageKey);
+
+    // Return file with appropriate headers for inline viewing
+    const response = new NextResponse(new Uint8Array(fileBuffer));
+    response.headers.set('Content-Type', resumeVersion.mimeType);
+    response.headers.set('Content-Length', fileBuffer.length.toString());
+
+    // For PDFs, use inline to display in browser
+    if (resumeVersion.mimeType === 'application/pdf') {
+      response.headers.set('Content-Disposition', 'inline');
+      // Allow PDF to be embedded in iframe
+      response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    } else {
+      response.headers.set(
+        'Content-Disposition',
+        `inline; filename="${resumeVersion.fileName}"`
       );
     }
 
-    // Read file
-    const fileBuffer = readFileSync(filePath);
-    // Return file with appropriate headers
-    const response = new NextResponse(fileBuffer);
-    response.headers.set('Content-Type', resumeVersion.mimeType);
-    response.headers.set('Content-Length', fileBuffer.length.toString());
-    response.headers.set(
-      'Content-Disposition',
-      `inline; filename="${resumeVersion.fileName}"`
-    );
+    // Security headers
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+
+    // CORS headers to allow iframe embedding
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+
     // Add cache headers for better performance
     response.headers.set('Cache-Control', 'private, max-age=3600');
+
     return response;
   } catch (error) {
     return NextResponse.json(
