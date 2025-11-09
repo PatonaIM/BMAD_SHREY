@@ -519,10 +519,15 @@ export async function startRealtimeInterview(
                   }
 
                   if (name === 'generate_final_feedback' && parsedArgs) {
+                    const overallScore =
+                      typeof parsedArgs.overallScore === 'number'
+                        ? parsedArgs.overallScore
+                        : 0;
+
                     // Update state with detailed feedback and transition to completed
                     update({
                       interviewPhase: 'completed',
-                      finalScore: parsedArgs.overallScore as number,
+                      finalScore: overallScore,
                       finalScoreBreakdown: {
                         clarity: 0, // deprecated but keep for compatibility
                         correctness: 0,
@@ -536,11 +541,75 @@ export async function startRealtimeInterview(
                       },
                     });
 
+                    // Get session ID and video URL
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const sessionId = (window as any).__interviewSessionId;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const videoUrl = (window as any).__interviewVideoUrl;
+
+                    // Call end-session API with complete data
+                    if (sessionId) {
+                      const requestBody = {
+                        sessionId,
+                        endedBy: 'candidate',
+                        reason: 'user_requested',
+                        finalScore: overallScore,
+                        scoreBreakdown: {
+                          clarity: 0,
+                          correctness: 0,
+                          depth: 0,
+                          summary: parsedArgs.summary as string,
+                        },
+                        videoUrl,
+                        detailedFeedback: {
+                          strengths: parsedArgs.strengths as string[],
+                          improvements: parsedArgs.improvements as string[],
+                          summary: parsedArgs.summary as string,
+                        },
+                      };
+
+                      // eslint-disable-next-line no-console
+                      console.log(
+                        '[Score Persistence] Calling end-session API with complete data:',
+                        {
+                          sessionId,
+                          finalScore: overallScore,
+                          hasDetailedFeedback: !!(
+                            parsedArgs.strengths &&
+                            parsedArgs.improvements &&
+                            parsedArgs.summary
+                          ),
+                          videoUrl,
+                        }
+                      );
+
+                      fetch('/api/interview/end-session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody),
+                      })
+                        .then(res => res.json())
+                        .then(data => {
+                          // eslint-disable-next-line no-console
+                          console.log(
+                            '[Score Persistence] ✅ end-session API response:',
+                            data
+                          );
+                        })
+                        .catch(err => {
+                          // eslint-disable-next-line no-console
+                          console.error(
+                            '[Score Persistence] ❌ end-session API error:',
+                            err
+                          );
+                        });
+                    }
+
                     // Emit completion event
                     window.dispatchEvent(
                       new CustomEvent('interview:completed', {
                         detail: {
-                          score: parsedArgs.overallScore,
+                          score: overallScore,
                           feedback: parsedArgs,
                         },
                       })

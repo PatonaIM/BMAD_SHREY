@@ -121,42 +121,48 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
         // eslint-disable-next-line no-console
         console.log('[Interview] Finalizing video...');
         videoUrl = await recording.finalizeAndGetUrl(sessionId);
+
+        // Store video URL globally so generate_final_feedback tool can access it
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__interviewVideoUrl = videoUrl;
       }
 
-      // Step 3: Trigger scoring to calculate final score
+      // Step 3: Trigger scoring - this will calculate score AND call end-session API
       // eslint-disable-next-line no-console
       console.log('[Interview] Calculating score...');
       controller.endAndScore();
 
-      // Step 4: Wait for score to be calculated
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Step 4: Wait for completion event (API call happens in generate_final_feedback tool)
+      // eslint-disable-next-line no-console
+      console.log(
+        '[Interview] ⏳ Waiting for score calculation and persistence...'
+      );
 
-      // Step 5: Update session status and persist scores + video URL via API
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(() => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[Interview] ⚠️ Timeout waiting for completion, proceeding anyway'
+          );
+          resolve();
+        }, 10000); // 10 second timeout
+
+        const handler = () => {
+          clearTimeout(timeout);
+          // eslint-disable-next-line no-console
+          console.log('[Interview] ✅ Score and persistence completed');
+          // Small delay to ensure API call finishes
+          setTimeout(resolve, 1000);
+        };
+
+        window.addEventListener('interview:completed', handler, { once: true });
+      });
+
+      // Step 5: Navigate to score screen
       if (sessionId) {
-        const finalScore = controller.state.finalScore;
-        const scoreBreakdown = controller.state.finalScoreBreakdown;
-        const detailedFeedback = controller.state.detailedFeedback;
-
         // eslint-disable-next-line no-console
-        console.log('[Interview] Updating session...', {
-          finalScore,
-          videoUrl,
-          detailedFeedback,
-        });
-
-        await fetch('/api/interview/end-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            endedBy: 'candidate',
-            reason: 'user_requested',
-            finalScore,
-            scoreBreakdown,
-            videoUrl,
-            detailedFeedback,
-          }),
-        });
+        console.log('[Navigation] Redirecting to score screen...');
+        window.location.href = `/interview/score/${sessionId}`;
       }
 
       // eslint-disable-next-line no-console
@@ -227,6 +233,8 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
   }, [phase, recording, applicationId]);
 
   // Auto-navigate to score screen when interview completes
+  // NOTE: Navigation is now handled in handleEndInterview to ensure all API calls complete first
+  // This effect is disabled to prevent premature redirect
   useEffect(() => {
     if (phase === 'completed') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -234,13 +242,13 @@ export const ModernInterviewPage: React.FC<ModernInterviewPageProps> = ({
       if (sessionId) {
         // eslint-disable-next-line no-console
         console.log(
-          '[Navigation] Interview completed, navigating to score screen...'
+          '[Navigation] Interview completed - navigation will be handled by handleEndInterview'
         );
-        // Wait 2 seconds to show completion state, then navigate
-        const timer = setTimeout(() => {
-          window.location.href = `/interview/score/${sessionId}`;
-        }, 2000);
-        return () => clearTimeout(timer);
+        // Navigation disabled here - happens in handleEndInterview after all API calls
+        // const timer = setTimeout(() => {
+        //   window.location.href = `/interview/score/${sessionId}`;
+        // }, 2000);
+        // return () => clearTimeout(timer);
       }
     }
   }, [phase]);

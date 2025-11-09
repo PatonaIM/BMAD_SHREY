@@ -86,6 +86,20 @@ export interface InterviewSession {
     confidence?: number; // 0-100 - AI confidence in scoring
   };
 
+  // EP5-S21: Interview scoring with detailed AI feedback
+  finalScore?: number; // 0-100 overall score
+  scoreBreakdown?: {
+    clarity?: number;
+    correctness?: number;
+    depth?: number;
+    summary?: string;
+  };
+  detailedFeedback?: {
+    strengths: string[];
+    improvements: string[];
+    summary: string;
+  };
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -114,6 +128,8 @@ export interface UpdateInterviewSessionParams {
   interviewSummary?: string;
   summaryGeneratedAt?: Date;
   // EP5-S21: Detailed feedback from AI
+  finalScore?: number;
+  scoreBreakdown?: InterviewSession['scoreBreakdown'];
   detailedFeedback?: {
     strengths: string[];
     improvements: string[];

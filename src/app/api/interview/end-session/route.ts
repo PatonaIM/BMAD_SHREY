@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         (completedAt.getTime() - startedAt.getTime()) / 1000
       );
 
-      // Map finalScore and scoreBreakdown to the scores structure
+      // Map finalScore and scoreBreakdown to the scores structure (for backward compatibility)
       const scores = finalScore
         ? {
             overall: finalScore,
@@ -179,6 +179,8 @@ export async function POST(req: NextRequest) {
           endedAt: completedAt,
           duration,
           scores,
+          finalScore, // EP5-S21: Store as top-level field
+          scoreBreakdown, // EP5-S21: Store as top-level field
           videoRecordingUrl: videoUrl ?? session.videoRecordingUrl,
           detailedFeedback, // EP5-S21: Store detailed feedback
           metadata: {

@@ -39,7 +39,7 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
     | undefined;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-neutral-950 dark:to-neutral-900 py-12">
+    <div className="min-h-screen bg-neutral-950 py-12">
       <div className="max-w-3xl mx-auto px-4">
         <ScoreCard
           score={finalScore ?? 0}
@@ -63,7 +63,7 @@ export default async function InterviewScorePage({ params }: ScorePageProps) {
           </Link>
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center px-6 py-3 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition font-medium"
+            className="inline-flex items-center justify-center px-6 py-3 bg-neutral-800 text-neutral-200 border border-neutral-700 rounded-lg hover:bg-neutral-700 transition font-medium"
           >
             Go to Dashboard
           </Link>
